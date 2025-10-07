@@ -14,7 +14,6 @@ import {
     ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { auth } from '../../firestoreServices/firebaseConfig';
 import {
     signInWithPhoneNumber,
     PhoneAuthProvider,
@@ -22,12 +21,14 @@ import {
     onAuthStateChanged,
     signOut
 } from 'firebase/auth';
-import styles from '../../style';
-import { useAppContext } from '../context/AppContext';
-import { formatPhoneNumber } from '../../helper';
-import { IPlayer } from '../../types';
+import { useAppContext } from '../../context/AppContext';
+import styles from '../../styles/style';
+import { formatPhoneNumber } from '../../helper/helper';
+import { useNavigation } from '@react-navigation/native';
 
 export const VerificationScreen: React.FC = () => {
+    const navigation = useNavigation<any>();
+
     const { phoneNumber, setPhoneNumber, setUser, setCurrentScreen } = useAppContext();
     const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
     const [countdown, setCountdown] = useState(0);
@@ -45,8 +46,8 @@ export const VerificationScreen: React.FC = () => {
                 setCurrentScreen('verificationSuccess');
                 await saveUserSession(`+90${phoneNumber}`, rememberDevice);
                 setTimeout(() => {
-                    setCurrentScreen('home');
-                    setLoading(false);5
+                    navigation.navigate("home");
+                    setLoading(false); 5
                 }, 2000);
 
                 // Production'da şu şekilde kullanılacak:
@@ -71,14 +72,14 @@ export const VerificationScreen: React.FC = () => {
         }
     };
     const saveUserSession = async (phone: any, remember: any) => {
-        const user : any = {
+        const user: any = {
             phone: phone,
-            birthDate:'',
-            jerseyNumber:"10",
-            name:'Nevzat',
-            position:'Forvet',
-            surname :'elal',
-            lastLogin:''
+            birthDate: '',
+            jerseyNumber: "10",
+            name: 'Nevzat',
+            position: 'Forvet',
+            surname: 'elal',
+            lastLogin: ''
             //uid: auth.currentUser?.uid,
         };
 

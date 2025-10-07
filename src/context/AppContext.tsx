@@ -3,7 +3,7 @@
 // ============================================
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { AppContextType, IPlayer } from '../../components/types/types';
+import { AppContextType, IPlayer } from '../types/types';
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 

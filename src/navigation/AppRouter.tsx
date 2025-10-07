@@ -11,6 +11,8 @@ import { InvitationsScreen } from '../screens/Main/InvitationsScreen';
 import { ProfileScreen } from '../screens/Main/ProfileScreen';
 import { MatchDetailScreen } from '../screens/Main/MatchDetailScreen';
 import { LoginScreen } from '../screens/Auth/LoginScreen';
+import { VerificationScreen } from '../screens/Auth/VerificationScreen';
+import { VerificationSuccessScreen } from '../screens/Auth/VerificationSuccessScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -47,7 +49,14 @@ export default function AppRouter() {
           <Stack.Screen name="matchDetail" component={MatchDetailScreen} />
         </>
       ) : (
-        <Stack.Screen name="login" component={LoginScreen} />
+        <>
+          <Stack.Screen name="login" component={LoginScreen} />
+          <Stack.Screen name="verification" component={VerificationScreen} />
+          <Stack.Screen
+            name="verificationSuccess"
+            component={VerificationSuccessScreen}
+          />
+        </>
       )}
     </Stack.Navigator>
   );

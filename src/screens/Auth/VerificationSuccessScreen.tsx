@@ -9,8 +9,8 @@ import {
     Platform,
     ScrollView,
 } from 'react-native';
-import styles from '../../style';
-import { useAppContext } from '../AppContext';
+import styles from '../../styles/style';
+import { useAppContext } from '../../context/AppContext';
 
 export const VerificationSuccessScreen: React.FC = () => {
     const { phoneNumber, setPhoneNumber, setUser, setCurrentScreen } = useAppContext();
