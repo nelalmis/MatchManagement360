@@ -25,8 +25,11 @@ import { auth } from '../../../firestoreServices/firebaseConfig';
 import { IPlayer } from '../../types/types';
 import styles from '../../styles/style';
 import { formatPhoneNumber } from '../../helper/helper';
+import { useNavigation } from '@react-navigation/native';
 
 export const LoginScreen: React.FC = () => {
+    const navigation = useNavigation<any>();
+
     const { phoneNumber, setPhoneNumber, setUser, setCurrentScreen } = useAppContext();
 
     const [countdown, setCountdown] = useState(0);
@@ -76,7 +79,7 @@ export const LoginScreen: React.FC = () => {
 
     const checkAutoLogin = async () => {
         let user: IPlayer = {
-            id:"2",
+            id: "2",
             birthDate: '2025-09-15',
             jerseyNumber: '10',
             lastLogin: new Date(),
@@ -85,10 +88,10 @@ export const LoginScreen: React.FC = () => {
             position: 'Forvet',
             surname: 'Elalmış',
         }
-        setUser(user);
-        AsyncStorage.setItem('userData', JSON.stringify(user));
-        setCurrentScreen("home");
-        return;
+        // setUser(user);
+        // AsyncStorage.setItem('userData', JSON.stringify(user));
+        // setCurrentScreen("home");
+        // return;
         try {
             const token = await AsyncStorage.getItem('deviceToken');
             const user = await AsyncStorage.getItem('userData');
@@ -97,6 +100,7 @@ export const LoginScreen: React.FC = () => {
                 setTimeout(() => {
                     //setUserData(JSON.parse(user));
                     setCurrentScreen('home');
+                    navigation.navigate("home")
                 }, 1500);
             } else {
                 setCurrentScreen('login');
@@ -130,6 +134,7 @@ export const LoginScreen: React.FC = () => {
                 );
 
                 setCurrentScreen('verification');
+                navigation.navigate("verification");
                 setCountdown(60);
                 setLoading(false);
 
