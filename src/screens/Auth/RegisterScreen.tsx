@@ -17,6 +17,7 @@ export const RegisterScreen: React.FC = () => {
     lastLogin: new Date()    
   });
 
+  
   const handleRegister = () => {
     const userData: any = {
       ...formData,
