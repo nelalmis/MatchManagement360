@@ -21,11 +21,11 @@ import {
     signOut
 } from 'firebase/auth';
 import { useAppContext } from '../../context/AppContext';
-import { auth } from '../../../firestoreServices/firebaseConfig';
 import { IPlayer } from '../../types/types';
 import styles from '../../styles/style';
 import { formatPhoneNumber } from '../../helper/helper';
 import { useNavigation } from '@react-navigation/native';
+import { auth } from '../../api/firebaseConfig';
 
 export const LoginScreen: React.FC = () => {
     const navigation = useNavigation<any>();
