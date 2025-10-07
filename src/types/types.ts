@@ -4,14 +4,15 @@
 export interface IMatchGroup {
   id: any;
   title: string; //Arc Halı Saha Maçları
+  spreadSheetId: string;
   matchOrganizationSetups: Array<IMatchOrganizationSetup>;
-  players: Array<IPlayer>;
+  playerIds: string[];
 }
 export interface IMatchOrganizationSetup {
   id: any;
   matchGroupId: any;
   subTitle: string; // Perşembe Maçı , Salı Maçı
-  surveyStartTime: Date;
+  registrationStartTime: Date;
   matchStartTime: Date;
   matchTotalTimeInMinute: number;
   staffPlayerCount: number;
@@ -28,7 +29,7 @@ export interface IMatchOrganizationSetup {
   surveyFormId: string;
   commentFormId: string;
   calendarId: string;
-  spreadSheetId: string;
+  matchIds: string[];
 }
 export interface IPlayer {
   id: any;
@@ -47,24 +48,24 @@ export interface IMatch {
   matchOrganizationSetupId: any;
   eventId?: string;
   title: string;
-  surveyStartTime: Date;
-  surveyEndTime: Date;
-  responseCount?: number;
+  registrationTime: Date;
+  registrationEndTime: Date;
+  registrationCount?: number;
   matchStartTime: Date;
   matchEndTime: Date;
-  team1Players?: Array<IPlayer>;
-  team2Players?: Array<IPlayer>
+  team1PlayerIds?: Array<string>;
+  team2PlayerIds?: Array<string>
   score?: string;
   status: 'Oluşturuldu' | 'Planlandı' | 'Ödeme Kontrolü' | 'Skor Bekleniyor' | 'Tamamlandı' | 'İptal Edildi';
   matchBoardSheetId?: any;
-  playerOfMatch?: IPlayer;
+  playerIdOfMatchMVP?: string;
   guestPlayers?: Array<string>;
   directPlayers?: Array<string>;
-  teamBuildingAuthorities?: Array<IPlayer>;
-  location?: string;
-  pricePerPlayer?: number;
-  peterIban?: string;
-  peterFullName?: string;
+  teamBuildingAuthorityIds?: Array<string>;
+  location?: string; //maç özelinde özelleştirilebilir
+  pricePerPlayer?: number;//maç özelinde özelleştirilebilir
+  peterIban?: string;//maç özelinde özelleştirilebilir
+  peterFullName?: string;//maç özelinde özelleştirilebilir
 }
 
 export interface IInvitation {

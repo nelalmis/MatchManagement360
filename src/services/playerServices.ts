@@ -1,4 +1,4 @@
-import { addBase, deleteByIdBase, getAllBase, getByIdBase, updateBase } from '../firestoreServiceBase';
+import { addBase, deleteByIdBase, getAllBase, getByIdBase, updateBase } from '../api/firestoreApiBase';
 const collectionName = 'players';
 // Maç ekle
 export async function add(matchData: any) {

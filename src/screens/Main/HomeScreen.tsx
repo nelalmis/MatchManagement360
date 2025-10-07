@@ -13,8 +13,8 @@ import { signOut } from 'firebase/auth';
 import styles from '../../styles/style';
 import { formatPhoneNumber } from '../../helper/helper';
 import { useAppContext } from '../../context/AppContext';
-import { auth } from '../../../firestoreServices/firebaseConfig';
 import { TopMenu } from '../../components/TopMenu';
+import { auth } from '../../api/firebaseConfig';
 
 
 export const HomeScreen: React.FC = () => {

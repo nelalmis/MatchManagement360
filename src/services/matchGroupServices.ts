@@ -1,4 +1,4 @@
-import { addBase, deleteByIdBase, getAllBase, getByIdBase, listenBase, updateBase } from '../firestoreServiceBase';
+import { addBase, deleteByIdBase, getAllBase, getByIdBase, listenBase, updateBase } from '../api/firestoreApiBase';
 const collectionName = 'matchGroups';
 // Maç ekle
 export async function add(matchData: any) {

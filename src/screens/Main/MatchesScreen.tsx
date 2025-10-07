@@ -2,17 +2,18 @@
 // MatchesScreen.tsx
 // ============================================
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Home, Calendar, MapPin, Users } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
 import { IMatch } from '../../types/types';
 import { PageHeader } from '../../components/PageHeader';
+import { matchService } from '../../services/matchService';
 
 export const MatchesScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { setCurrentScreen } = useAppContext();
+  const { setCurrentScreen, user } = useAppContext();
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [matches, setMatches] = useState<IMatch[]>([
     {
@@ -23,16 +24,16 @@ export const MatchesScreen: React.FC = () => {
       location: 'Merkez Spor Kompleksi',
       peterIban: 'TR00 0000 0000 0000 0000 0000 00',
       matchOrganizationSetupId: 1,
-      surveyStartTime: new Date(),
-      surveyEndTime: new Date(),
+      registrationTime: new Date(),
+      registrationEndTime: new Date(),
       status: 'Planlandı'
     }
   ]);
 
-   // Kullanım örneği.
-  // useEffect(() => {
-  //   matchService.getAll().then(setMatches);
-  // }, []);
+  // Kullanım örneği.
+  useEffect(() => {
+    matchService.getUserMatches(user?.id).then(setMatches);
+  }, []);
 
   const openMatchDetail = (match: any) => {
     // Maç bilgilerini parametre olarak gönderiyoruz 👇
