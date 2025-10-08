@@ -32,13 +32,13 @@ export interface IMatchOrganizationSetup {
   matchIds: string[];
 }
 export interface IPlayer {
-  id: any;
-  name: string;
-  surname: string;
-  position: string;
+  id?: any;
+  name?: string;
+  surname?: string;
+  position?: string;
   jerseyNumber?: string;
-  birthDate: string;
-  phone: string;
+  birthDate?: string;
+  phone?: string;
   email?: string;
   lastLogin?: Date;
 }
@@ -68,6 +68,17 @@ export interface IMatch {
   peterFullName?: string;//maç özelinde özelleştirilebilir
 }
 
+export interface IDevice {
+  id: any;
+  playerId?: string;
+  deviceId?: string;
+  deviceName?: string;
+  platform?: string;
+  addedAt?: string;
+  lastUsed?: string;
+  isActive?: boolean;
+}
+
 export interface IInvitation {
   id: number;
   name: string;
@@ -91,4 +102,10 @@ export interface AppContextType {
   setPhoneNumber: (phone: string) => void;
   currentScreen: string;
   setCurrentScreen: (screen: string) => void;
+  countdown: number;
+  setCountdown: (count: number) => void;
+  rememberDevice: boolean;
+  setRememberDevice: (remember: boolean) => void;
+  isVerified: boolean;
+  setIsVerified: (isVerified: boolean) => void;
 }

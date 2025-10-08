@@ -7,21 +7,30 @@ import {
     deleteDoc,
     query,
     where,
-    onSnapshot,    
+    onSnapshot,
+    setDoc,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 
-export async function addBase(collectionName:string, matchData: any) {
-  try {
-    const docRef = await addDoc(collection(db, collectionName), {
-      ...matchData,
-      createdAt: new Date(),
-    });
-    return { success: true, id: docRef.id };
-  } catch (error) {
-    console.error('Maç eklenemedi:', error);
-    return { success: false, error };
-  }
+export async function addBase(collectionName: string, data: any) {
+    try {
+        if (data.id) {
+            const docRef = await setDoc(doc(db, collectionName, data.id), {
+                ...data,
+                createdAt: new Date(),
+            });
+            return { success: true, id: data.id };
+        } else {
+            const docRef = await addDoc(collection(db, collectionName), {
+                ...data,
+                createdAt: new Date(),
+            });
+            return { success: true, id: docRef.id };
+        }
+    } catch (error) {
+        console.error('addBase error', error);
+        return { success: false, error };
+    }
 }
 
 // Tüm maçları getir
@@ -34,23 +43,24 @@ export async function getAllBase(collectionName: string) {
         }));
         return docs;
     } catch (error) {
-        console.error('Dökümanlar getirilemedi:', error);
+        console.error('getAllBase error', error);
         return [];
     }
 }
 
 // Belirli kullanıcının maçlarını getir
-export async function getByIdBase(collectionName:string,id: string) {
+export async function getByIdBase(collectionName: string, id: string) {
     try {
         const q = query(
             collection(db, collectionName),
             where('id', '==', id)
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
+        let data = querySnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }));
+        return data.length > 0 ? data[0] : null;
     } catch (error) {
         console.error('Döküman id ile getirelemedi.', error);
         return [];
@@ -84,7 +94,7 @@ export async function deleteByIdBase(collectionName: string, id: string) {
 }
 
 // Gerçek zamanlı dinleme (Real-time)
-export function listenBase(collectionName:string, callback: (docs: any[]) => void) {
+export function listenBase(collectionName: string, callback: (docs: any[]) => void) {
     const unsubscribe = onSnapshot(
         collection(db, collectionName),
         (snapshot) => {

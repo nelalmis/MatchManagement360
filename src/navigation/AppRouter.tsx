@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, StyleSheet } from 'react-native';
 import { useAppContext } from '../context/AppContext';
@@ -24,13 +24,28 @@ const MainLayout = ({ children }: any) => (
 );
 
 export default function AppRouter() {
-  const { user } = useAppContext();
+  const { user, isVerified } = useAppContext();
+  const [initialRoute, setInitialRoute] = useState<'login' | 'home'>('login');
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {user ? (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        animation: 'none'
+      }}
+      initialRouteName={initialRoute}
+    >
+      {user && isVerified ? (
         <>
-          <Stack.Screen name="home" options={{ headerShown: false }}>
+          <Stack.Screen name="home"
+            options={{
+              headerShown: false,
+              //animation: 'fade',              // Fade in/out
+              // animation: 'slide_from_right', // Sağdan sola (default)
+              // animation: 'slide_from_left',  // Soldan sağa
+              // animation: 'slide_from_bottom', // Alttan yukarı
+              // animation: 'none',             // Animasyon yok
+            }}>
             {() => <MainLayout><HomeScreen /></MainLayout>}
           </Stack.Screen>
 

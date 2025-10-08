@@ -10,6 +10,7 @@ import { useAppContext } from '../../context/AppContext';
 import { IMatch } from '../../types/types';
 import { PageHeader } from '../../components/PageHeader';
 import { matchService } from '../../services/matchService';
+import { getAllMatchGroups } from '../../services/matchGroupServices';
 
 export const MatchesScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -32,7 +33,8 @@ export const MatchesScreen: React.FC = () => {
 
   // Kullanım örneği.
   useEffect(() => {
-    matchService.getUserMatches(user?.id).then(setMatches);
+    matchService.getPlayerMatches(user?.id).then(setMatches);
+    console.log(JSON.stringify(getAllMatchGroups()));
   }, []);
 
   const openMatchDetail = (match: any) => {

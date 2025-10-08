@@ -60,11 +60,11 @@ export const matchApi = {
     },
 
     // Belirli kullanıcının maçlarını getir
-    getUserMatches: async (userId: string) => {
+    getPlayerMatches: async (playerId: string) => {
         try {
             const q = query(
                 collection(db, collectionName),
-                where('userId', '==', userId)
+                where('playerId', '==', playerId)
             );
             const querySnapshot = await getDocs(q);
             return querySnapshot.docs.map(doc => ({

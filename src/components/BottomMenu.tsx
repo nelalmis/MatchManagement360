@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Home, Users, Mail, User } from 'lucide-react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { CommonActions, useNavigation, useRoute } from '@react-navigation/native';
 
 export const BottomMenu = () => {
   const navigation = useNavigation<any>();
@@ -15,6 +15,14 @@ export const BottomMenu = () => {
     { name: 'profile', label: 'Profil', icon: User },
   ];
 
+  const handleNavigate = (screen: string) => {
+    navigation.dispatch(
+      CommonActions.navigate({
+        name: screen,
+        params: { animation: 'none' }
+      })
+    );
+  };
   return (
     <View style={styles.bottomMenu}>
       {menuItems.map((item) => {
@@ -25,7 +33,7 @@ export const BottomMenu = () => {
           <TouchableOpacity
             key={item.name}
             style={styles.menuItem}
-            onPress={() => navigation.navigate(item.name)}
+            onPress={() => handleNavigate(item.name)}
           >
             <Icon size={24} color={isActive ? '#2563eb' : '#666'} />
             <Text style={[styles.menuText, isActive && styles.menuTextActive]}>
