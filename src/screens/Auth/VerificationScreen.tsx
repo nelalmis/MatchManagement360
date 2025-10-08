@@ -25,43 +25,67 @@ import { useAppContext } from '../../context/AppContext';
 import styles from '../../styles/style';
 import { formatPhoneNumber } from '../../helper/helper';
 import { useNavigation } from '@react-navigation/native';
+import * as Application from 'expo-application';
+import { deviceService } from '../../services/deviceService';
+import { getOrCreateDeviceId } from '../../helper/deviceHelper';
+import { playerService } from '../../services/playerService';
+import { IPlayer } from '../../types/types';
 
 export const VerificationScreen: React.FC = () => {
     const navigation = useNavigation<any>();
 
-    const { phoneNumber, setPhoneNumber, setUser, setCurrentScreen } = useAppContext();
+    const { phoneNumber, setUser, user, setCurrentScreen, countdown, setCountdown, rememberDevice, setIsVerified } = useAppContext();
     const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
-    const [countdown, setCountdown] = useState(0);
-    const [rememberDevice, setRememberDevice] = useState(true);
     const [loading, setLoading] = useState(false);
 
     const codeInputRefs: any = useRef([]);
+
+    // Geri sayım timer
+    useEffect(() => {
+        if (countdown > 0) {
+            const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [countdown]);
 
     const handleVerify = async () => {
         const code = verificationCode.join('');
         if (code.length === 6) {
             setLoading(true);
             try {
+
+                let userData = user;
+                const formattedPhone = `+90${phoneNumber}`;
+
+                if (!userData || !userData.id) {
+
+                    //user add basic
+                    userData = await playerService.add({
+                        phone: formattedPhone,
+                        birthDate: '',
+                        name: '',
+                        position: '',
+                        surname: '',
+                        id: null,
+                    })
+                }
+
+                // Cihazı kaydet
+                await registerDevice(userData?.id, rememberDevice);
+                await saveUserSession(userData, rememberDevice);
+
                 // TEST MODU - Production'da kaldırılacak
                 setCurrentScreen('verificationSuccess');
-                await saveUserSession(`+90${phoneNumber}`, rememberDevice);
+                navigation.navigate("verificationSuccess");
                 setTimeout(() => {
-                    navigation.navigate("home");
-                    setLoading(false); 5
+                    navigation.navigate("home", {animation:'slide_from_left'});
+                    setLoading(false);
                 }, 2000);
 
                 // Production'da şu şekilde kullanılacak:
                 /*
                 const credential = PhoneAuthProvider.credential(verificationId, code);
                 await signInWithCredential(auth, credential);
-                fdbcvb
-                setStep('success');
-                await saveUserSession(`+90${phoneNumber}`, rememberDevice);
-                
-                setTimeout(() => {
-                    setStep('home');
-                    setLoading(false);
-                }, 2000);
                 */
 
             } catch (error: any) {
@@ -71,20 +95,9 @@ export const VerificationScreen: React.FC = () => {
             }
         }
     };
-    const saveUserSession = async (phone: any, remember: any) => {
-        const user: any = {
-            phone: phone,
-            birthDate: '',
-            jerseyNumber: "10",
-            name: 'Nevzat',
-            position: 'Forvet',
-            surname: 'elal',
-            lastLogin: ''
-            //uid: auth.currentUser?.uid,
-        };
-
+    const saveUserSession = async (userData: any, remember: any) => {
         try {
-            await AsyncStorage.setItem('userData', JSON.stringify(user));
+            await AsyncStorage.setItem('userData', JSON.stringify(userData));
 
             if (remember) {
                 const token = generateSecureToken();
@@ -92,7 +105,8 @@ export const VerificationScreen: React.FC = () => {
                 await AsyncStorage.setItem('trustedDevice', 'true');
             }
 
-            setUser(user);
+            setUser(userData);
+            setIsVerified(true);
         } catch (error) {
             console.log('Save session error:', error);
         }
@@ -129,6 +143,47 @@ export const VerificationScreen: React.FC = () => {
     const generateSecureToken = () => {
         return 'token_' + Math.random().toString(36).substr(2, 16);
     };
+
+
+    // OTP doğrulandıktan sonra çağrılacak fonksiyon
+    const registerDevice = async (userId: string, rememberDevice: boolean) => {
+        if (!rememberDevice) {
+            console.log('ℹ️ User chose not to remember device');
+            return;
+        }
+
+        try {
+            // Device ID al
+            let deviceId = await AsyncStorage.getItem('deviceId');
+            if (!deviceId) {
+                deviceId = await getOrCreateDeviceId();
+                await AsyncStorage.setItem('deviceId', deviceId);
+            }
+
+            const deviceName = Platform.OS === 'ios' ? 'iPhone' : 'Android';
+            const deviceModel = Platform.OS === 'ios'
+                ? await Application.applicationName
+                : 'Android Device';
+
+            // devices collection'a kaydet
+            deviceService.add({
+                id: deviceId,
+                playerId: userId,
+                deviceId: deviceId,
+                deviceName: `${deviceName} - ${deviceModel}`,
+                platform: Platform.OS,
+                addedAt: new Date().toISOString(),
+                lastUsed: new Date().toISOString(),
+                isActive: true
+            });
+
+            console.log('✅ Device registered successfully');
+
+        } catch (error) {
+            console.error('❌ Device registration error:', error);
+        }
+    };
+
 
     return (
         <SafeAreaView style={styles.container}>

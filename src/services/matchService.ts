@@ -19,8 +19,8 @@ export const matchService = {
         return response.success;
     },
 
-    async getUserMatches(userId: string): Promise<Array<IMatch>> {
-        const response = await matchApi.getUserMatches(userId);
+    async getPlayerMatches(playerId: string): Promise<Array<IMatch>> {
+        const response = await matchApi.getPlayerMatches(playerId);
         return response.map((m: any) => ({
             id: m.id,
             matchEndTime: m.matchEndTime,

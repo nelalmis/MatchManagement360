@@ -18,16 +18,17 @@ import { auth } from '../../api/firebaseConfig';
 
 
 export const HomeScreen: React.FC = () => {
-    const { phoneNumber, setPhoneNumber, setUser, setCurrentScreen, user } = useAppContext();
+    const { phoneNumber, setPhoneNumber, setUser, setCurrentScreen, user, setIsVerified } = useAppContext();
     const handleLogout = async () => {
         try {
             await signOut(auth);
             await AsyncStorage.clear();
             setUser(null);
+            setIsVerified(false);
             setPhoneNumber('');
             //setVerificationCode(['', '', '', '', '', '']);
             setCurrentScreen('login');
-            Alert.alert('Çıkış Yapıldı', 'Başarıyla çıkış yaptınız.');
+            //Alert.alert('Çıkış Yapıldı', 'Başarıyla çıkış yaptınız.');
         } catch (error: any) {
             console.log('Logout error:', error);
             Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu.');
