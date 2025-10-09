@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, StyleSheet } from 'react-native';
+import { SafeAreaView, StyleSheet } from 'react-native';
 import { useAppContext } from '../context/AppContext';
-import { BottomMenu } from '../components/BottomMenu';
+import { Header } from '../components/Header';
+import { SideMenu } from '../components/SideMenu';
+import { BottomNav } from '../components/BottomNav';
+import { useNavigationContext } from '../context/NavigationContext';
 
 // Screens
 import { HomeScreen } from '../screens/Main/HomeScreen';
@@ -13,15 +16,35 @@ import { MatchDetailScreen } from '../screens/Main/MatchDetailScreen';
 import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { VerificationScreen } from '../screens/Auth/VerificationScreen';
 import { VerificationSuccessScreen } from '../screens/Auth/VerificationSuccessScreen';
+import { MyMatchesScreen } from '../screens/Main/MyMatchesScreen';
+import { InvitesScreen } from '../screens/Main/InvitesScreen';
+import { MyProfileScreen } from '../screens/Main/MyProfileScreen';
+import { MatchDetailScreenV2 } from '../screens/Main/MatchDetailScreenV2';
+import { CreateMatchScreen } from '../screens/Main/CreateMatchScreen';
 
 const Stack = createNativeStackNavigator();
 
-const MainLayout = ({ children }: any) => (
-  <View style={styles.container}>
-    <View style={styles.content}>{children}</View>
-    <BottomMenu />
-  </View>
-);
+// MainLayout Wrapper
+const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { menuOpen, setMenuOpen, headerTitle } = useNavigationContext();
+
+  const onCloseSideMenu = () => {
+    setMenuOpen(false);
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <Header menuOpen={menuOpen} title={headerTitle} setMenuOpen={(open) => setMenuOpen(open)} />
+      <SideMenu isOpen={menuOpen} onClose={onCloseSideMenu} />
+
+      <SafeAreaView style={styles.mainContent}>
+        {children}
+      </SafeAreaView>
+
+      <BottomNav />
+    </SafeAreaView>
+  );
+};
 
 export default function AppRouter() {
   const { user, isVerified } = useAppContext();
@@ -29,42 +52,62 @@ export default function AppRouter() {
 
   return (
     <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-        animation: 'none'
-      }}
+      screenOptions={{ headerShown: false, animation: 'none' }}
       initialRouteName={initialRoute}
     >
       {user && isVerified ? (
         <>
-          <Stack.Screen name="home"
-            options={{
-              headerShown: false,
-              //animation: 'fade',              // Fade in/out
-              // animation: 'slide_from_right', // Sağdan sola (default)
-              // animation: 'slide_from_left',  // Soldan sağa
-              // animation: 'slide_from_bottom', // Alttan yukarı
-              // animation: 'none',             // Animasyon yok
-            }}>
-            {() => <MainLayout><HomeScreen /></MainLayout>}
+          {/* Main Layout ile sarmalanmış ekranlar */}
+          <Stack.Screen name="home">
+            {() => (
+              <MainLayout>
+                <HomeScreen />
+              </MainLayout>
+            )}
           </Stack.Screen>
 
           <Stack.Screen name="matches">
-            {() => <MainLayout><MatchesScreen /></MainLayout>}
+            {() => (
+              <MainLayout>
+                <MyMatchesScreen />
+              </MainLayout>
+            )}
           </Stack.Screen>
 
-          <Stack.Screen name="invitations">
-            {() => <MainLayout><InvitationsScreen /></MainLayout>}
+          <Stack.Screen name="invites">
+            {() => (
+              <MainLayout>
+                <InvitesScreen />
+              </MainLayout>
+            )}
           </Stack.Screen>
 
           <Stack.Screen name="profile">
-            {() => <MainLayout><ProfileScreen /></MainLayout>}
+            {() => (
+              <MainLayout>
+                <MyProfileScreen />
+              </MainLayout>
+            )}
           </Stack.Screen>
 
-          <Stack.Screen name="matchDetail" component={MatchDetailScreen} />
+          <Stack.Screen name="matchDetail">
+            {() => (
+              <MainLayout>
+                <MatchDetailScreenV2 />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="createMatch">
+            {() => (
+              <MainLayout>
+                <CreateMatchScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
         </>
       ) : (
         <>
+          {/* Auth ekranları MainLayout dışı */}
           <Stack.Screen name="login" component={LoginScreen} />
           <Stack.Screen name="verification" component={VerificationScreen} />
           <Stack.Screen
@@ -78,11 +121,13 @@ export default function AppRouter() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#F9FAFB",
   },
-  content: {
+  mainContent: {
     flex: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 96, // BottomNav alanı için
   },
 });

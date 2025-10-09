@@ -11,10 +11,12 @@ import { IMatch } from '../../types/types';
 import { PageHeader } from '../../components/PageHeader';
 import { matchService } from '../../services/matchService';
 import { getAllMatchGroups } from '../../services/matchGroupServices';
+import { useNavigationContext } from '../../context/NavigationContext';
 
 export const MatchesScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { setCurrentScreen, user } = useAppContext();
+  const {headerTitle} = useNavigationContext();
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [matches, setMatches] = useState<IMatch[]>([
     {
