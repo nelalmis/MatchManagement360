@@ -12,6 +12,7 @@ export interface IMatchOrganizationSetup {
   id: any;
   matchGroupId: any;
   subTitle: string; // Perşembe Maçı , Salı Maçı
+  matchType?: "Futbol" | "Basketbol" | "Voleybol" | "Masa Tenisi"
   registrationStartTime: Date;
   matchStartTime: Date;
   matchTotalTimeInMinute: number;
@@ -108,4 +109,14 @@ export interface AppContextType {
   setRememberDevice: (remember: boolean) => void;
   isVerified: boolean;
   setIsVerified: (isVerified: boolean) => void;
+}
+
+export interface NavigationContextType {
+  currentPage: string;
+  navigate: (currentScreen: string, params?: any) => void;
+  goBack: () => void;
+  setMenuOpen: (menuOpen: boolean) => void;
+  menuOpen: boolean;
+  headerTitle?: string
+  setHeaderTitle: (title: string) => void;
 }

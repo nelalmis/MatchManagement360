@@ -1,31 +1,34 @@
 {
   "expo": {
     "name": "Maç Zamanı",
-    "slug": "MatchManagement360V2",
+    "slug": "mac-zamani",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icons/logo-1.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/icons/logo-1.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icons/logo-1.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.MatchManagement360V2"
+      "package": "com.mac-zamani"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icons/logo-1.png"
     }
   }
 }

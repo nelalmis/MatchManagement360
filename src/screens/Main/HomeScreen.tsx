@@ -1,103 +1,170 @@
 import React from 'react';
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    SafeAreaView,
-    StatusBar,
-    ScrollView,
-    Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signOut } from 'firebase/auth';
-import styles from '../../styles/style';
-import { formatPhoneNumber } from '../../helper/helper';
 import { useAppContext } from '../../context/AppContext';
-import { TopMenu } from '../../components/TopMenu';
 import { auth } from '../../api/firebaseConfig';
-
+import { TrendingUp } from 'lucide-react-native';
+import { MatchCard } from '../../components/MatchCard';
 
 export const HomeScreen: React.FC = () => {
-    const { phoneNumber, setPhoneNumber, setUser, setCurrentScreen, user, setIsVerified } = useAppContext();
-    const handleLogout = async () => {
-        try {
-            await signOut(auth);
-            await AsyncStorage.clear();
-            setUser(null);
-            setIsVerified(false);
-            setPhoneNumber('');
-            //setVerificationCode(['', '', '', '', '', '']);
-            setCurrentScreen('login');
-            //Alert.alert('Çıkış Yapıldı', 'Başarıyla çıkış yaptınız.');
-        } catch (error: any) {
-            console.log('Logout error:', error);
-            Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu.');
-        }
-    };
-    return (
-        <View style={styles.container}>
-            {/* Top Menu */}
-            <TopMenu onLogout={() => console.log("")} onMenuPress={() => console.log()} />
-            <SafeAreaView style={styles.container}>
-                <StatusBar barStyle="dark-content" backgroundColor="#EFF6FF" />
-                <ScrollView contentContainerStyle={styles.homeScrollContainer}>
-                    <View style={styles.homeContainer}>
-                        {/* Header Card */}
-                        <View style={styles.homeCard}>
-                            <View style={styles.homeHeader}>
-                                <View>
-                                    <Text style={styles.homeTitle}>Hoş Geldiniz!</Text>
-                                    <Text style={styles.homePhone}>
-                                        {user?.phone || `+90 ${formatPhoneNumber(phoneNumber)}`}
-                                    </Text>
-                                </View>
-                                <View style={styles.homeAvatar}>
-                                    <Text style={styles.homeAvatarIcon}>📱</Text>
-                                </View>
-                            </View>
-                        </View>
-
-                        {/* Device Status Card */}
-                        {/* <View style={styles.homeCard}>
-                        <View style={styles.deviceStatusContainer}>
-                            <View style={[styles.deviceIcon, isTrustedDevice ? styles.trustedIcon : styles.standardIcon]}>
-                                <Text style={styles.deviceIconText}>{isTrustedDevice ? '🛡️' : '📱'}</Text>
-                            </View>
-                            <View style={styles.deviceTextContainer}>
-                                <Text style={styles.deviceTitle}>
-                                    {isTrustedDevice ? 'Güvenilir Cihaz' : 'Standart Oturum'}
-                                </Text>
-                                <Text style={styles.deviceDescription}>
-                                    {isTrustedDevice
-                                        ? 'Bu cihazda otomatik giriş aktif. Bir sonraki açılışta OTP gerekmeyecek.'
-                                        : 'Bu oturum sonunda tekrar OTP doğrulaması gerekecek.'}
-                                </Text>
-                            </View>
-                        </View>
-                    </View> */}
-
-                        {/* Info Card */}
-                        <View style={styles.infoCard}>
-                            <Text style={styles.infoTitle}>🔐 Firebase Auth Sistemi</Text>
-                            <View style={styles.infoList}>
-                                <Text style={styles.infoItem}>✓ Firebase Phone Authentication</Text>
-                                <Text style={styles.infoItem}>✓ Güvenli oturum yönetimi</Text>
-                                <Text style={styles.infoItem}>✓ Otomatik giriş desteği</Text>
-                            </View>
-                        </View>
-
-                        {/* Logout Button */}
-                        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-                            <Text style={styles.logoutButtonText}>Çıkış Yap</Text>
-                        </TouchableOpacity>
-
-                        <Text style={styles.lastLoginText}>
-                            {/* Son giriş: {new Date(user?.lastLogin).toLocaleString('tr-TR')} */}
-                        </Text>
-                    </View>
-                </ScrollView>
-            </SafeAreaView >
+    const {user} = useAppContext();
+   return (
+    <ScrollView contentContainerStyle={styles.container}>
+      {/* Üst bölüm */}
+      <View style={styles.headerCard}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.welcome}>Hoş geldin,</Text>
+            <Text style={styles.userName}>{user?.name || "" + " "+ user?.surname || ""}</Text>
+          </View>
+          <View style={styles.iconBox}>
+            <TrendingUp size={28} color="white" />
+          </View>
         </View>
 
-    );
-}
+        <View style={styles.statsRow}>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>12</Text>
+            <Text style={styles.statLabel}>Toplam Maç</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>8</Text>
+            <Text style={styles.statLabel}>Galibiyet</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>15</Text>
+            <Text style={styles.statLabel}>Gol</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Maç listesi */}
+      <View style={styles.matchSection}>
+        <Text style={styles.sectionTitle}>Yaklaşan Maçlar</Text>
+
+        <View style={styles.matchList}>
+          <MatchCard
+            title="Salı Akşam Maçı"
+            date="15 Ekim 2025"
+            time="20:00"
+            location="Arena Spor Tesisleri"
+            players="8/10 Oyuncu"
+            status="confirmed"
+          />
+          <MatchCard
+            title="Cumartesi Derbi"
+            date="19 Ekim 2025"
+            time="18:30"
+            location="City Halısaha"
+            players="6/12 Oyuncu"
+            status="pending"
+          />
+           <MatchCard
+            title="Cumartesi Derbi"
+            date="19 Ekim 2025"
+            time="18:30"
+            location="City Halısaha"
+            players="6/12 Oyuncu"
+            status="pending"
+          />
+           <MatchCard
+            title="Cumartesi Derbi"
+            date="19 Ekim 2025"
+            time="18:30"
+            location="City Halısaha"
+            players="6/12 Oyuncu"
+            status="pending"
+          />
+        </View>
+      </View>
+
+      {/* <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Text style={styles.logoutText}>Çıkış Yap</Text>
+      </TouchableOpacity> */}
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    //padding: 16,
+    backgroundColor: '#f9fafb',
+  },
+  headerCard: {
+    backgroundColor: '#16a34a',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+    marginTop:20,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  welcome: {
+    color: '#bbf7d0',
+    fontSize: 14,
+  },
+  userName: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  iconBox: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    padding: 10,
+    borderRadius: 16,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 12,
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginHorizontal: 4,
+  },
+  statNumber: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  statLabel: {
+    color: '#bbf7d0',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  matchSection: {
+    marginTop: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 10,
+  },
+  matchList: {
+    gap: 10,
+  },
+  logoutButton: {
+    backgroundColor: '#dc2626',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  logoutText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+});
