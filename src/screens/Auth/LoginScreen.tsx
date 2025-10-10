@@ -17,12 +17,9 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppContext } from '../../context/AppContext';
-import { IDevice, IPlayer } from '../../types/types';
+import { IPlayer } from '../../types/types';
 import { formatPhoneNumber, isProfileComplete } from '../../helper/helper';
-import { auth } from '../../api/firebaseConfig';
-import { getOrCreateDeviceId } from '../../helper/deviceHelper';
 import { playerService } from '../../services/playerService';
-import { deviceService } from '../../services/deviceService';
 import { ArrowRight } from 'lucide-react-native';
 import { useNavigationContext } from '../../context/NavigationContext';
 
@@ -52,43 +49,39 @@ export const LoginScreen: React.FC = () => {
     const checkAutoLogin = async () => {
         setCheckingDevice(true);
         try {
-            const deviceId = await getOrCreateDeviceId();
             const storedUserData = await AsyncStorage.getItem('userData');
+            const trustedDevice = await AsyncStorage.getItem('trustedDevice');
 
-            if (storedUserData) {
+            if (storedUserData && trustedDevice === 'true') {
                 const userData = JSON.parse(storedUserData) as IPlayer;
-                const deviceData = await deviceService.getById(deviceId) as IDevice;
-
-                if (deviceData && deviceData.isActive && deviceData.playerId === userData.id) {
-                    deviceService.update(deviceId, {
-                        lastUsed: new Date().toISOString()
-                    });
-
-                    playerService.update(userData.id, {
-                        lastLogin: new Date().toISOString()
-                    });
-
-                    setUser(userData);
-                    setIsVerified(true);
-
-                    // ✅ BURASI ÖNEMLİ - Kullanıcı bilgilerini kontrol et
-                    if (!isProfileComplete(userData)) {
-                        // Profil eksik - register sayfasına yönlendir
-                        navigation.navigate("register");
-                    } else {
-                        // Profil tam - success ekranı göster
-                        await AsyncStorage.setItem('userData', JSON.stringify(userData));
-                        setTimeout(() => {
-                            setCheckingDevice(false);
-                            setCurrentScreen('home');
-                            navigation.navigate('home');
-                        }, 800);
-                    }
-                    setLoading(false);
-                    return;
+                
+                // Update last login
+                if (userData.id) {
+                    await playerService.updateLastLogin(userData.id);
                 }
-                await AsyncStorage.removeItem('userData');
+
+                setUser(userData);
+                setIsVerified(true);
+
+                // Check if profile is complete
+                if (!isProfileComplete(userData)) {
+                    // Profil eksik - register sayfasına yönlendir
+                    navigation.navigate("register");
+                } else {
+                    // Profil tam - home'a git
+                    await AsyncStorage.setItem('userData', JSON.stringify(userData));
+                    setTimeout(() => {
+                        setCheckingDevice(false);
+                        setCurrentScreen('home');
+                        navigation.navigate('home');
+                    }, 800);
+                }
+                return;
             }
+            
+            // No stored user or not trusted device
+            await AsyncStorage.removeItem('userData');
+            await AsyncStorage.removeItem('trustedDevice');
             setCheckingDevice(false);
             setCurrentScreen('login');
         } catch (error) {
@@ -103,33 +96,49 @@ export const LoginScreen: React.FC = () => {
             setLoading(true);
             try {
                 const formattedPhone = `+90${phoneNumber}`;
-                const deviceId = await getOrCreateDeviceId();
 
+                // Check if player exists
                 const playerByPhone = await playerService.getPlayerByPhone(formattedPhone);
+                
                 if (playerByPhone) {
+                    // Player exists
                     const playerData = playerByPhone as IPlayer;
+                    
+                    // Save to AsyncStorage
                     await AsyncStorage.setItem('userData', JSON.stringify(playerData));
+                    
+                    // Save trusted device if checkbox is checked
+                    if (rememberDevice) {
+                        await AsyncStorage.setItem('trustedDevice', 'true');
+                    }
+                    
+                    // Update last login
+                    if (playerData.id) {
+                        await playerService.updateLastLogin(playerData.id);
+                    }
+
                     setUser(playerData);
+                    setIsVerified(true);
 
-                    const deviceData = await deviceService.getById(deviceId);
-
-                    if (deviceData && deviceData.playerId === playerData.id) {
-                        const lastUsed = new Date().toISOString();
-                        deviceService.update(deviceId, { lastUsed });
-                        playerService.update(playerData.id, { lastLogin: lastUsed });
-
-                        setUser({ ...playerData, lastLogin: new Date(lastUsed) });
-                        setIsVerified(true);
+                    // Check if profile is complete
+                    if (!isProfileComplete(playerData)) {
+                        // Profil eksik - register'a yönlendir
+                        setCurrentScreen('register');
+                        navigation.navigate('register');
+                    } else {
+                        // Profil tam - home'a git
                         setCurrentScreen('home');
                         navigation.navigate('home');
-                        setLoading(false);
-                        return;
                     }
+                    
+                    setLoading(false);
+                    return;
                 }
 
+                // Player doesn't exist - go to verification
                 setIsVerified(false);
-                setCurrentScreen('verification');
-                navigation.navigate('verification');
+                setCurrentScreen('phoneVerification');
+                navigation.navigate('phoneVerification');
                 setCountdown(60);
                 setLoading(false);
             } catch (error: any) {
@@ -152,11 +161,10 @@ export const LoginScreen: React.FC = () => {
             <SafeAreaView style={styles.loadingContainer}>
                 <StatusBar barStyle="dark-content" backgroundColor="#F0FDF4" />
                 <View style={styles.loadingContent}>
-                    <Image
-                        source={require("../../../assets/icons/splash.png")}
-                        style={styles.loadingLogo}
-                        resizeMode="contain"
-                    />
+                    <View style={styles.loadingLogoContainer}>
+                        <Text style={styles.loadingLogoText}>⚽</Text>
+                    </View>
+                    <Text style={styles.loadingTitle}>Maç Yönetimi</Text>
                     <ActivityIndicator size="large" color="#16a34a" style={styles.loadingSpinner} />
                 </View>
             </SafeAreaView>
@@ -177,11 +185,10 @@ export const LoginScreen: React.FC = () => {
                 >
                     {/* Logo Container */}
                     <View style={styles.headerContainer}>
-                        <Image
-                            source={require("../../../assets/icons/splash.png")}
-                            style={styles.logo}
-                            resizeMode="contain"
-                        />
+                        <View style={styles.logoContainer}>
+                            <Text style={styles.logoEmoji}>⚽</Text>
+                        </View>
+                        <Text style={styles.logoText}>Maç Yönetimi</Text>
                     </View>
 
                     {/* Welcome Section */}
@@ -268,6 +275,9 @@ export const LoginScreen: React.FC = () => {
                             'nı kabul etmiş olursunuz.
                         </Text>
                     </View>
+
+                    {/* Bottom Spacing */}
+                    <View style={styles.bottomSpacing} />
                 </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -288,10 +298,28 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    loadingLogo: {
-        width: 140,
-        height: 140,
+    loadingLogoContainer: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: 'white',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 4,
         marginBottom: 20,
+    },
+    loadingLogoText: {
+        fontSize: 64,
+    },
+    loadingTitle: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#16a34a',
+        marginBottom: 8,
     },
     loadingSpinner: {
         marginTop: 20,
@@ -302,16 +330,33 @@ const styles = StyleSheet.create({
     scrollContainer: {
         flexGrow: 1,
         paddingHorizontal: 24,
-        paddingBottom: 40,
     },
     headerContainer: {
         alignItems: 'center',
         marginTop: 40,
         marginBottom: 32,
     },
-    logo: {
+    logoContainer: {
         width: 100,
         height: 100,
+        borderRadius: 50,
+        backgroundColor: 'white',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
+        marginBottom: 12,
+    },
+    logoEmoji: {
+        fontSize: 48,
+    },
+    logoText: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#16a34a',
     },
     welcomeSection: {
         marginBottom: 32,
@@ -472,5 +517,8 @@ const styles = StyleSheet.create({
     termsLink: {
         color: '#16a34a',
         fontWeight: '600',
+    },
+    bottomSpacing: {
+        height: 40,
     },
 });

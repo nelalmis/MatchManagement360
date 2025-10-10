@@ -6,25 +6,75 @@ import { Header } from '../components/Header';
 import { SideMenu } from '../components/SideMenu';
 import { BottomNav } from '../components/BottomNav';
 import { useNavigationContext } from '../context/NavigationContext';
+import { isProfileComplete } from '../helper/helper';
 
-// Screens
-import { HomeScreen } from '../screens/Main/HomeScreen';
-import { InvitesScreen } from '../screens/Main/InvitesScreen';
-import { VerificationSuccessScreen } from '../screens/Auth/VerificationSuccessScreen';
-import { VerificationScreen } from '../screens/Auth/VerificationScreen';
+// ============================================
+// AUTH SCREENS
+// ============================================
 import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { RegisterScreen } from '../screens/Auth/RegisterScreen';
-import { isProfileComplete } from '../helper/helper';
-import { MyFixturesScreen } from '../screens/Fixture/MyFixturesScreen';
-import { MyProfileScreen } from '../screens/Profile/MyProfileScreen';
-import { MyLeaguesScreen } from '../screens/League/MyLeaguesScreen';
-import { CreateLeagueScreen } from '../screens/League/CreateLeagueScreen';
-import { LeagueDetailScreen } from '../screens/League/LeagueDetailScreen';
-import { EditProfileScreen } from '../screens/Profile/EditProfileScreen';
+import { PhoneVerificationScreen } from '../screens/Auth/PhoneVerificationScreen';
+
+// ============================================
+// HOME SCREENS
+// ============================================
+import { HomeScreen } from '../screens/Home/HomeScreen';
+
+// ============================================
+// LEAGUE SCREENS
+// ============================================
+import { LeagueListScreen } from '../screens/League/LeagueListScreen';
+import { VerificationSuccessScreen } from '../screens/Auth/VerificationSuccessScreen';
+// import { LeagueDetailScreen } from '../screens/League/LeagueDetailScreen';
+// import { CreateLeagueScreen } from '../screens/League/CreateLeagueScreen';
+// import { EditLeagueScreen } from '../screens/League/EditLeagueScreen';
+
+// ============================================
+// FIXTURE SCREENS
+// ============================================
+// import { FixtureListScreen } from '../screens/Fixture/FixtureListScreen';
+// import { FixtureDetailScreen } from '../screens/Fixture/FixtureDetailScreen';
+// import { CreateFixtureScreen } from '../screens/Fixture/CreateFixtureScreen';
+// import { EditFixtureScreen } from '../screens/Fixture/EditFixtureScreen';
+
+// ============================================
+// MATCH SCREENS
+// ============================================
+// import { MatchListScreen } from '../screens/Match/MatchListScreen';
+// import { MatchDetailScreen } from '../screens/Match/MatchDetailScreen';
+// import { MatchRegistrationScreen } from '../screens/Match/MatchRegistrationScreen';
+// import { TeamBuildingScreen } from '../screens/Match/TeamBuildingScreen';
+// import { ScoreEntryScreen } from '../screens/Match/ScoreEntryScreen';
+// import { PaymentTrackingScreen } from '../screens/Match/PaymentTrackingScreen';
+
+// ============================================
+// STANDINGS SCREENS
+// ============================================
+// import { StandingsScreen } from '../screens/Standings/StandingsScreen';
+// import { TopScorersScreen } from '../screens/Standings/TopScorersScreen';
+// import { TopAssistsScreen } from '../screens/Standings/TopAssistsScreen';
+// import { MVPScreen } from '../screens/Standings/MVPScreen';
+
+// ============================================
+// PLAYER SCREENS
+// ============================================
+// import { PlayerProfileScreen } from '../screens/Player/PlayerProfileScreen';
+// import { EditProfileScreen } from '../screens/Player/EditProfileScreen';
+// import { PlayerStatsScreen } from '../screens/Player/PlayerStatsScreen';
+// import { MyMatchesScreen } from '../screens/Player/MyMatchesScreen';
+
+// ============================================
+// SETTINGS SCREENS
+// ============================================
+// import { SettingsScreen } from '../screens/Settings/SettingsScreen';
+// import { NotificationSettingsScreen } from '../screens/Settings/NotificationSettingsScreen';
 
 const Stack = createNativeStackNavigator();
 
-// MainLayout Wrapper - Header + SideMenu + BottomNav ile
+// ============================================
+// LAYOUT COMPONENTS
+// ============================================
+
 interface MainLayoutProps {
   children: React.ReactNode;
   showHeader?: boolean;
@@ -74,7 +124,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   );
 };
 
-// Auth Layout - Header/BottomNav olmadan
 const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <SafeAreaView style={styles.authSafeArea}>
@@ -83,18 +132,26 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   );
 };
 
+// ============================================
+// MAIN ROUTER
+// ============================================
+
 export default function AppRouter() {
   const { user, isVerified } = useAppContext();
   const navigation = useNavigationContext();
 
+  const isAuthenticated = user && isVerified && isProfileComplete(user);
+
   return (
     <Stack.Navigator
       screenOptions={{ headerShown: false }}
-      initialRouteName={user && isVerified && isProfileComplete(user) ? 'home' : 'login'}
+      initialRouteName={isAuthenticated ? 'home' : 'login'}
     >
-      {user && isVerified && isProfileComplete(user) ? (
+      {isAuthenticated ? (
         <>
-          {/* Ana Sayfa */}
+          {/* ============================================ */}
+          {/* HOME SCREENS */}
+          {/* ============================================ */}
           <Stack.Screen name="home">
             {() => (
               <MainLayout headerTitle="Ana Sayfa">
@@ -103,67 +160,18 @@ export default function AppRouter() {
             )}
           </Stack.Screen>
 
-          {/* Maçlarım */}
-          <Stack.Screen name="myFixtures">
-            {() => (
-              <MainLayout headerTitle="Fikstürlerim">
-                <MyFixturesScreen />
-              </MainLayout>
-            )}
-          </Stack.Screen>
+          {/* ============================================ */}
+          {/* LEAGUE SCREENS */}
+          {/* ============================================ */}
 
-          {/* Davetler */}
-          <Stack.Screen name="invites">
+          <Stack.Screen name="leagueList">
             {() => (
-              <MainLayout headerTitle="Davetler">
-                <InvitesScreen />
+              <MainLayout headerTitle="Liglerim">
+                <LeagueListScreen />
               </MainLayout>
             )}
           </Stack.Screen>
-
-          {/* Profilim */}
-          <Stack.Screen name="profile">
-            {() => (
-              <MainLayout headerTitle="Profilim">
-                <MyProfileScreen />
-              </MainLayout>
-            )}
-          </Stack.Screen>
-
-          {/* Maç Detay - Geri butonu ile */}
-          {/* <Stack.Screen name="matchDetail">
-            {() => (
-              <MainLayout
-                headerTitle="Maç Detayı"
-                headerLeftIcon="back"
-                onLeftPress={() => navigation.goBack()}
-              >
-                <MatchDetailScreenV2 />
-              </MainLayout>
-            )}
-          </Stack.Screen> */}
-          <Stack.Screen name="myLeagues">
-            {() => (
-              <MainLayout
-                headerTitle="Liglerim"
-                headerLeftIcon="back"
-                onLeftPress={() => navigation.goBack()}
-              >
-                <MyLeaguesScreen />
-              </MainLayout>
-            )}
-          </Stack.Screen>
-          <Stack.Screen name="createLeague">
-            {() => (
-              <MainLayout
-                headerTitle="Lig Oluştur"
-                headerLeftIcon="back"
-                onLeftPress={() => navigation.goBack()}
-              >
-                <CreateLeagueScreen />
-              </MainLayout>
-            )}
-          </Stack.Screen>
+          {/*
           <Stack.Screen name="leagueDetail">
             {() => (
               <MainLayout
@@ -175,20 +183,228 @@ export default function AppRouter() {
               </MainLayout>
             )}
           </Stack.Screen>
-          {/* Maç Oluştur */}
-          {/* <Stack.Screen name="createMatch">
+
+          <Stack.Screen name="createLeague">
             {() => (
               <MainLayout
-                headerTitle="Maç Oluştur"
+                headerTitle="Lig Oluştur"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+                showBottomNav={false}
+              >
+                <CreateLeagueScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="editLeague">
+            {() => (
+              <MainLayout
+                headerTitle="Lig Düzenle"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+                showBottomNav={false}
+              >
+                <EditLeagueScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+          */}
+
+          {/* ============================================ */}
+          {/* FIXTURE SCREENS */}
+          {/* ============================================ */}
+          {/* 
+          <Stack.Screen name="fixtureList">
+            {() => (
+              <MainLayout
+                headerTitle="Fikstürler"
                 headerLeftIcon="back"
                 onLeftPress={() => navigation.goBack()}
               >
-                <CreateMatchOrganizationScreen />
+                <FixtureListScreen />
               </MainLayout>
             )}
-          </Stack.Screen> */}
+          </Stack.Screen>
 
-          {/* Profili Düzenle - Geri butonu ile, BottomNav olmadan */}
+          <Stack.Screen name="fixtureDetail">
+            {() => (
+              <MainLayout
+                headerTitle="Fikstür Detayı"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+              >
+                <FixtureDetailScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="createFixture">
+            {() => (
+              <MainLayout
+                headerTitle="Fikstür Oluştur"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+                showBottomNav={false}
+              >
+                <CreateFixtureScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="editFixture">
+            {() => (
+              <MainLayout
+                headerTitle="Fikstür Düzenle"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+                showBottomNav={false}
+              >
+                <EditFixtureScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+            */}
+          {/* ============================================ */}
+          {/* MATCH SCREENS */}
+          {/* ============================================ */}
+          {/*
+          <Stack.Screen name="matchList">
+            {() => (
+              <MainLayout headerTitle="Maçlar">
+                <MatchListScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="matchDetail">
+            {() => (
+              <MainLayout
+                headerTitle="Maç Detayı"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+              >
+                <MatchDetailScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="matchRegistration">
+            {() => (
+              <MainLayout
+                headerTitle="Maça Kayıt"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+                showBottomNav={false}
+              >
+                <MatchRegistrationScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="teamBuilding">
+            {() => (
+              <MainLayout
+                headerTitle="Takım Kur"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+                showBottomNav={false}
+              >
+                <TeamBuildingScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="scoreEntry">
+            {() => (
+              <MainLayout
+                headerTitle="Skor Gir"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+                showBottomNav={false}
+              >
+                <ScoreEntryScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="paymentTracking">
+            {() => (
+              <MainLayout
+                headerTitle="Ödeme Takibi"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+                showBottomNav={false}
+              >
+                <PaymentTrackingScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+          */}
+          {/* ============================================ */}
+          {/* STANDINGS SCREENS */}
+          {/* ============================================ */}
+          {/* 
+          <Stack.Screen name="standings">
+            {() => (
+              <MainLayout
+                headerTitle="Puan Durumu"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+              >
+                <StandingsScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="topScorers">
+            {() => (
+              <MainLayout
+                headerTitle="Gol Krallığı"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+              >
+                <TopScorersScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="topAssists">
+            {() => (
+              <MainLayout
+                headerTitle="Asist Krallığı"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+              >
+                <TopAssistsScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="mvp">
+            {() => (
+              <MainLayout
+                headerTitle="MVP"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+              >
+                <MVPScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+            */}
+          {/* ============================================ */}
+          {/* PLAYER SCREENS */}
+          {/* ============================================ */}
+          {/*
+          <Stack.Screen name="playerProfile">
+            {() => (
+              <MainLayout headerTitle="Profilim">
+                <PlayerProfileScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
           <Stack.Screen name="editProfile">
             {() => (
               <MainLayout
@@ -201,30 +417,70 @@ export default function AppRouter() {
               </MainLayout>
             )}
           </Stack.Screen>
+
+          <Stack.Screen name="playerStats">
+            {() => (
+              <MainLayout
+                headerTitle="İstatistiklerim"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+              >
+                <PlayerStatsScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="myMatches">
+            {() => (
+              <MainLayout
+                headerTitle="Maçlarım"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+              >
+                <MyMatchesScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+            */}
+          {/* ============================================ */}
+          {/* SETTINGS SCREENS */}
+          {/* ============================================ */}
+          {/* 
+          <Stack.Screen name="settings">
+            {() => (
+              <MainLayout
+                headerTitle="Ayarlar"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+              >
+                <SettingsScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+
+          <Stack.Screen name="notificationSettings">
+            {() => (
+              <MainLayout
+                headerTitle="Bildirim Ayarları"
+                headerLeftIcon="back"
+                onLeftPress={() => navigation.goBack()}
+                showBottomNav={false}
+              >
+                <NotificationSettingsScreen />
+              </MainLayout>
+            )}
+          </Stack.Screen>
+          */}
         </>
       ) : (
         <>
-          {/* Auth Ekranları - Layout olmadan */}
+          {/* ============================================ */}
+          {/* AUTH SCREENS */}
+          {/* ============================================ */}
           <Stack.Screen name="login">
             {() => (
               <AuthLayout>
                 <LoginScreen />
-              </AuthLayout>
-            )}
-          </Stack.Screen>
-
-          <Stack.Screen name="verification">
-            {() => (
-              <AuthLayout>
-                <VerificationScreen />
-              </AuthLayout>
-            )}
-          </Stack.Screen>
-
-          <Stack.Screen name="verificationSuccess">
-            {() => (
-              <AuthLayout>
-                <VerificationSuccessScreen />
               </AuthLayout>
             )}
           </Stack.Screen>
@@ -236,11 +492,30 @@ export default function AppRouter() {
               </AuthLayout>
             )}
           </Stack.Screen>
+
+          <Stack.Screen name="phoneVerification">
+            {() => (
+              <AuthLayout>
+                <PhoneVerificationScreen />
+              </AuthLayout>
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="verificationSuccess">
+            {() => (
+              <AuthLayout>
+                <VerificationSuccessScreen />
+              </AuthLayout>
+            )}
+          </Stack.Screen>
         </>
       )}
     </Stack.Navigator>
   );
 }
+
+// ============================================
+// STYLES
+// ============================================
 
 const styles = StyleSheet.create({
   safeArea: {
