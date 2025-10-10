@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { useAppContext } from '../../context/AppContext';
+import { useNavigationContext } from '../../context/NavigationContext';
 
-export const CreateMatchScreen: React.FC = () => {
+export const CreateMatchOrganizationScreen: React.FC = () => {
   const [matchName, setMatchName] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -14,6 +16,11 @@ export const CreateMatchScreen: React.FC = () => {
   const [price, setPrice] = useState('');
   const [iban, setIban] = useState('');
   const [periodic, setPeriodic] = useState(false);
+  const { setHeaderTitle } = useNavigationContext();
+
+  useEffect(() => {
+    setHeaderTitle("Yeni Maç Organize Et");
+  }, []);
 
   const handleSubmit = () => {
     console.log('Yeni maç oluşturuldu:', {
@@ -173,7 +180,7 @@ export const CreateMatchScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     // padding: 16,
-    marginTop:10
+    marginTop: 10
   },
   title: {
     fontSize: 22,

@@ -3,14 +3,14 @@
 // import { Match } from "../types/match";
 
 import { matchApi } from "../api/matchApi";
-import { IMatch } from "../types/types";
+import { IMatchFixture } from "../types/types";
 
 export const matchService = {
-    async add(matchData: IMatch): Promise<any> {
+    async add(matchData: IMatchFixture): Promise<any> {
         const response = await matchApi.add(matchData);
         return response.id;
     },
-    async updateMatch(id: string, matchData: IMatch): Promise<boolean> {
+    async updateMatch(id: string, matchData: IMatchFixture): Promise<boolean> {
         const response = await matchApi.updateMatch(id, matchData);
         return response.success;
     },
@@ -19,7 +19,7 @@ export const matchService = {
         return response.success;
     },
 
-    async getPlayerMatches(playerId: string): Promise<Array<IMatch>> {
+    async getPlayerMatches(playerId: string): Promise<Array<IMatchFixture>> {
         const response = await matchApi.getPlayerMatches(playerId);
         return response.map((m: any) => ({
             id: m.id,

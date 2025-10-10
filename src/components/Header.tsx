@@ -1,43 +1,111 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Users, Menu, X } from 'lucide-react-native'; // ✅ doğru paket (mobil)
+import { Users, Menu, X, ArrowLeft, LucideIcon } from 'lucide-react-native';
 
 interface HeaderProps {
-  menuOpen: boolean;
-  setMenuOpen: (open: boolean) => void;
   title?: string;
+  // Sol taraf için seçenekler
+  leftIcon?: 'users' | 'back' | 'none';
+  onLeftPress?: () => void;
+  // Sağ taraf için seçenekler
+  rightIcon?: 'menu' | 'none';
+  menuOpen?: boolean;
+  setMenuOpen?: (open: boolean) => void;
+  // Custom icon (opsiyonel)
+  customLeftIcon?: React.ReactNode;
+  customRightIcon?: React.ReactNode;
 }
 
-export const Header: React.FC<HeaderProps> = ({ menuOpen, setMenuOpen, title }) => (
-  <View style={styles.header}>
-    <View style={styles.inner}>
-      <View style={styles.left}>
-        <View style={styles.iconContainer}>
-          <Users size={24} color="white" />
+export const Header: React.FC<HeaderProps> = ({
+  title = "Maç Yönetimi",
+  leftIcon = 'users',
+  onLeftPress,
+  rightIcon = 'menu',
+  menuOpen = false,
+  setMenuOpen,
+  customLeftIcon,
+  customRightIcon,
+}) => {
+  // Sol icon render
+  const renderLeftIcon = () => {
+    if (customLeftIcon) return customLeftIcon;
+
+    switch (leftIcon) {
+      case 'users':
+        return (
+          <View style={styles.iconContainer}>
+            <Users size={24} color="white" strokeWidth={2} />
+          </View>
+        );
+      case 'back':
+        return (
+          <TouchableOpacity
+            onPress={onLeftPress}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft size={24} color="white" strokeWidth={2} />
+          </TouchableOpacity>
+        );
+      case 'none':
+        return <View style={styles.headerSpacer} />;
+      default:
+        return null;
+    }
+  };
+
+  // Sağ icon render
+  const renderRightIcon = () => {
+    if (customRightIcon) return customRightIcon;
+
+    switch (rightIcon) {
+      case 'menu':
+        return (
+          <TouchableOpacity
+            onPress={() => setMenuOpen?.(!menuOpen)}
+            style={styles.menuButton}
+            activeOpacity={0.7}
+          >
+            {menuOpen ? (
+              <X size={24} color="white" strokeWidth={2} />
+            ) : (
+              <Menu size={24} color="white" strokeWidth={2} />
+            )}
+          </TouchableOpacity>
+        );
+      case 'none':
+        return <View style={styles.headerSpacer} />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <View style={styles.header}>
+      <View style={styles.inner}>
+        <View style={styles.left}>
+          {renderLeftIcon()}
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
         </View>
-        <Text style={styles.title}>{title || "Maç Yönetimi"}</Text>
+        {renderRightIcon()}
       </View>
-      <TouchableOpacity
-        onPress={() => setMenuOpen(!menuOpen)}
-        style={styles.menuButton}
-        activeOpacity={0.7}
-      >
-        {menuOpen ? <X size={24} color="white" /> : <Menu size={24} color="white" />}
-      </TouchableOpacity>
     </View>
-  </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   header: {
-    marginTop: 30,
-    backgroundColor: '#16a34a', // yeşil ton
-    padding: 16,
+    marginTop:30,
+    backgroundColor: '#16a34a',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4, // Android gölgesi
+    elevation: 3,
   },
   inner: {
     flexDirection: 'row',
@@ -47,20 +115,43 @@ const styles = StyleSheet.create({
   left: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
   },
   iconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 8,
-    borderRadius: 12,
-    marginRight: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  backButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   title: {
     color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    flex: 1,
   },
   menuButton: {
-    padding: 8,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerSpacer: {
+    width: 40,
   },
 });
