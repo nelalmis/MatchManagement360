@@ -357,6 +357,16 @@ export interface IPlayer {
   // }
 }
 
+export interface IDevice {
+  id: any;
+  playerId?: string;
+  deviceId?: string;
+  deviceName?: string;
+  platform?: string;
+  addedAt?: string;
+  lastUsed?: string;
+  isActive?: boolean;
+}
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
