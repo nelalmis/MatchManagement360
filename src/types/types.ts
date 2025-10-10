@@ -36,12 +36,12 @@ export interface IPlayer {
   id?: any;
   name?: string;
   surname?: string;
-  position?: string;
+  position?: 'Kaleci' | 'Orta Saha' | 'Forvet'; //Spor türüne göre farklışacaktır.
   jerseyNumber?: string;
-  birthDate?: string;
+  birthDate?: any;
   phone?: string;
   email?: string;
-  lastLogin?: Date;
+  lastLogin?: any;
 }
 
 export interface IMatch {
@@ -119,4 +119,10 @@ export interface NavigationContextType {
   menuOpen: boolean;
   headerTitle?: string
   setHeaderTitle: (title: string) => void;
+}
+
+export interface IResponseBase {
+  success: boolean;
+  id: any;
+  error?: undefined;
 }

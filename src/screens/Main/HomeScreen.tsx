@@ -16,7 +16,7 @@ export const HomeScreen: React.FC = () => {
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.welcome}>Hoş geldin,</Text>
-            <Text style={styles.userName}>{user?.name || "" + " "+ user?.surname || ""}</Text>
+            <Text style={styles.userName}>{(user?.name || "") + " "+(user?.surname || "")}</Text>
           </View>
           <View style={styles.iconBox}>
             <TrendingUp size={28} color="white" />

@@ -15,6 +15,7 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children
     const navigation: NavigationContextType = {
         currentPage,
         navigate: (page: string, params: any = null) => {
+            console.log("page="+page);
             setHeaderTitle("");
             setCurrentPage(page);
             setPageParams(params);
