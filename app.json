@@ -4,13 +4,13 @@
     "slug": "mac-zamani",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icons/logo-1.png",
+    "icon": "./assets/icons/logo-4.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/icons/logo-1.png",
+      "image": "./assets/icons/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#F4F8FF"
     },
     "updates": {
       "fallbackToCacheTimeout": 0
@@ -20,15 +20,15 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icons/logo-1.png",
+        "foregroundImage": "./assets/icons/logo-4.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.mac-zamani"
+      "package": "com.mac.zamani"
     },
     "web": {
-      "favicon": "./assets/icons/logo-1.png"
+      "favicon": "./assets/icons/logo-4.png"
     }
   }
 }

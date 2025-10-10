@@ -1,14 +1,14 @@
 import { playerApi } from "../api/playerApi";
-import { IPlayer } from "../types/types";
+import { IPlayer, IResponseBase } from "../types/types";
 
 export const playerService = {
-  async add(matchData: IPlayer): Promise<any> {
+  async add(matchData: IPlayer): Promise<IResponseBase> {
     const response = await playerApi.add(matchData);
-    return response.id;
+    return response as IResponseBase;
   },
-  async update(id: string, updates: any): Promise<boolean> {
+  async update(id: string, updates: any): Promise<IResponseBase> {
     const response = await playerApi.update(id, updates);
-    return response.success;
+    return response as IResponseBase;
   },
   async delete(id: string): Promise<boolean> {
     const response = await playerApi.delete(id);
