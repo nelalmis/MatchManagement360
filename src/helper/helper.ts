@@ -11,7 +11,7 @@ const formatPhoneNumber = (value: any) => {
 export const isProfileComplete = (user: IPlayer | null): boolean => {
     if (!user) return false;
     
-    const requiredFields = ['name', 'surname', 'position'];
+    const requiredFields = ['name', 'surname'];
     return requiredFields.every(field => user[field as keyof IPlayer]);
 };
 

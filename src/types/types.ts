@@ -196,6 +196,15 @@ export interface IMatch {
   team1PlayerIds?: string[];
   team2PlayerIds?: string[];
   
+  // Takım kurulurken belirlenen pozisyonlar (Maç özelinde)
+  playerPositions?: Record<string, string>; 
+  // playerId -> position mapping
+  // Örnek: { 
+  //   "player123": "Kaleci", 
+  //   "player456": "Forvet",
+  //   "player789": "Orta Saha" 
+  // }
+  
   // ============================================
   // SKOR YÖNETİMİ
   // ============================================
@@ -332,13 +341,20 @@ export interface IPlayer {
   id?: any;
   name?: string;
   surname?: string;
-  position?: string; // bu kısım çoklu spor yapılacağı için burda olmayacak. Oluşturulan lige bunu nasıl entegre ederiz?
   jerseyNumber?: string;
   birthDate?: string;
   phone?: string;
   email?: string;
   lastLogin?: Date;
   favoriteSports?: SportType[];
+  profilePhoto?: string;
+  
+  // Her spor için tercih ettiği pozisyonlar (Birden fazla olabilir)
+  sportPositions?: Partial<Record<SportType, string[]>>; // 👈 Partial ekleyin
+  // Örnek: { 
+  //   "Futbol": ["Kaleci", "Defans"], 
+  //   "Basketbol": ["Guard", "Forward"] 
+  // }
 }
 
 // ============================================
