@@ -1,6 +1,7 @@
 import React, { ReactNode, useState } from "react";
 import { NavigationContextType } from "../types/types";
 import { useNavigation as useNavigationRN, NavigationProp } from '@react-navigation/native';
+import { IScreenNameTitleMap, ScreenNameTitleMap } from "../navigation/ScreenNameTitleMap";
 
 // Navigation Context
 const NavigationContext = React.createContext<NavigationContextType | null>(null);
@@ -15,8 +16,13 @@ export const NavigationProvider: React.FC<{ children: ReactNode }> = ({ children
     const navigation: NavigationContextType = {
         currentPage,
         navigate: (page: string, params: any = null) => {
-            console.log("page="+page);
-            setHeaderTitle("");
+            console.log("page=" + page);
+            var pageInfo = ScreenNameTitleMap.find((u: IScreenNameTitleMap) => u.code === page);
+            if (pageInfo?.isShowTitle)
+                setHeaderTitle(pageInfo.title);
+            else
+                setHeaderTitle("");
+
             setCurrentPage(page);
             setPageParams(params);
             setHistory(prev => [...prev, page]);
