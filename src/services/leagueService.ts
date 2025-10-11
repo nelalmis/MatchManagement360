@@ -5,6 +5,7 @@ export const leagueService = {
   async add(leagueData: ILeague): Promise<IResponseBase> {
     const response = await leagueApi.add({
       ...leagueData,
+      id: undefined, // id'yi undefined yap, null yerine
       createdAt: new Date().toISOString(),
       playerIds: leagueData.playerIds || [],
       premiumPlayerIds: leagueData.premiumPlayerIds || [],

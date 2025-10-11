@@ -5,6 +5,7 @@ export const playerStatsService = {
   async add(statsData: IPlayerStats): Promise<IResponseBase> {
     const response = await playerStatsApi.add({
       ...statsData,
+      id: undefined, // id'yi undefined yap, null yerine
       createdAt: new Date().toISOString()
     });
     return response as IResponseBase;

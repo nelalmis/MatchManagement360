@@ -31,6 +31,7 @@ export const standingsApi = {
         return getAllBase(collectionName);
     },
 
+    // Get all standings for a league
     getStandingsByLeague: async (leagueId: string) => {
         try {
             const q = query(
@@ -49,6 +50,7 @@ export const standingsApi = {
         }
     },
 
+    // Get standings for a specific season
     getStandingsByLeagueAndSeason: async (leagueId: string, seasonId: string) => {
         try {
             const q = query(
@@ -66,4 +68,4 @@ export const standingsApi = {
             return null;
         }
     }
-}
+};

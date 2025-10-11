@@ -5,6 +5,7 @@ export const standingsService = {
   async add(standingsData: IStandings): Promise<IResponseBase> {
     const response = await standingsApi.add({
       ...standingsData,
+      id: undefined,
       lastUpdated: new Date().toISOString()
     });
     return response as IResponseBase;
@@ -71,7 +72,7 @@ export const standingsService = {
     try {
       const playerStandings = playerIds.map(playerId => ({
         playerId,
-        playerName: '', // Will be populated later
+        playerName: '',
         played: 0,
         won: 0,
         drawn: 0,
@@ -82,7 +83,10 @@ export const standingsService = {
         assists: 0,
         points: 0,
         rating: 0,
+        totalRatingsReceived: 0,
+        ratingTrend: 'stable' as 'up' | 'stable' | 'down',
         mvpCount: 0,
+        mvpRate: 0,
         attendanceRate: 0
       }));
 
@@ -163,6 +167,8 @@ export const standingsService = {
         // MVP check
         if (match.playerIdOfMatchMVP === ps.playerId) {
           updated.mvpCount += 1;
+          // Calculate MVP rate
+          updated.mvpRate = updated.played > 0 ? (updated.mvpCount / updated.played) * 100 : 0;
         }
 
         return updated;
@@ -211,10 +217,13 @@ export const standingsService = {
     }
   },
 
-  async updatePlayerRating(
+  // NEW: Update player rating and related stats from rating profile
+  async updatePlayerRatingFromProfile(
     standingsId: string, 
     playerId: string, 
-    rating: number
+    rating: number,
+    totalRatingsReceived: number,
+    ratingTrend: 'up' | 'stable' | 'down'
   ): Promise<boolean> {
     try {
       const standings = await this.getById(standingsId);
@@ -224,7 +233,9 @@ export const standingsService = {
         if (ps.playerId === playerId) {
           return {
             ...ps,
-            rating
+            rating,
+            totalRatingsReceived,
+            ratingTrend
           };
         }
         return ps;
@@ -233,7 +244,7 @@ export const standingsService = {
       await this.update(standingsId, { playerStandings: updatedPlayerStandings });
       return true;
     } catch (err) {
-      console.error("updatePlayerRating hatası:", err);
+      console.error("updatePlayerRatingFromProfile hatası:", err);
       return false;
     }
   },
@@ -255,7 +266,10 @@ export const standingsService = {
         assists: 0,
         points: 0,
         rating: 0,
+        totalRatingsReceived: 0,
+        ratingTrend: 'stable' as 'up' | 'stable' | 'down',
         mvpCount: 0,
+        mvpRate: 0,
         attendanceRate: 0
       }));
 
@@ -294,7 +308,10 @@ export const standingsService = {
         assists: 0,
         points: 0,
         rating: 0,
+        totalRatingsReceived: 0,
+        ratingTrend: 'stable' as 'up' | 'stable' | 'down',
         mvpCount: 0,
+        mvpRate: 0,
         attendanceRate: 0
       };
 
@@ -323,6 +340,10 @@ export const standingsService = {
       return false;
     }
   },
+
+  // ============================================
+  // NEW: Rating & Analysis Methods (Business Logic in Service)
+  // ============================================
 
   async getTopScorers(standingsId: string, limit: number = 10) {
     try {
@@ -358,10 +379,102 @@ export const standingsService = {
       if (!standings) return [];
 
       return standings.playerStandings
-        .sort((a, b) => b.mvpCount - a.mvpCount)
+        .sort((a, b) => {
+          if (b.mvpCount !== a.mvpCount) return b.mvpCount - a.mvpCount;
+          return b.mvpRate - a.mvpRate;
+        })
         .slice(0, limit);
     } catch (err) {
       console.error("getMVPs hatası:", err);
+      return [];
+    }
+  },
+
+  // Get top rated players
+  async getTopRatedPlayers(leagueId: string, seasonId: string, limit: number = 10) {
+    try {
+      const standings = await this.getStandingsByLeagueAndSeason(leagueId, seasonId);
+      if (!standings) return [];
+
+      return standings.playerStandings
+        .filter(p => p.totalRatingsReceived >= 3) // Minimum 3 ratings
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, limit);
+    } catch (err) {
+      console.error("getTopRatedPlayers hatası:", err);
+      return [];
+    }
+  },
+
+  // Get improving players
+  async getImprovingPlayers(leagueId: string, seasonId: string, limit: number = 10) {
+    try {
+      const standings = await this.getStandingsByLeagueAndSeason(leagueId, seasonId);
+      if (!standings) return [];
+
+      return standings.playerStandings
+        .filter(p => p.ratingTrend === 'up' && p.totalRatingsReceived >= 3)
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, limit);
+    } catch (err) {
+      console.error("getImprovingPlayers hatası:", err);
+      return [];
+    }
+  },
+
+  // Get declining players
+  async getDecliningPlayers(leagueId: string, seasonId: string) {
+    try {
+      const standings = await this.getStandingsByLeagueAndSeason(leagueId, seasonId);
+      if (!standings) return [];
+
+      return standings.playerStandings
+        .filter(p => p.ratingTrend === 'down' && p.totalRatingsReceived >= 3)
+        .sort((a, b) => a.rating - b.rating); // Ascending
+    } catch (err) {
+      console.error("getDecliningPlayers hatası:", err);
+      return [];
+    }
+  },
+
+  // Get qualified standings (minimum matches)
+  async getQualifiedStandings(leagueId: string, seasonId: string, minMatches: number = 3) {
+    try {
+      const standings = await this.getStandingsByLeagueAndSeason(leagueId, seasonId);
+      if (!standings) return [];
+
+      return standings.playerStandings
+        .filter(p => p.played >= minMatches)
+        .sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+          return b.goalsScored - a.goalsScored;
+        });
+    } catch (err) {
+      console.error("getQualifiedStandings hatası:", err);
+      return [];
+    }
+  },
+
+  // Get player season comparison
+  async getPlayerSeasonComparison(leagueId: string, playerId: string) {
+    try {
+      const allStandings = await this.getStandingsByLeague(leagueId);
+      
+      const playerSeasonStats = allStandings.map(standing => {
+        const playerData = standing.playerStandings.find(p => p.playerId === playerId);
+        if (!playerData) return null;
+
+        return {
+          seasonId: standing.seasonId,
+          lastUpdated: standing.lastUpdated,
+          stats: playerData
+        };
+      }).filter(s => s !== null);
+
+      return playerSeasonStats;
+    } catch (err) {
+      console.error("getPlayerSeasonComparison hatası:", err);
       return [];
     }
   },
@@ -376,4 +489,4 @@ export const standingsService = {
       lastUpdated: data.lastUpdated
     };
   }
-}
+};

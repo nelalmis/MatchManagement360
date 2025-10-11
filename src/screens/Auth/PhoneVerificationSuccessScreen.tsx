@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useAppContext } from '../../context/AppContext';
 
-export const VerificationSuccessScreen: React.FC = () => {
+export const PhoneVerificationSuccessScreen: React.FC = () => {
     const { rememberDevice } = useAppContext();
     const [progressAnim] = useState(new Animated.Value(0));
     const [scaleAnim] = useState(new Animated.Value(0));

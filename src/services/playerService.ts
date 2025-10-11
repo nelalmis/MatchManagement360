@@ -5,6 +5,7 @@ export const playerService = {
   async add(playerData: IPlayer): Promise<IResponseBase> {
     const response = await playerApi.add({
       ...playerData,
+      id: undefined, // id'yi undefined yap, null yerine
       createdAt: new Date().toISOString(),
       lastLogin: playerData.lastLogin || new Date()
     });

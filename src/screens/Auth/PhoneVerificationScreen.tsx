@@ -5,24 +5,33 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     ActivityIndicator,
-    KeyboardAvoidingView,
     Platform,
     Alert,
     ScrollView,
+    Keyboard,
+    Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppContext } from '../../context/AppContext';
 import { formatPhoneNumber, isProfileComplete } from '../../helper/helper';
 import { playerService } from '../../services/playerService';
+import { deviceService } from '../../services/deviceService';
+import { ExpoNotificationService } from '../../hooks/useNotificationHandler';
 import { IPlayer, IResponseBase } from '../../types/types';
 import { useNavigationContext } from '../../context/NavigationContext';
 import { ArrowLeft } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Device from 'expo-device';
+import { getOrCreateDeviceId } from '../../helper/deviceHelper';
 
 export const PhoneVerificationScreen: React.FC = () => {
     const navigation = useNavigationContext();
+    const scrollViewRef = useRef<ScrollView>(null);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const iconScale = useRef(new Animated.Value(1)).current;
+    
     const { 
         phoneNumber, 
         setUser, 
@@ -36,8 +45,54 @@ export const PhoneVerificationScreen: React.FC = () => {
     
     const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
+    const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
     const codeInputRefs: any = useRef([]);
+
+    useEffect(() => {
+        // Fade in animasyonu
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+        }).start();
+
+        // Klavye listeners
+        const keyboardShow = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            () => {
+                setKeyboardVisible(true);
+                // Icon'u küçült
+                Animated.spring(iconScale, {
+                    toValue: 0.7,
+                    useNativeDriver: true,
+                    friction: 8,
+                }).start();
+                
+                setTimeout(() => {
+                    scrollViewRef.current?.scrollTo({ y: 50, animated: true });
+                }, Platform.OS === 'android' ? 200 : 100);
+            }
+        );
+        
+        const keyboardHide = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            () => {
+                setKeyboardVisible(false);
+                // Icon'u normale döndür
+                Animated.spring(iconScale, {
+                    toValue: 1,
+                    useNativeDriver: true,
+                    friction: 8,
+                }).start();
+            }
+        );
+
+        return () => {
+            keyboardShow.remove();
+            keyboardHide.remove();
+        };
+    }, []);
 
     // Countdown timer
     useEffect(() => {
@@ -47,14 +102,52 @@ export const PhoneVerificationScreen: React.FC = () => {
         }
     }, [countdown]);
 
+    // 🔔 Device token kaydetme fonksiyonu
+    const saveDeviceToken = async (playerId: string) => {
+        try {
+            console.log('📱 Device token kaydediliyor...');
+            
+            const pushToken = await ExpoNotificationService.getExpoPushToken();
+            if (!pushToken) {
+                console.warn('⚠️ Push token alınamadı');
+                return;
+            }
+
+            const deviceName = Device.deviceName || 'Unknown Device';
+            const platform = Platform.OS;
+
+            const existingDevice = await deviceService.getDeviceByDeviceId(pushToken);
+
+            if (existingDevice) {
+                await deviceService.update(existingDevice.id.toString(), {
+                    playerId,
+                    lastUsed: new Date().toISOString(),
+                    isActive: true,
+                });
+                console.log('✅ Device token güncellendi');
+            } else {
+                await deviceService.add({
+                    id: getOrCreateDeviceId(),
+                    playerId,
+                    deviceId: pushToken,
+                    deviceName,
+                    platform,
+                    isActive: true,
+                });
+                console.log('✅ Yeni device token eklendi');
+            }
+        } catch (error) {
+            console.error('❌ Device token kaydetme hatası:', error);
+        }
+    };
+
     const handleVerify = async () => {
         const code = verificationCode.join('');
         if (code.length === 6) {
             setLoading(true);
+            Keyboard.dismiss();
+            
             try {
-                // TODO: Gerçek SMS doğrulama yapılacak
-                // Şimdilik her kodu kabul ediyoruz (development için)
-                
                 let userData = user;
                 const formattedPhone = `+90${phoneNumber}`;
 
@@ -80,15 +173,18 @@ export const PhoneVerificationScreen: React.FC = () => {
                 // Save user session
                 await saveUserSession(userData, rememberDevice);
 
+                // 🔔 Device token'ı kaydet (verification başarılı olduktan sonra)
+                if (userData.id) {
+                    await saveDeviceToken(userData.id.toString());
+                }
+
                 setIsVerified(true);
 
                 // Check if profile is complete
                 if (!isProfileComplete(userData)) {
-                    // Profil eksik - register'a yönlendir
                     setCurrentScreen('register');
                     navigation.navigate("register");
                 } else {
-                    // Profil tam - home'a git
                     setCurrentScreen('home');
                     navigation.navigate("home");
                 }
@@ -118,9 +214,7 @@ export const PhoneVerificationScreen: React.FC = () => {
     };
 
     const handleCodeChange = (index: number, value: string) => {
-        // Backspace kontrolü - eğer boş input'a backspace basılırsa
         if (value === '' && verificationCode[index] === '') {
-            // Bir önceki input'a geç ve onu temizle
             if (index > 0) {
                 const newCode = [...verificationCode];
                 newCode[index - 1] = '';
@@ -130,13 +224,11 @@ export const PhoneVerificationScreen: React.FC = () => {
             return;
         }
 
-        // Sadece rakam kabul et
         if (/^\d*$/.test(value) && value.length <= 1) {
             const newCode = [...verificationCode];
             newCode[index] = value;
             setVerificationCode(newCode);
 
-            // İleri git
             if (value && index < 5) {
                 codeInputRefs.current[index + 1]?.focus();
             }
@@ -146,10 +238,8 @@ export const PhoneVerificationScreen: React.FC = () => {
     const handleKeyPress = (index: number, event: any) => {
         const key = event.nativeEvent.key;
 
-        // Backspace tuşuna basıldıysa ve mevcut input boşsa
         if (key === 'Backspace' && !verificationCode[index]) {
             if (index > 0) {
-                // Bir önceki input'a geç
                 codeInputRefs.current[index - 1]?.focus();
             }
         }
@@ -158,7 +248,7 @@ export const PhoneVerificationScreen: React.FC = () => {
     const handleResend = async () => {
         setVerificationCode(['', '', '', '', '', '']);
         setCountdown(60);
-        // TODO: Gerçek SMS gönderme yapılacak
+        codeInputRefs.current[0]?.focus();
         Alert.alert('Kod Tekrar Gönderildi', 'Yeni doğrulama kodu gönderildi.');
     };
 
@@ -168,13 +258,10 @@ export const PhoneVerificationScreen: React.FC = () => {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
             <StatusBar barStyle="dark-content" backgroundColor="#F0FDF4" />
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.keyboardView}
-            >
+            <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
                 {/* Back Button */}
                 <TouchableOpacity
                     style={styles.backButtonTop}
@@ -186,33 +273,40 @@ export const PhoneVerificationScreen: React.FC = () => {
                 </TouchableOpacity>
 
                 <ScrollView
+                    ref={scrollViewRef}
                     contentContainerStyle={styles.scrollContainer}
                     showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    bounces={false}
                 >
-                    {/* Header */}
+                    {/* Header - Animasyonlu Icon */}
                     <View style={styles.headerContainer}>
-                        <View style={styles.iconContainer}>
-                            <Text style={styles.headerIcon}>📱</Text>
-                        </View>
+                        <Animated.View style={{ transform: [{ scale: iconScale }] }}>
+                            <View style={styles.iconContainer}>
+                                <Text style={styles.headerIcon}>📱</Text>
+                            </View>
+                        </Animated.View>
                     </View>
 
+                    {/* Title Section - Klavye açıkken kompakt */}
                     <View style={styles.welcomeSection}>
-                        <Text style={styles.title}>Telefon Doğrulama</Text>
-                        <Text style={styles.subtitle}>
-                            SMS ile gönderilen 6 haneli kodu girin
+                        <Text style={styles.title}>
+                            {isKeyboardVisible ? 'Doğrulama' : 'Telefon Doğrulama'}
                         </Text>
+                        {!isKeyboardVisible && (
+                            <Text style={styles.subtitle}>
+                                SMS ile gönderilen 6 haneli kodu girin
+                            </Text>
+                        )}
                     </View>
 
                     {/* Main Card */}
                     <View style={styles.card}>
-                        {/* SMS Header */}
+                        {/* SMS Header - Kompakt */}
                         <View style={styles.verificationHeader}>
-                            <View style={styles.smsIconContainer}>
-                                <Text style={styles.verificationIcon}>💬</Text>
-                            </View>
                             <Text style={styles.verificationTitle}>Kodu Girin</Text>
                             <Text style={styles.verificationSubtitle}>
-                                +90 {formatPhoneNumber(phoneNumber)} numarasına gönderilen kodu girin
+                                +90 {formatPhoneNumber(phoneNumber)}
                             </Text>
                         </View>
 
@@ -237,24 +331,24 @@ export const PhoneVerificationScreen: React.FC = () => {
                             ))}
                         </View>
 
-                        {/* Remember Device Notice */}
+                        {/* Remember Device Notice - Kompakt */}
                         {rememberDevice && (
                             <View style={styles.trustedDeviceNotice}>
-                                <View style={styles.shieldIconContainer}>
-                                    <Text style={styles.trustedDeviceIcon}>🛡️</Text>
-                                </View>
+                                <Text style={styles.trustedDeviceIcon}>🛡️</Text>
                                 <Text style={styles.trustedDeviceText}>
-                                    Bu cihaz güvenilir olarak kaydedilecek
+                                    Güvenilir cihaz olarak kaydedilecek
                                 </Text>
                             </View>
                         )}
 
-                        {/* Development Notice */}
-                        <View style={styles.devNotice}>
-                            <Text style={styles.devNoticeText}>
-                                🔧 <Text style={styles.devNoticeBold}>Development Mode:</Text> Herhangi bir 6 haneli kod girebilirsiniz
-                            </Text>
-                        </View>
+                        {/* Development Notice - Kompakt */}
+                        {!isKeyboardVisible && (
+                            <View style={styles.devNotice}>
+                                <Text style={styles.devNoticeText}>
+                                    🔧 <Text style={styles.devNoticeBold}>Dev Mode:</Text> Herhangi bir 6 haneli kod
+                                </Text>
+                            </View>
+                        )}
 
                         {/* Verify Button */}
                         <TouchableOpacity
@@ -277,8 +371,7 @@ export const PhoneVerificationScreen: React.FC = () => {
                         <View style={styles.resendContainer}>
                             {countdown > 0 ? (
                                 <Text style={styles.countdownText}>
-                                    Yeni kod gönderilebilir:{' '}
-                                    <Text style={styles.countdownBold}>{countdown}s</Text>
+                                    Yeni kod: <Text style={styles.countdownBold}>{countdown}s</Text>
                                 </Text>
                             ) : (
                                 <TouchableOpacity
@@ -293,23 +386,22 @@ export const PhoneVerificationScreen: React.FC = () => {
                             )}
                         </View>
 
-                        {/* Change Number */}
-                        <TouchableOpacity
-                            onPress={handleBack}
-                            style={styles.changeNumberButton}
-                            disabled={loading}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={styles.changeNumberText}>
-                                ← Numarayı Değiştir
-                            </Text>
-                        </TouchableOpacity>
+                        {/* Change Number - Sadece klavye kapalıyken */}
+                        {!isKeyboardVisible && (
+                            <TouchableOpacity
+                                onPress={handleBack}
+                                style={styles.changeNumberButton}
+                                disabled={loading}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.changeNumberText}>
+                                    ← Numarayı Değiştir
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
-
-                    {/* Bottom Spacing */}
-                    <View style={styles.bottomSpacing} />
                 </ScrollView>
-            </KeyboardAvoidingView>
+            </Animated.View>
         </SafeAreaView>
     );
 };
@@ -319,12 +411,9 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F0FDF4',
     },
-    keyboardView: {
-        flex: 1,
-    },
     backButtonTop: {
         marginLeft: 20,
-        marginTop: 16,
+        marginTop: 12,
         width: 40,
         height: 40,
         borderRadius: 20,
@@ -340,49 +429,52 @@ const styles = StyleSheet.create({
     scrollContainer: {
         flexGrow: 1,
         paddingHorizontal: 24,
+        paddingTop: 10,
+        paddingBottom: 20,
     },
     headerContainer: {
         alignItems: 'center',
-        marginTop: 20,
-        marginBottom: 24,
+        marginTop: 10,
+        marginBottom: 20,
+        height: 90, // Sabit yükseklik - jumping önler
     },
     iconContainer: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: 70,
+        height: 70,
+        borderRadius: 35,
         backgroundColor: 'white',
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
         shadowRadius: 8,
         elevation: 3,
     },
     headerIcon: {
-        fontSize: 40,
+        fontSize: 36,
     },
     welcomeSection: {
-        marginBottom: 32,
+        marginBottom: 24,
     },
     title: {
-        fontSize: 28,
+        fontSize: 26,
         fontWeight: '700',
         color: '#111827',
         textAlign: 'center',
-        marginBottom: 12,
+        marginBottom: 8,
         letterSpacing: -0.5,
     },
     subtitle: {
-        fontSize: 15,
+        fontSize: 14,
         color: '#6B7280',
         textAlign: 'center',
-        lineHeight: 22,
+        lineHeight: 20,
     },
     card: {
         backgroundColor: 'white',
         borderRadius: 20,
-        padding: 24,
+        padding: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
@@ -391,47 +483,33 @@ const styles = StyleSheet.create({
     },
     verificationHeader: {
         alignItems: 'center',
-        marginBottom: 28,
-    },
-    smsIconContainer: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: '#DBEAFE',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    verificationIcon: {
-        fontSize: 32,
+        marginBottom: 20,
     },
     verificationTitle: {
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: '700',
         color: '#111827',
-        marginBottom: 10,
+        marginBottom: 6,
         letterSpacing: -0.3,
     },
     verificationSubtitle: {
         fontSize: 14,
         color: '#6B7280',
         textAlign: 'center',
-        lineHeight: 20,
-        paddingHorizontal: 16,
     },
     codeContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         marginBottom: 16,
-        gap: 8,
+        gap: 6,
     },
     codeInput: {
         flex: 1,
-        height: 56,
+        height: 54,
         borderWidth: 2,
         borderColor: '#E5E7EB',
         borderRadius: 12,
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: '700',
         textAlign: 'center',
         color: '#111827',
@@ -444,53 +522,50 @@ const styles = StyleSheet.create({
     trustedDeviceNotice: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#DCFCE7',
-        padding: 14,
-        borderRadius: 12,
+        backgroundColor: '#F0FDF4',
+        padding: 10,
+        borderRadius: 10,
         borderWidth: 1,
         borderColor: '#BBF7D0',
         marginBottom: 12,
     },
-    shieldIconContainer: {
-        marginRight: 10,
-    },
     trustedDeviceIcon: {
-        fontSize: 20,
+        fontSize: 16,
+        marginRight: 8,
     },
     trustedDeviceText: {
         flex: 1,
-        fontSize: 13,
+        fontSize: 12,
         color: '#166534',
         fontWeight: '500',
-        lineHeight: 18,
     },
     devNotice: {
         backgroundColor: '#FEF3C7',
-        padding: 12,
-        borderRadius: 12,
+        padding: 10,
+        borderRadius: 10,
         borderWidth: 1,
         borderColor: '#FDE68A',
-        marginBottom: 24,
+        marginBottom: 16,
     },
     devNoticeText: {
-        fontSize: 12,
+        fontSize: 11,
         color: '#92400E',
-        lineHeight: 18,
+        lineHeight: 16,
     },
     devNoticeBold: {
         fontWeight: '700',
     },
     button: {
         backgroundColor: '#16a34a',
-        paddingVertical: 16,
-        borderRadius: 14,
+        paddingVertical: 14,
+        borderRadius: 12,
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 12,
         shadowColor: '#16a34a',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
+        shadowRadius: 6,
+        elevation: 3,
     },
     buttonDisabled: {
         backgroundColor: '#D1D5DB',
@@ -505,10 +580,10 @@ const styles = StyleSheet.create({
     },
     resendContainer: {
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 12,
     },
     countdownText: {
-        fontSize: 14,
+        fontSize: 13,
         color: '#6B7280',
     },
     countdownBold: {
@@ -522,14 +597,11 @@ const styles = StyleSheet.create({
     },
     changeNumberButton: {
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: 10,
     },
     changeNumberText: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '600',
         color: '#6B7280',
-    },
-    bottomSpacing: {
-        height: 40,
     },
 });
