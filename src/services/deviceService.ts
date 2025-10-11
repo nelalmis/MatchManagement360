@@ -1,35 +1,133 @@
 import { deviceApi } from "../api/deviceApi";
-import { IDevice } from "../types/types";
+import { IDevice, IResponseBase } from "../types/types";
 
 export const deviceService = {
-    async add(data: IDevice): Promise<any> {
-        const response = await deviceApi.add(data);
-        return response.id;
-    },
-    async update(id: string, updates: any): Promise<boolean> {
-        const response = await deviceApi.update(id, updates);
-        return response.success;
-    },
-    async delete(id: string): Promise<boolean> {
-        const response = await deviceApi.delete(id);
-        return response.success;
-    },
-    async getById(id: string): Promise<IDevice | null> {
-        try {
-            const m: any = await deviceApi.getById(id);
-            return {
-                id: m.id,
-                deviceId: m.id,
-                addedAt: m.addedAt,
-                isActive: m.isActive,
-                lastUsed: m.lastUsed,
-                playerId: m.playerId,
-                deviceName: m.deviceName,
-                platform: m.platform
-            };
-        } catch (err) {
-            console.error("getById Device bulunamadı:", err);
-            return null;
-        }
-    },
-}
+  async add(deviceData: IDevice): Promise<IResponseBase> {
+    const { id, ...dataWithoutId } = deviceData;
+    
+    const response = await deviceApi.add({
+      ...dataWithoutId,
+      addedAt: deviceData.addedAt || new Date().toISOString(),
+      isActive: deviceData.isActive !== undefined ? deviceData.isActive : true,
+      lastUsed: deviceData.lastUsed || new Date().toISOString(),
+    });
+    
+    return response as IResponseBase;
+  },
+
+  async update(id: string, updates: Partial<IDevice>): Promise<IResponseBase> {
+    const response = await deviceApi.update(id, {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    });
+    return response as IResponseBase;
+  },
+
+  async delete(id: string): Promise<boolean> {
+    const response = await deviceApi.delete(id);
+    return response.success;
+  },
+
+  async getById(id: string): Promise<IDevice | null> {
+    try {
+      const data: any = await deviceApi.getById(id);
+      if (!data) return null;
+
+      return this.mapDevice(data);
+    } catch (err) {
+      console.error("getById Device hatası:", err);
+      return null;
+    }
+  },
+
+  async getAll(): Promise<IDevice[]> {
+    try {
+      const devices: any[] = await deviceApi.getAll();
+      return devices.map(this.mapDevice);
+    } catch (err) {
+      console.error("getAll Devices hatası:", err);
+      return [];
+    }
+  },
+
+  async getDevicesByPlayer(playerId: string): Promise<IDevice[]> {
+    try {
+      const devices: any[] = await deviceApi.getDevicesByPlayer(playerId);
+      return devices.map(this.mapDevice);
+    } catch (err) {
+      console.error("getDevicesByPlayer hatası:", err);
+      return [];
+    }
+  },
+
+  async getActiveDevices(): Promise<IDevice[]> {
+    try {
+      const devices: any[] = await deviceApi.getActiveDevices();
+      return devices.map(this.mapDevice);
+    } catch (err) {
+      console.error("getActiveDevices hatası:", err);
+      return [];
+    }
+  },
+
+  async getDeviceByDeviceId(deviceId: string): Promise<IDevice | null> {
+    try {
+      const data: any = await deviceApi.getDeviceByDeviceId(deviceId);
+      if (!data) return null;
+
+      return this.mapDevice(data);
+    } catch (err) {
+      console.error("getDeviceByDeviceId hatası:", err);
+      return null;
+    }
+  },
+
+  async activateDevice(id: string): Promise<boolean> {
+    try {
+      await this.update(id, { 
+        isActive: true,
+        lastUsed: new Date().toISOString()
+      });
+      return true;
+    } catch (err) {
+      console.error("activateDevice hatası:", err);
+      return false;
+    }
+  },
+
+  async deactivateDevice(id: string): Promise<boolean> {
+    try {
+      await this.update(id, { isActive: false });
+      return true;
+    } catch (err) {
+      console.error("deactivateDevice hatası:", err);
+      return false;
+    }
+  },
+
+  async updateLastUsed(id: string): Promise<boolean> {
+    try {
+      await this.update(id, { 
+        lastUsed: new Date().toISOString() 
+      });
+      return true;
+    } catch (err) {
+      console.error("updateLastUsed hatası:", err);
+      return false;
+    }
+  },
+
+  // Helper method
+  mapDevice(data: any): IDevice {
+    return {
+      id: data.id,
+      playerId: data.playerId,
+      deviceId: data.deviceId,
+      deviceName: data.deviceName,
+      platform: data.platform,
+      addedAt: data.addedAt,
+      lastUsed: data.lastUsed,
+      isActive: data.isActive !== undefined ? data.isActive : true,
+    };
+  }
+};

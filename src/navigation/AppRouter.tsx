@@ -7,13 +7,21 @@ import { SideMenu } from '../components/SideMenu';
 import { BottomNav } from '../components/BottomNav';
 import { useNavigationContext } from '../context/NavigationContext';
 import { isProfileComplete } from '../helper/helper';
+import { Platform, StatusBar } from 'react-native';
 
+// StatusBar'ı ayarla
+StatusBar.setBarStyle('light-content');
+if (Platform.OS === 'android') {
+  StatusBar.setBackgroundColor('#16a34a');
+  StatusBar.setTranslucent(false);
+}
 // ============================================
 // AUTH SCREENS
 // ============================================
 import { LoginScreen } from '../screens/Auth/LoginScreen';
 import { RegisterScreen } from '../screens/Auth/RegisterScreen';
 import { PhoneVerificationScreen } from '../screens/Auth/PhoneVerificationScreen';
+import { PhoneVerificationSuccessScreen } from '../screens/Auth/PhoneVerificationSuccessScreen';
 
 // ============================================
 // HOME SCREENS
@@ -24,25 +32,24 @@ import { HomeScreen } from '../screens/Home/HomeScreen';
 // LEAGUE SCREENS
 // ============================================
 import { LeagueListScreen } from '../screens/League/LeagueListScreen';
-import { VerificationSuccessScreen } from '../screens/Auth/VerificationSuccessScreen';
-// import { LeagueDetailScreen } from '../screens/League/LeagueDetailScreen';
-// import { CreateLeagueScreen } from '../screens/League/CreateLeagueScreen';
-// import { EditLeagueScreen } from '../screens/League/EditLeagueScreen';
+import { LeagueDetailScreen } from '../screens/League/LeagueDetailScreen';
+import { CreateLeagueScreen } from '../screens/League/CreateLeagueScreen';
+import { EditLeagueScreen } from '../screens/League/EditLeagueScreen';
 
 // ============================================
 // FIXTURE SCREENS
 // ============================================
-// import { FixtureListScreen } from '../screens/Fixture/FixtureListScreen';
-// import { FixtureDetailScreen } from '../screens/Fixture/FixtureDetailScreen';
-// import { CreateFixtureScreen } from '../screens/Fixture/CreateFixtureScreen';
-// import { EditFixtureScreen } from '../screens/Fixture/EditFixtureScreen';
+import { FixtureListScreen } from '../screens/Fixture/FixtureListScreen';
+import { FixtureDetailScreen } from '../screens/Fixture/FixtureDetailScreen';
+import { CreateFixtureScreen } from '../screens/Fixture/CreateFixtureScreen';
+import { EditFixtureScreen } from '../screens/Fixture/EditFixtureScreen';
 
 // ============================================
 // MATCH SCREENS
 // ============================================
-// import { MatchListScreen } from '../screens/Match/MatchListScreen';
-// import { MatchDetailScreen } from '../screens/Match/MatchDetailScreen';
-// import { MatchRegistrationScreen } from '../screens/Match/MatchRegistrationScreen';
+import { MatchListScreen } from '../screens/Match/MatchListScreen';
+import { MatchDetailScreen } from '../screens/Match/MatchDetailScreen';
+import { MatchRegistrationScreen } from '../screens/Match/MatchRegistrationScreen';
 // import { TeamBuildingScreen } from '../screens/Match/TeamBuildingScreen';
 // import { ScoreEntryScreen } from '../screens/Match/ScoreEntryScreen';
 // import { PaymentTrackingScreen } from '../screens/Match/PaymentTrackingScreen';
@@ -50,7 +57,7 @@ import { VerificationSuccessScreen } from '../screens/Auth/VerificationSuccessSc
 // ============================================
 // STANDINGS SCREENS
 // ============================================
-// import { StandingsScreen } from '../screens/Standings/StandingsScreen';
+import { StandingsScreen } from '../screens/Standings/StandingsScreen';
 // import { TopScorersScreen } from '../screens/Standings/TopScorersScreen';
 // import { TopAssistsScreen } from '../screens/Standings/TopAssistsScreen';
 // import { MVPScreen } from '../screens/Standings/MVPScreen';
@@ -80,8 +87,9 @@ interface MainLayoutProps {
   showHeader?: boolean;
   showBottomNav?: boolean;
   headerTitle?: string;
-  headerLeftIcon?: 'users' | 'back' | 'none';
+  headerLeftIcon?: 'profile' | 'back' | 'none';
   onLeftPress?: () => void;
+  headerProps?: any; // Header'a özel props
 }
 
 const MainLayout: React.FC<MainLayoutProps> = ({
@@ -89,14 +97,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   showHeader = true,
   showBottomNav = true,
   headerTitle,
-  headerLeftIcon = 'users',
+  headerLeftIcon = 'profile',
   onLeftPress,
+  headerProps = {},
 }) => {
   const { menuOpen, setMenuOpen, headerTitle: contextHeaderTitle } = useNavigationContext();
-
-  const onCloseSideMenu = () => {
-    setMenuOpen(false);
-  };
 
   const finalHeaderTitle = headerTitle || contextHeaderTitle || 'Maç Yönetimi';
 
@@ -110,10 +115,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({
           rightIcon="menu"
           menuOpen={menuOpen}
           setMenuOpen={setMenuOpen}
+          {...headerProps}
         />
       )}
 
-      <SideMenu isOpen={menuOpen} onClose={onCloseSideMenu} />
+      <SideMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <View style={styles.mainContent}>
         {children}
@@ -154,7 +160,14 @@ export default function AppRouter() {
           {/* ============================================ */}
           <Stack.Screen name="home">
             {() => (
-              <MainLayout headerTitle="Ana Sayfa">
+              <MainLayout
+                headerTitle="Ana Sayfa"
+                showHeader={true}
+                headerProps={{
+                  showProfile: true,
+                  onLeftPress: () => navigation.navigate('playerProfile')
+                }}
+              >
                 <HomeScreen />
               </MainLayout>
             )}
@@ -166,12 +179,12 @@ export default function AppRouter() {
 
           <Stack.Screen name="leagueList">
             {() => (
-              <MainLayout headerTitle="Liglerim">
+              <MainLayout headerTitle="Liglerim" >
                 <LeagueListScreen />
               </MainLayout>
             )}
           </Stack.Screen>
-          {/*
+
           <Stack.Screen name="leagueDetail">
             {() => (
               <MainLayout
@@ -209,12 +222,11 @@ export default function AppRouter() {
               </MainLayout>
             )}
           </Stack.Screen>
-          */}
 
           {/* ============================================ */}
           {/* FIXTURE SCREENS */}
           {/* ============================================ */}
-          {/* 
+
           <Stack.Screen name="fixtureList">
             {() => (
               <MainLayout
@@ -264,11 +276,11 @@ export default function AppRouter() {
               </MainLayout>
             )}
           </Stack.Screen>
-            */}
+
           {/* ============================================ */}
           {/* MATCH SCREENS */}
           {/* ============================================ */}
-          {/*
+
           <Stack.Screen name="matchList">
             {() => (
               <MainLayout headerTitle="Maçlar">
@@ -301,7 +313,7 @@ export default function AppRouter() {
               </MainLayout>
             )}
           </Stack.Screen>
-
+          {/*
           <Stack.Screen name="teamBuilding">
             {() => (
               <MainLayout
@@ -344,7 +356,7 @@ export default function AppRouter() {
           {/* ============================================ */}
           {/* STANDINGS SCREENS */}
           {/* ============================================ */}
-          {/* 
+
           <Stack.Screen name="standings">
             {() => (
               <MainLayout
@@ -356,7 +368,7 @@ export default function AppRouter() {
               </MainLayout>
             )}
           </Stack.Screen>
-
+          {/*
           <Stack.Screen name="topScorers">
             {() => (
               <MainLayout
@@ -503,7 +515,7 @@ export default function AppRouter() {
           <Stack.Screen name="verificationSuccess">
             {() => (
               <AuthLayout>
-                <VerificationSuccessScreen />
+                <PhoneVerificationSuccessScreen />
               </AuthLayout>
             )}
           </Stack.Screen>
@@ -521,10 +533,12 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0, // ✅
   },
   authSafeArea: {
     flex: 1,
     backgroundColor: '#F0FDF4',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0, // ✅
   },
   mainContent: {
     flex: 1,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import {
   Trophy,
@@ -15,27 +17,54 @@ import {
   ChevronRight,
   Clock,
   MapPin,
-  DollarSign,
+  Target,
+  Zap,
 } from 'lucide-react-native';
 import { useAppContext } from '../../context/AppContext';
 import { useNavigationContext } from '../../context/NavigationContext';
 import { IMatch, ILeague, getSportIcon, getMatchStatusColor, SportType } from '../../types/types';
 import { matchService } from '../../services/matchService';
 import { leagueService } from '../../services/leagueService';
+import { playerStatsService } from '../../services/playerStatsService';
+
+// Skeleton Loader Component
+const StatCardSkeleton: React.FC = () => (
+  <View style={[styles.statCard, styles.skeletonContainer]}>
+    <View style={[styles.skeleton, styles.skeletonIcon]} />
+    <View style={[styles.skeleton, styles.skeletonValue]} />
+    <View style={[styles.skeleton, styles.skeletonLabel]} />
+  </View>
+);
+
+const MatchCardSkeleton: React.FC = () => (
+  <View style={styles.matchCard}>
+    <View style={styles.matchCardLeft}>
+      <View style={[styles.skeleton, styles.skeletonEmoji]} />
+      <View style={{ flex: 1 }}>
+        <View style={[styles.skeleton, styles.skeletonTitle]} />
+        <View style={[styles.skeleton, styles.skeletonMeta]} />
+      </View>
+    </View>
+  </View>
+);
 
 export const HomeScreen: React.FC = () => {
   const { user } = useAppContext();
   const navigation = useNavigationContext();
-  
+
   const [refreshing, setRefreshing] = useState(false);
   const [upcomingMatches, setUpcomingMatches] = useState<IMatch[]>([]);
   const [myLeagues, setMyLeagues] = useState<ILeague[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showLeagueSelector, setShowLeagueSelector] = useState(false);
 
-  // Quick stats
+  // Stats state
   const [stats, setStats] = useState({
     totalMatches: 0,
     totalLeagues: 0,
+    averageRating: 0,
+    totalGoals: 0,
     nextMatch: null as IMatch | null,
   });
 
@@ -43,85 +72,134 @@ export const HomeScreen: React.FC = () => {
     loadData();
   }, [user?.id]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!user?.id) return;
 
     try {
       setLoading(true);
+      setError(null);
 
-      // Yaklaşan maçları getir
-      const matches = await matchService.getMatchesByPlayer(user.id);
+      // Parallel data fetching for better performance
+      const [matches, leagues, playerStats] = await Promise.all([
+        matchService.getMatchesByPlayer(user.id),
+        leagueService.getLeaguesByPlayer(user.id),
+        playerStatsService.getStatsByPlayer(user.id),
+      ]);
+
+      // Filter and sort upcoming matches
       const upcoming = matches
         .filter(m => new Date(m.matchStartTime) > new Date())
         .sort((a, b) => new Date(a.matchStartTime).getTime() - new Date(b.matchStartTime).getTime())
         .slice(0, 3);
-      
-      setUpcomingMatches(upcoming);
 
-      // Liglerimi getir
-      const leagues = await leagueService.getLeaguesByPlayer(user.id);
+      setUpcomingMatches(upcoming);
       setMyLeagues(leagues.slice(0, 3));
 
-      // İstatistikleri hesapla
+      // Calculate real stats
+      const totalGoals = playerStats.reduce((sum, s) => sum + (s.totalGoals || 0), 0);
+      const totalRatings = playerStats.reduce((sum, s) => sum + (s.rating || 0), 0);
+      const averageRating = playerStats.length > 0 ? totalRatings / playerStats.length : 0;
+
       setStats({
         totalMatches: matches.length,
         totalLeagues: leagues.length,
+        averageRating: parseFloat(averageRating.toFixed(1)),
+        totalGoals,
         nextMatch: upcoming[0] || null,
       });
 
     } catch (error) {
       console.error('Error loading home data:', error);
+      setError('Veriler yüklenirken bir hata oluştu');
+      Alert.alert(
+        'Hata',
+        'Veriler yüklenemedi. Lütfen tekrar deneyin.',
+        [{ text: 'Tamam' }]
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
-  };
+  }, [loadData]);
 
-  const formatDate = (date: Date) => {
+  const formatDate = useCallback((date: Date) => {
     return new Date(date).toLocaleDateString('tr-TR', {
       day: 'numeric',
       month: 'long',
       weekday: 'short',
     });
-  };
+  }, []);
 
-  const formatTime = (date: Date) => {
+  const formatTime = useCallback((date: Date) => {
     return new Date(date).toLocaleTimeString('tr-TR', {
       hour: '2-digit',
       minute: '2-digit',
     });
-  };
+  }, []);
+
+  // Memoized formatted matches
+  const formattedMatches = useMemo(() =>
+    upcomingMatches.map(match => ({
+      ...match,
+      formattedDate: formatDate(match.matchStartTime),
+      formattedTime: formatTime(match.matchStartTime),
+    })),
+    [upcomingMatches, formatDate, formatTime]
+  );
+
+  const handleMatchPress = useCallback((match: IMatch) => {
+    if (match.status === 'Kayıt Açık') {
+      navigation.navigate('matchRegistration', { matchId: match.id });
+    } else {
+      navigation.navigate('matchDetail', { matchId: match.id });
+    }
+  }, [navigation]);
+
+  const handleLeaguePress = useCallback((leagueId: string) => {
+    navigation.navigate('leagueDetail', { leagueId });
+  }, [navigation]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <ScrollView style={styles.container}>
+        {/* Stats Skeleton */}
+        <View style={styles.statsContainer}>
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+        </View>
+
+        {/* Matches Skeleton */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.skeleton, { width: 150, height: 24 }]} />
+          </View>
+          <MatchCardSkeleton />
+          <MatchCardSkeleton />
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
       style={styles.container}
       showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor="#16a34a"
+          colors={['#16a34a']}
+        />
       }
     >
-      {/* Welcome Banner */}
-      <View style={styles.welcomeBanner}>
-        <View>
-          <Text style={styles.welcomeText}>Merhaba,</Text>
-          <Text style={styles.welcomeName}>{user?.name} 👋</Text>
-        </View>
-        {user?.favoriteSports && user.favoriteSports.length > 0 && (
-          <View style={styles.favoriteSports}>
-            {user.favoriteSports.slice(0, 2).map((sport:SportType, index:number) => (
-              <Text key={index} style={styles.sportEmoji}>
-                {getSportIcon(sport)}
-              </Text>
-            ))}
-          </View>
-        )}
-      </View>
-
       {/* Quick Stats */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
@@ -144,7 +222,9 @@ export const HomeScreen: React.FC = () => {
           <View style={styles.statIconContainer}>
             <TrendingUp size={24} color="#2563EB" strokeWidth={2} />
           </View>
-          <Text style={styles.statValue}>4.5</Text>
+          <Text style={styles.statValue}>
+            {stats.averageRating > 0 ? stats.averageRating : '-'}
+          </Text>
           <Text style={styles.statLabel}>Ortalama</Text>
         </View>
       </View>
@@ -154,19 +234,20 @@ export const HomeScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.nextMatchCard}
           activeOpacity={0.7}
-          onPress={() => navigation.navigate('matchDetail', { matchId: stats.nextMatch!.id })}
+          onPress={() => handleMatchPress(stats.nextMatch!)}
         >
           <View style={styles.nextMatchHeader}>
             <View style={styles.nextMatchBadge}>
+              <Zap size={14} color="white" strokeWidth={2.5} />
               <Text style={styles.nextMatchBadgeText}>Sonraki Maç</Text>
             </View>
             <Text style={styles.nextMatchEmoji}>
               {getSportIcon(myLeagues.find(l => l.id === stats.nextMatch?.fixtureId)?.sportType || 'Futbol')}
             </Text>
           </View>
-          
+
           <Text style={styles.nextMatchTitle}>{stats.nextMatch.title}</Text>
-          
+
           <View style={styles.nextMatchDetails}>
             <View style={styles.nextMatchDetailItem}>
               <Clock size={16} color="#6B7280" strokeWidth={2} />
@@ -174,7 +255,7 @@ export const HomeScreen: React.FC = () => {
                 {formatDate(stats.nextMatch.matchStartTime)} • {formatTime(stats.nextMatch.matchStartTime)}
               </Text>
             </View>
-            
+
             {stats.nextMatch.location && (
               <View style={styles.nextMatchDetailItem}>
                 <MapPin size={16} color="#6B7280" strokeWidth={2} />
@@ -189,10 +270,10 @@ export const HomeScreen: React.FC = () => {
             <View style={styles.nextMatchPlayers}>
               <Users size={16} color="#16a34a" strokeWidth={2} />
               <Text style={styles.nextMatchPlayersText}>
-                {stats.nextMatch.registeredPlayerIds.length} oyuncu kayıtlı
+                {stats.nextMatch.registeredPlayerIds?.length || 0} oyuncu kayıtlı
               </Text>
             </View>
-            <ChevronRight size={20} color="#16a34a" strokeWidth={2} />
+            <ChevronRight size={20} color="#16a34a" strokeWidth={2.5} />
           </View>
         </TouchableOpacity>
       )}
@@ -202,20 +283,20 @@ export const HomeScreen: React.FC = () => {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Yaklaşan Maçlar</Text>
           <TouchableOpacity
-            onPress={() => navigation.navigate('myMatches')}
+            onPress={() => navigation.navigate('matchList')}
             activeOpacity={0.7}
           >
             <Text style={styles.seeAllText}>Tümünü Gör</Text>
           </TouchableOpacity>
         </View>
 
-        {upcomingMatches.length > 0 ? (
-          upcomingMatches.map((match) => (
+        {formattedMatches.length > 0 ? (
+          formattedMatches.map((match) => (
             <TouchableOpacity
               key={match.id}
               style={styles.matchCard}
               activeOpacity={0.7}
-              onPress={() => navigation.navigate('matchDetail', { matchId: match.id })}
+              onPress={() => handleMatchPress(match)}
             >
               <View style={styles.matchCardLeft}>
                 <Text style={styles.matchEmoji}>
@@ -228,7 +309,7 @@ export const HomeScreen: React.FC = () => {
                   <View style={styles.matchCardMeta}>
                     <Clock size={12} color="#6B7280" strokeWidth={2} />
                     <Text style={styles.matchCardMetaText}>
-                      {formatDate(match.matchStartTime)} • {formatTime(match.matchStartTime)}
+                      {match.formattedDate} • {match.formattedTime}
                     </Text>
                   </View>
                 </View>
@@ -256,8 +337,17 @@ export const HomeScreen: React.FC = () => {
           ))
         ) : (
           <View style={styles.emptyState}>
-            <Calendar size={48} color="#D1D5DB" strokeWidth={1.5} />
+            <View style={styles.emptyIconContainer}>
+              <Calendar size={48} color="#D1D5DB" strokeWidth={1.5} />
+            </View>
             <Text style={styles.emptyStateText}>Yaklaşan maç bulunmuyor</Text>
+            <TouchableOpacity
+              style={styles.emptyStateButton}
+              onPress={() => navigation.navigate('matchList')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.emptyStateButtonText}>Maçları Keşfet</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -280,7 +370,7 @@ export const HomeScreen: React.FC = () => {
               key={league.id}
               style={styles.leagueCard}
               activeOpacity={0.7}
-              onPress={() => navigation.navigate('leagueDetail', { leagueId: league.id })}
+              onPress={() => handleLeaguePress(league.id)}
             >
               <View style={styles.leagueCardLeft}>
                 <Text style={styles.leagueEmoji}>{getSportIcon(league.sportType)}</Text>
@@ -291,7 +381,7 @@ export const HomeScreen: React.FC = () => {
                   <View style={styles.leagueCardMeta}>
                     <Users size={12} color="#6B7280" strokeWidth={2} />
                     <Text style={styles.leagueCardMetaText}>
-                      {league.playerIds.length} oyuncu
+                      {league.playerIds?.length || 0} oyuncu
                     </Text>
                   </View>
                 </View>
@@ -302,11 +392,14 @@ export const HomeScreen: React.FC = () => {
           ))
         ) : (
           <View style={styles.emptyState}>
-            <Trophy size={48} color="#D1D5DB" strokeWidth={1.5} />
+            <View style={styles.emptyIconContainer}>
+              <Trophy size={48} color="#D1D5DB" strokeWidth={1.5} />
+            </View>
             <Text style={styles.emptyStateText}>Henüz bir lige katılmadınız</Text>
             <TouchableOpacity
               style={styles.emptyStateButton}
               onPress={() => navigation.navigate('leagueList')}
+              activeOpacity={0.8}
             >
               <Text style={styles.emptyStateButtonText}>Ligleri Keşfet</Text>
             </TouchableOpacity>
@@ -318,24 +411,40 @@ export const HomeScreen: React.FC = () => {
       <View style={styles.quickActions}>
         <TouchableOpacity
           style={styles.quickActionButton}
-          onPress={() => navigation.navigate('standings')}
+          // Puan Durumu butonuna basınca
+          onPress={() => {
+            if (myLeagues.length === 0) {
+              Alert.alert('Lig Bulunamadı', 'Önce bir lige katılmanız gerekiyor.');
+              return;
+            }
+
+            if (myLeagues.length === 1) {
+              // Tek lig varsa direkt git
+              navigation.navigate('standings', { leagueId: myLeagues[0].id });
+            } else {
+              // Birden fazla lig varsa seçim yap
+              setShowLeagueSelector(true);
+            }
+          }}
           activeOpacity={0.7}
         >
           <View style={styles.quickActionIcon}>
             <TrendingUp size={20} color="#16a34a" strokeWidth={2} />
           </View>
           <Text style={styles.quickActionText}>Puan Durumu</Text>
+          <ChevronRight size={16} color="#9CA3AF" strokeWidth={2} />
         </TouchableOpacity>
-
+        
         <TouchableOpacity
           style={styles.quickActionButton}
           onPress={() => navigation.navigate('playerStats')}
           activeOpacity={0.7}
         >
           <View style={styles.quickActionIcon}>
-            <Trophy size={20} color="#F59E0B" strokeWidth={2} />
+            <Target size={20} color="#F59E0B" strokeWidth={2} />
           </View>
           <Text style={styles.quickActionText}>İstatistiklerim</Text>
+          <ChevronRight size={16} color="#9CA3AF" strokeWidth={2} />
         </TouchableOpacity>
       </View>
 
@@ -350,38 +459,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  welcomeBanner: {
-    backgroundColor: '#16a34a',
-    padding: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
-  },
-  welcomeName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: 'white',
-    marginTop: 4,
-  },
-  favoriteSports: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  sportEmoji: {
-    fontSize: 32,
-  },
   statsContainer: {
     flexDirection: 'row',
     gap: 12,
     paddingHorizontal: 16,
+    paddingTop: 20,
     marginBottom: 20,
   },
   statCard: {
@@ -391,9 +473,9 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
     elevation: 2,
   },
   statIconContainer: {
@@ -418,7 +500,7 @@ const styles = StyleSheet.create({
   },
   nextMatchCard: {
     backgroundColor: 'white',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     marginHorizontal: 16,
     marginBottom: 24,
@@ -426,9 +508,9 @@ const styles = StyleSheet.create({
     borderColor: '#16a34a',
     shadowColor: '#16a34a',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 5,
   },
   nextMatchHeader: {
     flexDirection: 'row',
@@ -437,6 +519,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   nextMatchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#16a34a',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -615,22 +700,36 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
     paddingHorizontal: 16,
   },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 12,
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
+  },
+  emptyStateText: {
+    fontSize: 15,
+    color: '#6B7280',
+    marginBottom: 20,
+    fontWeight: '500',
   },
   emptyStateButton: {
     backgroundColor: '#16a34a',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   emptyStateButtonText: {
     color: 'white',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   quickActions: {
     flexDirection: 'row',
@@ -645,7 +744,7 @@ const styles = StyleSheet.create({
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -661,12 +760,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   quickActionText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#1F2937',
     flex: 1,
   },
   bottomSpacing: {
     height: 20,
+  },
+  // Skeleton Styles
+  skeletonContainer: {
+    overflow: 'hidden',
+  },
+  skeleton: {
+    backgroundColor: '#E5E7EB',
+    borderRadius: 8,
+  },
+  skeletonIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginBottom: 8,
+  },
+  skeletonValue: {
+    width: 40,
+    height: 28,
+    marginBottom: 4,
+  },
+  skeletonLabel: {
+    width: 60,
+    height: 16,
+  },
+  skeletonEmoji: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  skeletonTitle: {
+    width: '80%',
+    height: 18,
+    marginBottom: 6,
+  },
+  skeletonMeta: {
+    width: '60%',
+    height: 14,
   },
 });

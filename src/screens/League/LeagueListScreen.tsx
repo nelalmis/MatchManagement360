@@ -274,7 +274,7 @@ export const LeagueListScreen: React.FC = () => {
             {/* My Leagues Section */}
             {filteredLeagues.some((l) => l.playerIds.includes(user?.id || '')) && (
               <>
-                <Text style={styles.sectionTitle}>Ligilerim</Text>
+                <Text style={styles.sectionTitle}>Liglerim</Text>
                 {filteredLeagues
                   .filter((l) => l.playerIds.includes(user?.id || ''))
                   .map((league) => (

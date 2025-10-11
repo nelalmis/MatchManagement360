@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Modal,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {
   Home,
@@ -23,6 +24,8 @@ import {
 import { useAppContext } from '../context/AppContext';
 import { useNavigationContext } from '../context/NavigationContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { matchService } from '../services/matchService';
+import { playerStatsService } from '../services/playerStatsService';
 
 interface SideMenuProps {
   isOpen: boolean;
@@ -33,9 +36,61 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
   const { user, setUser, setIsVerified, setCurrentScreen } = useAppContext();
   const navigation = useNavigationContext();
 
+  const [loading, setLoading] = useState(false);
+  const [quickStats, setQuickStats] = useState({
+    totalMatches: 0,
+    rating: 0,
+    totalGoals: 0,
+  });
+
+  useEffect(() => {
+    if (isOpen && user?.id) {
+      loadStats();
+    }
+  }, [isOpen, user?.id]);
+
+  const loadStats = async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoading(true);
+
+      // Paralel veri çekme
+      const [matches, playerStats] = await Promise.all([
+        matchService.getMatchesByPlayer(user.id),
+        playerStatsService.getStatsByPlayer(user.id),
+      ]);
+
+      // İstatistikleri hesapla
+      const totalGoals = playerStats.reduce((sum, s) => sum + (s.totalGoals || 0), 0);
+      const totalRatings = playerStats.reduce((sum, s) => sum + (s.rating || 0), 0);
+      const averageRating = playerStats.length > 0 
+        ? parseFloat((totalRatings / playerStats.length).toFixed(1))
+        : 0;
+
+      setQuickStats({
+        totalMatches: matches.length,
+        rating: averageRating,
+        totalGoals,
+      });
+    } catch (error) {
+      console.error('Error loading sidebar stats:', error);
+      // Hata durumunda varsayılan değerleri kullan
+      setQuickStats({
+        totalMatches: 0,
+        rating: 0,
+        totalGoals: 0,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleNavigation = (screen: string) => {
     onClose();
-    navigation.navigate(screen);
+    setTimeout(() => {
+      navigation.navigate(screen);
+    }, 300);
   };
 
   const handleLogout = () => {
@@ -60,18 +115,12 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
               navigation.navigate('login');
             } catch (error) {
               console.error('Logout error:', error);
+              Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu.');
             }
           },
         },
       ]
     );
-  };
-
-  // Mock stats - gerçek uygulamada API'den gelecek
-  const quickStats = {
-    totalMatches: 24,
-    rating: 4.5,
-    totalGoals: 12,
   };
 
   // Menu sections
@@ -88,20 +137,20 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
         {
           icon: Trophy,
           label: 'Liglerim',
-          screen: 'myLeagues',
+          screen: 'leagueList',
           badge: null,
         },
         {
           icon: Calendar,
-          label: 'Fikstürlerim',
-          screen: 'myFixtures',
+          label: 'Maçlarım',
+          screen: 'matchList',
           badge: null,
         },
         {
           icon: Bell,
-          label: 'Davetler',
-          screen: 'invites',
-          badge: 3,
+          label: 'Bildirimler',
+          screen: 'notifications',
+          badge: null, // TODO: Gerçek bildirim sayısı eklenecek
         },
       ],
     },
@@ -110,14 +159,14 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
       items: [
         {
           icon: Trophy,
-          label: 'Puan Durumum',
-          screen: 'myStandings',
+          label: 'Puan Durumu',
+          screen: 'standings',
           badge: null,
         },
         {
           icon: TrendingUp,
           label: 'Performansım',
-          screen: 'performance',
+          screen: 'playerStats',
           badge: null,
         },
       ],
@@ -128,7 +177,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
         {
           icon: User,
           label: 'Profilim',
-          screen: 'profile',
+          screen: 'playerProfile',
           badge: null,
         },
         {
@@ -186,20 +235,32 @@ export const SideMenu: React.FC<SideMenuProps> = ({ isOpen, onClose }) => {
 
             {/* Quick Stats */}
             <View style={styles.quickStats}>
-              <View style={styles.quickStatItem}>
-                <Text style={styles.quickStatValue}>{quickStats.totalMatches}</Text>
-                <Text style={styles.quickStatLabel}>Maç</Text>
-              </View>
-              <View style={styles.quickStatDivider} />
-              <View style={styles.quickStatItem}>
-                <Text style={styles.quickStatValue}>{quickStats.rating}</Text>
-                <Text style={styles.quickStatLabel}>Puan</Text>
-              </View>
-              <View style={styles.quickStatDivider} />
-              <View style={styles.quickStatItem}>
-                <Text style={styles.quickStatValue}>{quickStats.totalGoals}</Text>
-                <Text style={styles.quickStatLabel}>Gol</Text>
-              </View>
+              {loading ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <>
+                  <View style={styles.quickStatItem}>
+                    <Text style={styles.quickStatValue}>
+                      {quickStats.totalMatches}
+                    </Text>
+                    <Text style={styles.quickStatLabel}>Maç</Text>
+                  </View>
+                  <View style={styles.quickStatDivider} />
+                  <View style={styles.quickStatItem}>
+                    <Text style={styles.quickStatValue}>
+                      {quickStats.rating > 0 ? quickStats.rating : '-'}
+                    </Text>
+                    <Text style={styles.quickStatLabel}>Puan</Text>
+                  </View>
+                  <View style={styles.quickStatDivider} />
+                  <View style={styles.quickStatItem}>
+                    <Text style={styles.quickStatValue}>
+                      {quickStats.totalGoals}
+                    </Text>
+                    <Text style={styles.quickStatLabel}>Gol</Text>
+                  </View>
+                </>
+              )}
             </View>
           </View>
 
@@ -348,6 +409,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     justifyContent: 'space-around',
+    minHeight: 60,
+    alignItems: 'center',
   },
   quickStatItem: {
     alignItems: 'center',
@@ -365,6 +428,7 @@ const styles = StyleSheet.create({
   quickStatDivider: {
     width: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    height: 30,
   },
   menuScroll: {
     flex: 1,

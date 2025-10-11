@@ -1,10 +1,12 @@
 import { matchApi } from "../api/matchApi";
+import { matchFixtureApi } from "../api/matchFixtureApi";
 import { IMatch, IResponseBase, buildSquad } from "../types/types";
 
 export const matchService = {
   async add(matchData: IMatch): Promise<IResponseBase> {
     const response = await matchApi.add({
       ...matchData,
+      id: undefined, // id'yi undefined yap, null yerine
       createdAt: new Date().toISOString(),
       premiumPlayerIds: matchData.premiumPlayerIds || [],
       directPlayerIds: matchData.directPlayerIds || [],
@@ -37,7 +39,7 @@ export const matchService = {
     try {
       const data: any = await matchApi.getById(id);
       if (!data) return null;
-      
+
       return this.mapMatch(data);
     } catch (err) {
       console.error("getById Match hatası:", err);
@@ -55,6 +57,49 @@ export const matchService = {
     }
   },
 
+  // services/matchService.ts içine ekle
+
+  async getMatchesByLeague(leagueId: string): Promise<IMatch[]> {
+    try {
+      if (!leagueId) {
+        console.error("League ID gerekli");
+        return [];
+      }
+
+      // 1. Lige ait tüm fixture'ları getir
+      const fixtures = await matchFixtureApi.getFixturesByLeague(leagueId);
+
+      if (fixtures.length === 0) {
+        return [];
+      }
+
+      // 2. Her fixture'ın maçlarını paralel olarak getir
+      const matchPromises = fixtures.map((fixture:any) =>
+        matchApi.getMatchesByFixture(fixture.id!)
+      );
+
+      const matchesArrays = await Promise.all(matchPromises);
+
+      // 3. Flatten ve map
+      const allMatches = matchesArrays.flat();
+      const mappedMatches = allMatches.map(this.mapMatch);
+
+      // 4. Duplicates'leri temizle
+      const uniqueMatches = mappedMatches.filter((match:any, index:number, self:any[]) =>
+        index === self.findIndex((m) => m.id === match.id)
+      );
+
+      // 5. Tarihe göre sırala (en yeni önce)
+      uniqueMatches.sort((a, b) =>
+        new Date(b.matchStartTime).getTime() - new Date(a.matchStartTime).getTime()
+      );
+
+      return uniqueMatches;
+    } catch (err) {
+      console.error("getMatchesByLeague hatası:", err);
+      return [];
+    }
+  },
   async getMatchesByFixture(fixtureId: string): Promise<IMatch[]> {
     try {
       const matches: any[] = await matchApi.getMatchesByFixture(fixtureId);
@@ -171,11 +216,11 @@ export const matchService = {
       if (!match) return false;
 
       const { squad, reserves } = buildSquad(match, staffPlayerCount, reservePlayerCount);
-      
+
       await this.update(matchId, {
         status: 'Takımlar Oluşturuldu'
       });
-      
+
       return true;
     } catch (err) {
       console.error("buildTeams hatası:", err);
@@ -184,8 +229,8 @@ export const matchService = {
   },
 
   async assignTeams(
-    matchId: string, 
-    team1PlayerIds: string[], 
+    matchId: string,
+    team1PlayerIds: string[],
     team2PlayerIds: string[],
     playerPositions?: Record<string, string>
   ): Promise<boolean> {
@@ -204,8 +249,8 @@ export const matchService = {
   },
 
   async updatePlayerPosition(
-    matchId: string, 
-    playerId: string, 
+    matchId: string,
+    playerId: string,
     position: string
   ): Promise<boolean> {
     try {
@@ -214,7 +259,7 @@ export const matchService = {
 
       const playerPositions = match.playerPositions || {};
       playerPositions[playerId] = position;
-      
+
       await this.update(matchId, { playerPositions });
       return true;
     } catch (err) {
@@ -225,8 +270,8 @@ export const matchService = {
 
   // SCORE MANAGEMENT
   async updateScore(
-    matchId: string, 
-    team1Score: number, 
+    matchId: string,
+    team1Score: number,
     team2Score: number
   ): Promise<boolean> {
     try {
@@ -245,9 +290,9 @@ export const matchService = {
   },
 
   async addGoalScorer(
-    matchId: string, 
-    playerId: string, 
-    goals: number = 1, 
+    matchId: string,
+    playerId: string,
+    goals: number = 1,
     assists: number = 0
   ): Promise<boolean> {
     try {
@@ -288,7 +333,7 @@ export const matchService = {
         confirmed: true
       }));
 
-      await this.update(matchId, { 
+      await this.update(matchId, {
         goalScorers,
         status: 'Ödeme Bekliyor'
       });
@@ -335,8 +380,8 @@ export const matchService = {
   },
 
   async markPaymentAsPaid(
-    matchId: string, 
-    playerId: string, 
+    matchId: string,
+    playerId: string,
     confirmedBy: string
   ): Promise<boolean> {
     try {
@@ -356,12 +401,12 @@ export const matchService = {
       });
 
       await this.update(matchId, { paymentStatus });
-      
+
       // Check if all payments are complete
       if (paymentStatus.every(p => p.paid)) {
         await this.update(matchId, { status: 'Tamamlandı' });
       }
-      
+
       return true;
     } catch (err) {
       console.error("markPaymentAsPaid hatası:", err);
@@ -426,7 +471,9 @@ export const matchService = {
       status: data.status,
       matchBoardSheetId: data.matchBoardSheetId,
       createdAt: data.createdAt,
-      updatedAt: data.updatedAt
+      updatedAt: data.updatedAt,
+      mvpAutoCalculated: data.mvpAutoCalculated,
+      commentsEnabled: data.commentsEnabled
     };
   }
 }

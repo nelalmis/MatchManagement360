@@ -5,6 +5,7 @@ export const matchFixtureService = {
   async add(fixtureData: IMatchFixture): Promise<IResponseBase> {
     const response = await matchFixtureApi.add({
       ...fixtureData,
+      id: undefined, // id'yi undefined yap, null yerine
       createdAt: new Date().toISOString(),
       matchIds: [],
       organizerPlayerIds: fixtureData.organizerPlayerIds || [],

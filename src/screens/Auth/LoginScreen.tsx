@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
     TextInput,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     ActivityIndicator,
-    KeyboardAvoidingView,
     Platform,
     Alert,
     ScrollView,
     StyleSheet,
-    Image,
-    Dimensions
+    Keyboard,
+    Animated,
+    AppState,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppContext } from '../../context/AppContext';
 import { IPlayer } from '../../types/types';
@@ -23,15 +23,15 @@ import { playerService } from '../../services/playerService';
 import { ArrowRight } from 'lucide-react-native';
 import { useNavigationContext } from '../../context/NavigationContext';
 
-const { width } = Dimensions.get('window');
-
 export const LoginScreen: React.FC = () => {
     const navigation = useNavigationContext();
+    const scrollViewRef = useRef<ScrollView>(null);
+    const logoScale = useRef(new Animated.Value(1)).current;
+    
     const {
         phoneNumber,
         setPhoneNumber,
         setUser,
-        user,
         setCurrentScreen,
         rememberDevice,
         setRememberDevice,
@@ -41,10 +41,66 @@ export const LoginScreen: React.FC = () => {
 
     const [loading, setLoading] = useState(false);
     const [checkingDevice, setCheckingDevice] = useState(true);
+    const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
     useEffect(() => {
         checkAutoLogin();
+        
+        // Klavye event listeners
+        const keyboardWillShow = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            handleKeyboardShow
+        );
+        const keyboardWillHide = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            handleKeyboardHide
+        );
+
+        // App state listener - app'e dönüldüğünde logo'yu resetle
+        const subscription = AppState.addEventListener('change', (nextAppState: string) => {
+            if (nextAppState === 'active' && Platform.OS === 'android') {
+                // App'e dönüldüğünde logo'yu normale getir
+                logoScale.setValue(1);
+                setKeyboardVisible(false);
+            }
+        });
+
+        return () => {
+            keyboardWillShow.remove();
+            keyboardWillHide.remove();
+            subscription.remove();
+        };
     }, []);
+
+    const handleKeyboardShow = () => {
+        setKeyboardVisible(true);
+        // Logo'yu küçült
+        Animated.spring(logoScale, {
+            toValue: 0.7,
+            useNativeDriver: true,
+            friction: 8,
+        }).start();
+        
+        // Input'a scroll (Android için gecikme)
+        setTimeout(() => {
+            scrollViewRef.current?.scrollTo({ y: 50, animated: true });
+        }, Platform.OS === 'android' ? 200 : 100);
+    };
+
+    const handleKeyboardHide = () => {
+        setKeyboardVisible(false);
+        // Logo'yu normale döndür
+        Animated.spring(logoScale, {
+            toValue: 1,
+            useNativeDriver: true,
+            friction: 8,
+        }).start();
+        
+        // En başa scroll
+        setTimeout(() => {
+            scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        }, 100);
+    };
 
     const checkAutoLogin = async () => {
         setCheckingDevice(true);
@@ -55,7 +111,6 @@ export const LoginScreen: React.FC = () => {
             if (storedUserData && trustedDevice === 'true') {
                 const userData = JSON.parse(storedUserData) as IPlayer;
                 
-                // Update last login
                 if (userData.id) {
                     await playerService.updateLastLogin(userData.id);
                 }
@@ -63,12 +118,9 @@ export const LoginScreen: React.FC = () => {
                 setUser(userData);
                 setIsVerified(true);
 
-                // Check if profile is complete
                 if (!isProfileComplete(userData)) {
-                    // Profil eksik - register sayfasına yönlendir
                     navigation.navigate("register");
                 } else {
-                    // Profil tam - home'a git
                     await AsyncStorage.setItem('userData', JSON.stringify(userData));
                     setTimeout(() => {
                         setCheckingDevice(false);
@@ -79,7 +131,6 @@ export const LoginScreen: React.FC = () => {
                 return;
             }
             
-            // No stored user or not trusted device
             await AsyncStorage.removeItem('userData');
             await AsyncStorage.removeItem('trustedDevice');
             setCheckingDevice(false);
@@ -94,25 +145,21 @@ export const LoginScreen: React.FC = () => {
     const handleSendCode = async () => {
         if (phoneNumber.length === 10) {
             setLoading(true);
+            Keyboard.dismiss();
+            
             try {
                 const formattedPhone = `+90${phoneNumber}`;
-
-                // Check if player exists
                 const playerByPhone = await playerService.getPlayerByPhone(formattedPhone);
                 
                 if (playerByPhone) {
-                    // Player exists
                     const playerData = playerByPhone as IPlayer;
                     
-                    // Save to AsyncStorage
                     await AsyncStorage.setItem('userData', JSON.stringify(playerData));
                     
-                    // Save trusted device if checkbox is checked
                     if (rememberDevice) {
                         await AsyncStorage.setItem('trustedDevice', 'true');
                     }
                     
-                    // Update last login
                     if (playerData.id) {
                         await playerService.updateLastLogin(playerData.id);
                     }
@@ -120,13 +167,10 @@ export const LoginScreen: React.FC = () => {
                     setUser(playerData);
                     setIsVerified(true);
 
-                    // Check if profile is complete
                     if (!isProfileComplete(playerData)) {
-                        // Profil eksik - register'a yönlendir
                         setCurrentScreen('register');
                         navigation.navigate('register');
                     } else {
-                        // Profil tam - home'a git
                         setCurrentScreen('home');
                         navigation.navigate('home');
                     }
@@ -135,7 +179,6 @@ export const LoginScreen: React.FC = () => {
                     return;
                 }
 
-                // Player doesn't exist - go to verification
                 setIsVerified(false);
                 setCurrentScreen('phoneVerification');
                 navigation.navigate('phoneVerification');
@@ -158,7 +201,7 @@ export const LoginScreen: React.FC = () => {
 
     if (checkingDevice) {
         return (
-            <SafeAreaView style={styles.loadingContainer}>
+            <SafeAreaView style={styles.loadingContainer} edges={['top', 'left', 'right']}>
                 <StatusBar barStyle="dark-content" backgroundColor="#F0FDF4" />
                 <View style={styles.loadingContent}>
                     <View style={styles.loadingLogoContainer}>
@@ -172,34 +215,39 @@ export const LoginScreen: React.FC = () => {
     }
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
             <StatusBar barStyle="dark-content" backgroundColor="#F0FDF4" />
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.keyboardView}
+            <ScrollView
+                ref={scrollViewRef}
+                contentContainerStyle={styles.scrollContainer}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
             >
-                <ScrollView
-                    contentContainerStyle={styles.scrollContainer}
-                    showsVerticalScrollIndicator={false}
-                >
-                    {/* Logo Container */}
-                    <View style={styles.headerContainer}>
+                {/* Logo Container - Animasyonlu, Sabit Container */}
+                <View style={styles.headerContainer}>
+                    <Animated.View style={{ transform: [{ scale: logoScale }] }}>
                         <View style={styles.logoContainer}>
                             <Text style={styles.logoEmoji}>⚽</Text>
                         </View>
+                    </Animated.View>
+                    {!isKeyboardVisible && (
                         <Text style={styles.logoText}>Maç Yönetimi</Text>
-                    </View>
+                    )}
+                </View>
 
-                    {/* Welcome Section */}
-                    <View style={styles.welcomeSection}>
-                        <Text style={styles.title}>Hoş Geldiniz</Text>
-                        <Text style={styles.subtitle}>
-                            Devam etmek için telefon numaranızı girin. Maç organize etmek veya mevcut maçlara katılmak için bir adım kaldı.
-                        </Text>
-                    </View>
+                    {/* Welcome Section - Klavye açıkken gizle */}
+                    {!isKeyboardVisible && (
+                        <View style={styles.welcomeSection}>
+                            <Text style={styles.title}>Hoş Geldiniz</Text>
+                            <Text style={styles.subtitle}>
+                                Telefon numaranızı girin ve maçlara katılmaya başlayın
+                            </Text>
+                        </View>
+                    )}
 
-                    {/* Main Card */}
+                    {/* Main Card - Kompakt */}
                     <View style={styles.card}>
                         {/* Phone Input */}
                         <View style={styles.inputSection}>
@@ -218,11 +266,13 @@ export const LoginScreen: React.FC = () => {
                                     keyboardType="phone-pad"
                                     maxLength={13}
                                     editable={!loading}
+                                    returnKeyType="done"
+                                    onSubmitEditing={handleSendCode}
                                 />
                             </View>
                         </View>
 
-                        {/* Checkbox */}
+                        {/* Checkbox - Kompakt */}
                         <TouchableOpacity
                             style={styles.checkboxContainer}
                             onPress={() => setRememberDevice(!rememberDevice)}
@@ -231,19 +281,12 @@ export const LoginScreen: React.FC = () => {
                         >
                             <View style={[styles.checkbox, rememberDevice && styles.checkboxChecked]}>
                                 {rememberDevice && (
-                                    <View style={styles.checkmarkContainer}>
-                                        <Text style={styles.checkmark}>✓</Text>
-                                    </View>
+                                    <Text style={styles.checkmark}>✓</Text>
                                 )}
                             </View>
-                            <View style={styles.checkboxTextContainer}>
-                                <Text style={styles.checkboxTitle}>
-                                    Bu cihazı güvenilir olarak işaretle
-                                </Text>
-                                <Text style={styles.checkboxSubtitle}>
-                                    Bir sonraki girişinizde telefon numarası gerekmeyecek
-                                </Text>
-                            </View>
+                            <Text style={styles.checkboxText}>
+                                Bu cihazı güvenilir olarak işaretle
+                            </Text>
                         </TouchableOpacity>
 
                         {/* Submit Button */}
@@ -266,23 +309,21 @@ export const LoginScreen: React.FC = () => {
                             )}
                         </TouchableOpacity>
 
-                        {/* Terms */}
-                        <Text style={styles.termsText}>
-                            Devam ederek{' '}
-                            <Text style={styles.termsLink}>Kullanım Koşulları</Text>
-                            {' '}ve{' '}
-                            <Text style={styles.termsLink}>Gizlilik Politikası</Text>
-                            'nı kabul etmiş olursunuz.
-                        </Text>
+                        {/* Terms - Kompakt */}
+                        {!isKeyboardVisible && (
+                            <Text style={styles.termsText}>
+                                Devam ederek{' '}
+                                <Text style={styles.termsLink}>Kullanım Koşulları</Text>
+                                {' '}ve{' '}
+                                <Text style={styles.termsLink}>Gizlilik Politikası</Text>
+                                'nı kabul ediyorsunuz
+                            </Text>
+                        )}
                     </View>
-
-                    {/* Bottom Spacing */}
-                    <View style={styles.bottomSpacing} />
                 </ScrollView>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
-    );
-};
+            </SafeAreaView>
+        );
+    };
 
 const styles = StyleSheet.create({
     container: {
@@ -299,44 +340,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     loadingLogoContainer: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        backgroundColor: 'white',
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-        elevation: 4,
-        marginBottom: 20,
-    },
-    loadingLogoText: {
-        fontSize: 64,
-    },
-    loadingTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#16a34a',
-        marginBottom: 8,
-    },
-    loadingSpinner: {
-        marginTop: 20,
-    },
-    keyboardView: {
-        flex: 1,
-    },
-    scrollContainer: {
-        flexGrow: 1,
-        paddingHorizontal: 24,
-    },
-    headerContainer: {
-        alignItems: 'center',
-        marginTop: 40,
-        marginBottom: 32,
-    },
-    logoContainer: {
         width: 100,
         height: 100,
         borderRadius: 50,
@@ -346,40 +349,77 @@ const styles = StyleSheet.create({
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
-        shadowRadius: 8,
+        shadowRadius: 12,
         elevation: 4,
-        marginBottom: 12,
+        marginBottom: 16,
     },
-    logoEmoji: {
+    loadingLogoText: {
         fontSize: 48,
     },
+    loadingTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#16a34a',
+        marginBottom: 8,
+    },
+    loadingSpinner: {
+        marginTop: 20,
+    },
+    scrollContainer: {
+        flexGrow: 1,
+        paddingHorizontal: 24,
+        paddingTop: 20,
+        paddingBottom: 20,
+    },
+    headerContainer: {
+        alignItems: 'center',
+        marginBottom: 24,
+        height: 110, // Sabit yükseklik - jumping tamamen önler
+    },
+    logoContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'white',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
+        marginBottom: 10,
+    },
+    logoEmoji: {
+        fontSize: 40,
+    },
     logoText: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '700',
         color: '#16a34a',
     },
     welcomeSection: {
-        marginBottom: 32,
+        marginBottom: 24,
     },
     title: {
-        fontSize: 28,
+        fontSize: 26,
         fontWeight: '700',
         color: '#111827',
         textAlign: 'center',
-        marginBottom: 12,
+        marginBottom: 8,
         letterSpacing: -0.5,
     },
     subtitle: {
-        fontSize: 15,
+        fontSize: 14,
         color: '#6B7280',
         textAlign: 'center',
-        lineHeight: 22,
-        paddingHorizontal: 8,
+        lineHeight: 20,
+        paddingHorizontal: 16,
     },
     card: {
         backgroundColor: 'white',
         borderRadius: 20,
-        padding: 24,
+        padding: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
@@ -387,24 +427,24 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     inputSection: {
-        marginBottom: 20,
+        marginBottom: 16,
     },
     label: {
         fontSize: 14,
         fontWeight: '600',
         color: '#374151',
-        marginBottom: 10,
-        marginLeft: 4,
+        marginBottom: 8,
+        marginLeft: 2,
     },
     phoneInputContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 2,
         borderColor: '#E5E7EB',
-        borderRadius: 14,
-        paddingHorizontal: 16,
+        borderRadius: 12,
+        paddingHorizontal: 14,
         backgroundColor: '#F9FAFB',
-        height: 56,
+        height: 52,
     },
     countryCodeContainer: {
         flexDirection: 'row',
@@ -415,36 +455,37 @@ const styles = StyleSheet.create({
         marginRight: 12,
     },
     flagEmoji: {
-        fontSize: 20,
+        fontSize: 18,
         marginRight: 6,
     },
     countryCode: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '600',
         color: '#111827',
     },
     phoneInput: {
         flex: 1,
-        fontSize: 16,
+        fontSize: 15,
         color: '#111827',
         fontWeight: '500',
     },
     checkboxContainer: {
         flexDirection: 'row',
-        backgroundColor: '#DCFCE7',
-        padding: 16,
-        borderRadius: 14,
-        marginBottom: 24,
+        alignItems: 'center',
+        backgroundColor: '#F0FDF4',
+        padding: 12,
+        borderRadius: 10,
+        marginBottom: 16,
         borderWidth: 1,
         borderColor: '#BBF7D0',
     },
     checkbox: {
-        width: 22,
-        height: 22,
+        width: 20,
+        height: 20,
         borderWidth: 2,
         borderColor: '#16a34a',
-        borderRadius: 6,
-        marginRight: 12,
+        borderRadius: 5,
+        marginRight: 10,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: 'white',
@@ -453,43 +494,30 @@ const styles = StyleSheet.create({
         backgroundColor: '#16a34a',
         borderColor: '#16a34a',
     },
-    checkmarkContainer: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
     checkmark: {
         color: 'white',
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: '700',
     },
-    checkboxTextContainer: {
-        flex: 1,
-        justifyContent: 'center',
-    },
-    checkboxTitle: {
-        fontSize: 14,
-        fontWeight: '600',
+    checkboxText: {
+        fontSize: 13,
+        fontWeight: '500',
         color: '#166534',
-        marginBottom: 2,
-    },
-    checkboxSubtitle: {
-        fontSize: 12,
-        color: '#15803d',
-        lineHeight: 16,
+        flex: 1,
     },
     button: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#16a34a',
-        paddingVertical: 16,
-        borderRadius: 14,
-        marginBottom: 16,
+        paddingVertical: 14,
+        borderRadius: 12,
+        marginBottom: 12,
         shadowColor: '#16a34a',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
+        shadowRadius: 6,
+        elevation: 3,
     },
     buttonDisabled: {
         backgroundColor: '#D1D5DB',
@@ -508,17 +536,14 @@ const styles = StyleSheet.create({
         letterSpacing: 0.3,
     },
     termsText: {
-        fontSize: 12,
+        fontSize: 11,
         color: '#9CA3AF',
         textAlign: 'center',
-        lineHeight: 18,
-        paddingHorizontal: 8,
+        lineHeight: 16,
+        paddingHorizontal: 4,
     },
     termsLink: {
         color: '#16a34a',
         fontWeight: '600',
-    },
-    bottomSpacing: {
-        height: 40,
     },
 });
