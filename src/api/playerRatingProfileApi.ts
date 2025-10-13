@@ -9,6 +9,55 @@ import {
 import { addBase, deleteByIdBase, getAllBase, getByIdBase, updateBase } from './firestoreApiBase';
 import { db } from './firebaseConfig';
 
+//indexes
+/*
+Collection: playerRatingProfiles
+Fields:
+- leagueId (Ascending)
+- seasonId (Ascending)
+- totalRatingsReceived (Descending)
+- overallRating (Descending)
+
+
+Collection: playerRatingProfiles
+Fields:
+- leagueId (Ascending)
+- seasonId (Ascending)
+- ratingTrend (Ascending)
+- totalRatingsReceived (Descending)
+- overallRating (Descending)
+
+
+Collection: playerRatingProfiles
+Fields:
+- leagueId (Ascending)
+- seasonId (Ascending)
+- mvpCount (Descending)
+- mvpRate (Descending)
+
+Collection: playerRatingProfiles
+Fields:
+- playerId (Ascending)
+- lastUpdated (Descending)
+
+Collection: playerRatingProfiles
+Fields:
+- leagueId (Ascending)
+- seasonId (Ascending)
+- overallRating (Descending)
+
+
+try {
+  // Complex query with composite index
+  const results = await complexQuery();
+  return results;
+} catch (error) {
+  // Fallback to simple query + client-side sorting
+  const fallbackResults = await simpleQuery();
+  return fallbackResults.sort(...).slice(0, limit);
+}
+
+*/
 const profileCollectionName = 'playerRatingProfiles';
 
 export const playerRatingProfileApi = {
@@ -162,5 +211,82 @@ export const playerRatingProfileApi = {
             console.error('MVP liderleri getirilemedi:', error);
             return [];
         }
+    },
+     // ============================================
+    // ✅ YENİ METODLAR (OPSIYONEL)
+    // ============================================
+
+    /**
+     * Get profiles by rating range
+     */
+    getProfilesByRatingRange: async (
+        leagueId: string,
+        seasonId: string,
+        minRating: number,
+        maxRating: number
+    ) => {
+        try {
+            const q = query(
+                collection(db, profileCollectionName),
+                where('leagueId', '==', leagueId),
+                where('seasonId', '==', seasonId),
+                where('overallRating', '>=', minRating),
+                where('overallRating', '<=', maxRating),
+                orderBy('overallRating', 'desc')
+            );
+            const querySnapshot = await getDocs(q);
+            return querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Rating aralığı sorgulanamadı:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Get consistent performers (stable trend)
+     */
+    getConsistentPerformers: async (leagueId: string, seasonId: string, limitCount: number = 10) => {
+        try {
+            const q = query(
+                collection(db, profileCollectionName),
+                where('leagueId', '==', leagueId),
+                where('seasonId', '==', seasonId),
+                where('ratingTrend', '==', 'stable'),
+                where('overallRating', '>=', 4.0),
+                orderBy('overallRating', 'desc'),
+                limit(limitCount)
+            );
+            const querySnapshot = await getDocs(q);
+            return querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Tutarlı oyuncular getirilemedi:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Delete all profiles for a season (cleanup)
+     */
+    deleteProfilesBySeason: async (leagueId: string, seasonId: string) => {
+        try {
+            const profiles = await playerRatingProfileApi.getProfilesByLeagueSeason(leagueId, seasonId);
+            
+            const deletePromises = profiles.map((profile: any) => 
+                deleteByIdBase(profileCollectionName, profile.id)
+            );
+
+            await Promise.all(deletePromises);
+            return { success: true, deletedCount: profiles.length };
+        } catch (error) {
+            console.error('Sezon profilleri silinemedi:', error);
+            return { success: false, deletedCount: 0 };
+        }
     }
 };
+

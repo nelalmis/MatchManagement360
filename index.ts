@@ -1,8 +1,14 @@
-import { registerRootComponent } from 'expo';
+// ============================================
+// INDEX.TS (EXPO)
+// ============================================
 
-import App from './App';
+import 'react-native-gesture-handler'; // ⚠️ EN ÜSTTE OLMALI!
+import { registerRootComponent } from 'expo';
+// import App from './App';
+import AppV2 from './AppV2';
+import AppV3 from './AppV3';
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
 // It also ensures that whether you load the app in Expo Go or in a native build,
 // the environment is set up appropriately
-registerRootComponent(App);
+registerRootComponent(AppV3);

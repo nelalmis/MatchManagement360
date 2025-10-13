@@ -26,7 +26,6 @@ import {
   Plus,
 } from 'lucide-react-native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   IMatchFixture,
   IPlayer,
@@ -39,13 +38,18 @@ import {
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
 import { leagueService } from '../../services/leagueService';
+import { FixtureStackParamList, NavigationService } from '../../navigation';
+import { RouteProp, useRoute } from '@react-navigation/native';
 
 type TabType = 'basic' | 'schedule' | 'players' | 'organizers';
+type CreateFixutreRootParameter = RouteProp<FixtureStackParamList, 'createFixture'>;
+
 
 export const CreateFixtureScreen: React.FC = () => {
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
-  const leagueId = navigation.params?.leagueId;
+    const route = useRoute<CreateFixutreRootParameter>();
+
+  const leagueId = route.params?.leagueId;
 
   // League Info
   const [league, setLeague] = useState<ILeague | null>(null);
@@ -96,7 +100,7 @@ export const CreateFixtureScreen: React.FC = () => {
   const loadData = async () => {
     if (!leagueId) {
       Alert.alert('Hata', 'Lig ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -109,7 +113,7 @@ export const CreateFixtureScreen: React.FC = () => {
 
       if (!leagueData) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -207,7 +211,7 @@ export const CreateFixtureScreen: React.FC = () => {
           [
             {
               text: 'Tamam',
-              onPress: () => navigation.navigate('fixtureDetail', { fixtureId: response.id })
+              onPress: () => NavigationService.navigateToFixture(response.id)
             }
           ]
         );
@@ -309,7 +313,7 @@ export const CreateFixtureScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => NavigationService.goBack()}
           style={styles.headerButton}
           activeOpacity={0.7}
         >

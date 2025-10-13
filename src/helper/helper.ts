@@ -8,7 +8,7 @@ const formatPhoneNumber = (value: any) => {
     return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 8)} ${cleaned.slice(8, 10)}`;
 };
 // helper/profileHelper.ts
-export const isProfileComplete = (user: IPlayer | null): boolean => {
+const isProfileComplete = (user: IPlayer | null): boolean => {
     if (!user) return false;
     
     const requiredFields = ['name', 'surname'];
@@ -16,5 +16,6 @@ export const isProfileComplete = (user: IPlayer | null): boolean => {
 };
 
 export {
-    formatPhoneNumber
+    formatPhoneNumber,
+    isProfileComplete
 }

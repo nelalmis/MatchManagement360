@@ -23,7 +23,6 @@ import {
   Plus,
 } from 'lucide-react-native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   ILeague,
   IPlayer,
@@ -34,6 +33,7 @@ import {
 } from '../../types/types';
 import { leagueService } from '../../services/leagueService';
 import { playerService } from '../../services/playerService';
+import { NavigationService } from '../../navigation/NavigationService';
 
 const SPORT_TYPES: SportType[] = [
   'Futbol',
@@ -46,7 +46,6 @@ const SPORT_TYPES: SportType[] = [
 
 export const CreateLeagueScreen: React.FC = () => {
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
 
   // Form State
   const [title, setTitle] = useState('');
@@ -135,7 +134,7 @@ export const CreateLeagueScreen: React.FC = () => {
         seasonEndDate,
         autoResetStandings,
         canChangeSeason,
-        playerIds: selectedPlayerIds,
+        playerIds: [...selectedPlayerIds, user.id], //Yoksa kurucu ekleniyor
         premiumPlayerIds,
         directPlayerIds,
         teamBuildingAuthorityPlayerIds,
@@ -153,7 +152,7 @@ export const CreateLeagueScreen: React.FC = () => {
           [
             {
               text: 'Tamam',
-              onPress: () => navigation.navigate('leagueDetail', { leagueId: response.id })
+              onPress: () => NavigationService.navigateToLeague(response.id)
             }
           ]
         );
@@ -282,7 +281,7 @@ export const CreateLeagueScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => NavigationService.goBack()}
           style={styles.headerButton}
           activeOpacity={0.7}
         >
@@ -336,7 +335,7 @@ export const CreateLeagueScreen: React.FC = () => {
                 {SPORT_TYPES.map((sport) => {
                   const isSelected = sportType === sport;
                   const sportColor = getSportColor(sport);
-                  
+
                   return (
                     <TouchableOpacity
                       key={sport}
@@ -429,7 +428,7 @@ export const CreateLeagueScreen: React.FC = () => {
             {selectedPlayers.length > 0 && (
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Seçili Oyuncular ({selectedPlayers.length})</Text>
-                
+
                 {selectedPlayers.map((player) => (
                   <View key={player.id} style={styles.playerItem}>
                     <View style={styles.playerInfo}>
@@ -671,7 +670,7 @@ export const CreateLeagueScreen: React.FC = () => {
                   <Check size={16} color="#16a34a" strokeWidth={2.5} />
                   <Text style={styles.selectActionText}>Tümünü Seç</Text>
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
                   onPress={deselectAllPlayers}
                   style={styles.selectActionButton}

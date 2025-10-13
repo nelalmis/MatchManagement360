@@ -59,6 +59,7 @@ screens/
 - **GoalAssistEntryScreen** - Gol/Asist gir + Organizatör Onayı ✅
 - **PlayerRatingScreen** - Oyuncu puanlama + Otomatik MVP ✅
 - **PaymentTrackingScreen** - Ödeme takibi + Maç Tamamlama ✅
+
 - Components:
   - MatchCard
   - MatchHeader
@@ -83,6 +84,7 @@ screens/
 - **EditProfileScreen** - Profil düzenle
 - **PlayerStatsScreen** - Oyuncu istatistikleri (Tüm ligler)
 - **MyMatchesScreen** - Geçmiş maçlarım
+- **SelectPostisionsScreen** - Geçmiş maçlarım
 - Components:
   - ProfileHeader
   - StatsOverview
@@ -266,18 +268,18 @@ Screen
 17. ✅ PaymentTrackingScreen (Organizatör - Ödeme + Final onay)
 
 ### Phase 4: Statistics & Profile 🔄
-18. StandingsScreen
-19. PlayerProfileScreen
-20. PlayerStatsScreen
-21. TopScorersScreen
-22. TopAssistsScreen
-23. MVPScreen
+18. ✅StandingsScreen
+19. ✅PlayerProfileScreen
+20. ✅PlayerStatsScreen
+21. ✅TopScorersScreen
+22. ✅TopAssistsScreen
+23. ✅MVPScreen
 
 ### Phase 5: Settings & Extras
 24. SettingsScreen
-25. EditProfileScreen
-26. MyMatchesScreen
-27. NotificationSettingsScreen
+25. ✅EditProfileScreen
+26. ✅MyMatchesScreen
+27. ✅NotificationSettingsScreen
 
 ---
 
@@ -302,6 +304,51 @@ Her screen şu yapıları kullanabilir:
 6. **Empty States**: Veri yoksa anlamlı empty state göster
 
 ---
+
+## Klasör Ekran Yapısı
+src/
+├── screens/
+│   ├── Home/
+│   │   └── HomeScreen.tsx
+│   │
+│   ├── League/
+│   │   ├── LeagueListScreen.tsx
+│   │   ├── LeagueDetailScreen.tsx
+│   │   ├── CreateLeagueScreen.tsx
+│   │   └── EditLeagueScreen.tsx
+│   │
+│   ├── Fixture/
+│   │   ├── FixtureListScreen.tsx
+│   │   ├── FixtureDetailScreen.tsx
+│   │   ├── CreateFixtureScreen.tsx
+│   │   └── EditFixtureScreen.tsx
+│   │
+│   ├── Match/
+│   │   ├── MatchListScreen.tsx
+│   │   ├── MatchDetailScreen.tsx
+│   │   ├── MatchRegistrationScreen.tsx
+│   │   ├── TeamBuildingScreen.tsx
+│   │   ├── ScoreEntryScreen.tsx
+│   │   ├── GoalAssistEntryScreen.tsx
+│   │   ├── PlayerRatingScreen.tsx
+│   │   ├── PaymentTrackingScreen.tsx
+│   │   └── MyMatchesScreen.tsx
+│   │
+│   ├── Standings/
+│   │   ├── StandingsListScreen.tsx ⭐
+│   │   ├── StandingsScreen.tsx
+│   │   ├── TopScorersScreen.tsx
+│   │   ├── TopAssistsScreen.tsx
+│   │   └── MVPScreen.tsx
+│   │
+│   ├── Player/
+│   │   ├── PlayerProfileScreen.tsx
+│   │   ├── EditProfileScreen.tsx
+│   │   ├── PlayerStatsScreen.tsx ⭐ (İLK EKRAN)
+│   │
+│   └── Settings/
+│       ├── SettingsScreen.tsx
+│       └── NotificationSettingsScreen.tsx
 
 ## 🔗 Navigation
 
@@ -448,3 +495,27 @@ MVP = En Yüksek Ortalama Puana Sahip Oyuncu
 ---
 
 ## 🎯 Sıradaki Adımlar
+
+## Bazı Notlar
+// IBAN
+<CopyableText
+  label="IBAN"
+  value={fixture.peterIban}
+  format={(iban) => iban.replace(/(.{4})/g, '$1 ').trim()}
+  successMessage="IBAN kopyalandı"
+/>
+
+// Telefon
+<CopyableText
+  label="Telefon"
+  value={fixture.peterPhone}
+  format={(phone) => phone.replace(/(\d{4})(\d{3})(\d{2})(\d{2})/, '$1 $2 $3 $4')}
+  successMessage="Telefon numarası kopyalandı"
+/>
+
+// Email
+<CopyableText
+  label="Email"
+  value={fixture.peterEmail}
+  successMessage="Email kopyalandı"
+/>

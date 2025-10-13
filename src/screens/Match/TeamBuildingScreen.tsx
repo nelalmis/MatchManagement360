@@ -26,7 +26,6 @@ import {
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   IMatch,
   IMatchFixture,
@@ -38,11 +37,12 @@ import {
 import { matchService } from '../../services/matchService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
+import { NavigationService } from '../../navigation/NavigationService';
+import { eventManager, Events } from '../../utils';
 
 export const TeamBuildingScreen: React.FC = () => {
   const route: any = useRoute();
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);
@@ -68,7 +68,7 @@ export const TeamBuildingScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -78,7 +78,7 @@ export const TeamBuildingScreen: React.FC = () => {
       const matchData = await matchService.getById(matchId);
       if (!matchData) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -89,7 +89,7 @@ export const TeamBuildingScreen: React.FC = () => {
 
       if (!canBuild) {
         Alert.alert('Hata', 'Takım kurma yetkiniz yok');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -99,7 +99,7 @@ export const TeamBuildingScreen: React.FC = () => {
       const fixtureData = await matchFixtureService.getById(matchData.fixtureId);
       if (!fixtureData) {
         Alert.alert('Hata', 'Fikstür bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
       setFixture(fixtureData);
@@ -247,17 +247,18 @@ export const TeamBuildingScreen: React.FC = () => {
               );
 
               if (success) {
+                 // ✅ Event tetikle
+                            eventManager.emit(Events.TEAM_UPDATED, {
+                              matchId: match.id,
+                              timestamp: Date.now()
+                            });
                 Alert.alert(
                   '✅ Başarılı!',
                   'Takımlar başarıyla kaydedildi',
                   [
                     {
                       text: 'Tamam',
-                      onPress: () => navigation.goBack({
-                        matchId: match.id,
-                        updated: true,
-                        _refresh: Date.now()
-                      })
+                      onPress: () => NavigationService.goBack()
                     }
                   ]
                 );
@@ -313,7 +314,7 @@ export const TeamBuildingScreen: React.FC = () => {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: sportColor }]}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => NavigationService.goBack()}
           style={styles.headerButton}
           activeOpacity={0.7}
         >

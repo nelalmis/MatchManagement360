@@ -17,7 +17,7 @@ import {
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAppContext } from "../../context/AppContext";
-import { useNavigationContext } from "../../context/NavigationContext";
+import { NavigationService } from '../../navigation/NavigationService';
 import { playerService } from "../../services/playerService";
 import {
     ArrowRight,
@@ -41,7 +41,6 @@ interface FormData {
 }
 
 export const RegisterScreen: React.FC = () => {
-    const navigation = useNavigationContext();
     const { setUser, phoneNumber, user, setIsVerified } = useAppContext();
 
     const [loading, setLoading] = useState(false);
@@ -129,7 +128,7 @@ export const RegisterScreen: React.FC = () => {
                 [
                     {
                         text: "Hadi Başlayalım",
-                        onPress: () => navigation.navigate("home"),
+                        onPress: () => NavigationService.navigateToHomeTab()
                     },
                 ]
             );

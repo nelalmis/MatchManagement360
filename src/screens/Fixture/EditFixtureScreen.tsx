@@ -27,7 +27,6 @@ import {
   Settings,
 } from 'lucide-react-native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   IMatchFixture,
   IPlayer,
@@ -36,13 +35,17 @@ import {
 } from '../../types/types';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { FixtureStackParamList, NavigationService } from '../../navigation';
+import { eventManager, Events, FixtureEventData } from '../../utils';
 
 type TabType = 'basic' | 'schedule' | 'players' | 'organizers';
+type EditFixtureRootParameter = RouteProp<FixtureStackParamList, 'editFixture'>;
 
 export const EditFixtureScreen: React.FC = () => {
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
-  const fixtureId = navigation.params?.fixtureId;
+  const route = useRoute<EditFixtureRootParameter>();
+  const fixtureId = route.params?.fixtureId;
 
   // State
   const [fixture, setFixture] = useState<IMatchFixture | null>(null);
@@ -63,7 +66,7 @@ export const EditFixtureScreen: React.FC = () => {
   const loadData = async () => {
     if (!fixtureId) {
       Alert.alert('Hata', 'Fikstür ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -76,7 +79,7 @@ export const EditFixtureScreen: React.FC = () => {
 
       if (!fixtureData) {
         Alert.alert('Hata', 'Fikstür bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -112,15 +115,17 @@ export const EditFixtureScreen: React.FC = () => {
     try {
       setSaving(true);
       await matchFixtureService.update(fixture.id, fixture);
-      
+
+      // ✅ Type-safe event tetikle
+      eventManager.emit(Events.FIXTURE_UPDATED, {
+        fixtureId,
+        timestamp: Date.now()
+      } as FixtureEventData);
+
       Alert.alert('Başarılı', 'Fikstür başarıyla güncellendi', [
-        { 
-          text: 'Tamam', 
-          onPress: () => navigation.goBack({
-            fixtureId: fixture.id,
-            updated: true,
-            _refresh: Date.now()
-          })
+        {
+          text: 'Tamam',
+          onPress: () => NavigationService.goBack()
         }
       ]);
     } catch (error) {
@@ -248,7 +253,7 @@ export const EditFixtureScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => NavigationService.goBack()}
           style={styles.headerButton}
           activeOpacity={0.7}
         >

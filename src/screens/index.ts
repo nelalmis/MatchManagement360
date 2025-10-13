@@ -8,9 +8,3 @@ export * from './Standings';
 export * from './Player';
 export * from './Settings';
 export * from './Common';
-
-
-
-// USAGE EXAMPLE:
-// ===============
-// import { HomeScreen, LeagueListScreen, MatchDetailScreen } from '@/screens';

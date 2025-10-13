@@ -24,7 +24,6 @@ import {
   AlertCircle,
 } from 'lucide-react-native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   IMatch,
   ILeague,
@@ -35,14 +34,17 @@ import {
 import { matchService } from '../../services/matchService';
 import { leagueService } from '../../services/leagueService';
 import { matchFixtureService } from '../../services/matchFixtureService';
+import { FixtureStackParamList, NavigationService } from '../../navigation';
+import { RouteProp, useRoute } from '@react-navigation/native';
 
 type FilterType = 'all' | 'upcoming' | 'past' | 'myMatches';
+type MatchListRouteProp = RouteProp<FixtureStackParamList, 'matchList'>;
 
 export const MatchListScreen: React.FC = () => {
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
-  const fixtureId = navigation.params?.fixtureId;
-  const leagueId = navigation.params?.leagueId;
+    const route = useRoute<MatchListRouteProp>();
+  
+  const {fixtureId, leagueId} = route.params;
 
   const [league, setLeague] = useState<ILeague | null>(null);
   const [matches, setMatches] = useState<IMatch[]>([]);
@@ -75,7 +77,7 @@ export const MatchListScreen: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!user?.id) {
       Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -141,13 +143,13 @@ export const MatchListScreen: React.FC = () => {
 
       if (fixtureId && !leagueData) {
         Alert.alert('Hata', 'Fikstür bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
       if (leagueId && !leagueData) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -296,7 +298,7 @@ export const MatchListScreen: React.FC = () => {
         </Text>
         <TouchableOpacity
           style={styles.emptyActionButton}
-          onPress={() => navigation.navigate('leagueList')}
+          onPress={() => NavigationService.navigateToLeaguesTab()}
           activeOpacity={0.8}
         >
           <Text style={styles.emptyActionButtonText}>Ligleri Keşfet</Text>
@@ -428,7 +430,7 @@ export const MatchListScreen: React.FC = () => {
               match={match}
               isPlayerInMatch={isPlayerInMatch(match)}
               sportColor={sportColor}
-              onPress={() => navigation.navigate('matchDetail', { matchId: match.id })}
+              onPress={() => NavigationService.navigateToMatch(match.id )}
               getMatchStatusColor={getMatchStatusColor}
               formatDateTime={formatDateTime}
             />
@@ -477,7 +479,6 @@ const MatchCard: React.FC<MatchCardProps> = ({
 }) => {
   const statusColor = getMatchStatusColor(match.status);
   const isPast = new Date(match.matchStartTime) < new Date() || match.status === 'Tamamlandı';
-  const navigation = useNavigationContext();
 
   return (
     <TouchableOpacity
@@ -566,7 +567,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
           style={styles.registrationBanner}
           onPress={(e) => {
             e.stopPropagation();
-            navigation.navigate('matchRegistration', { matchId: match.id });
+            NavigationService.navigateToMatchRegistration(match.id);
           }}
           activeOpacity={0.7}
         >
