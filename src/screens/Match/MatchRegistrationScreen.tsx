@@ -24,7 +24,6 @@ import {
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
     IMatch,
     IMatchFixture,
@@ -32,14 +31,16 @@ import {
     getSportIcon,
     getSportColor,
 } from '../../types/types';
+import { canRegisterToMatch } from '../../helper/matchRegisterHelper';
 import { matchService } from '../../services/matchService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
+import { NavigationService } from '../../navigation/NavigationService';
+import { eventManager, Events } from '../../utils';
 
 export const MatchRegistrationScreen: React.FC = () => {
     const route: any = useRoute();
     const { user } = useAppContext();
-    const navigation = useNavigationContext();
     const matchId = route.params?.matchId;
 
     const [match, setMatch] = useState<IMatch | null>(null);
@@ -60,7 +61,7 @@ export const MatchRegistrationScreen: React.FC = () => {
     const loadData = async () => {
         if (!matchId || !user?.id) {
             Alert.alert('Hata', 'Maç ID bulunamadı');
-            navigation.goBack();
+            NavigationService.goBack();
             return;
         }
 
@@ -70,7 +71,7 @@ export const MatchRegistrationScreen: React.FC = () => {
             const matchData = await matchService.getById(matchId);
             if (!matchData) {
                 Alert.alert('Hata', 'Maç bulunamadı');
-                navigation.goBack();
+                NavigationService.goBack();
                 return;
             }
 
@@ -151,6 +152,12 @@ export const MatchRegistrationScreen: React.FC = () => {
                             const success = await matchService.registerPlayer(match.id, user.id);
 
                             if (success) {
+                                // ✅ Event tetikle
+                                eventManager.emit(Events.MATCH_REGISTERED, {
+                                    matchId: match.id,
+                                    timestamp: Date.now()
+                                });
+
                                 Alert.alert(
                                     'Başarılı! 🎉',
                                     availableSlots > 0
@@ -159,11 +166,7 @@ export const MatchRegistrationScreen: React.FC = () => {
                                     [
                                         {
                                             text: 'Tamam',
-                                            onPress: () => navigation.goBack({
-                                                matchId: match.id,
-                                                updated: true,
-                                                _refresh: Date.now()
-                                            })
+                                            onPress: () => NavigationService.goBack() // ✅ DEĞİŞTİ
                                         }
                                     ]
                                 );
@@ -198,14 +201,16 @@ export const MatchRegistrationScreen: React.FC = () => {
                             const success = await matchService.unregisterPlayer(match.id, user.id);
 
                             if (success) {
+                                // ✅ Event tetikle
+                                eventManager.emit(Events.MATCH_UNREGISTERED, {
+                                    matchId: match.id,
+                                    timestamp: Date.now()
+                                });
+
                                 Alert.alert('Başarılı', 'Kayıt iptal edildi', [
                                     {
                                         text: 'Tamam',
-                                        onPress: () => navigation.goBack({
-                                            matchId: match.id,
-                                            updated: true,
-                                            _refresh: Date.now()
-                                        })
+                                        onPress: () => NavigationService.goBack() // ✅ DEĞİŞTİ
                                     }
                                 ]);
                             } else {
@@ -262,6 +267,23 @@ export const MatchRegistrationScreen: React.FC = () => {
         return { color: '#10B981', text: 'Açık', icon: Check };
     };
 
+    // Yardımcı fonksiyon: Maça kayıt olabilir mi?
+    const canRegisterToMatch = (match:IMatch, userId:any, fixture:IMatchFixture) => {
+        if (!match || !userId || !fixture) return false;
+        const now = new Date();
+        if (match.status !== 'Kayıt Açık') return false;
+        if (now < new Date(match.registrationTime)) return false;
+        if (now > new Date(match.registrationEndTime)) return false;
+        if (match.registeredPlayerIds?.includes(userId)) return false;
+        if (match.reservePlayerIds?.includes(userId)) return false;
+        const totalRegistered = match.registeredPlayerIds?.length || 0;
+        const totalDirect = match.directPlayerIds?.length || 0;
+        const staffSlots = fixture.staffPlayerCount || 0;
+        const occupied = totalRegistered + totalDirect;
+        if (occupied >= staffSlots) return false;
+        return true;
+    };
+
     if (loading || !match || !fixture) {
         return (
             <View style={styles.loadingContainer}>
@@ -273,7 +295,7 @@ export const MatchRegistrationScreen: React.FC = () => {
 
     const sportColor = getSportColor(fixture.sportType);
     const regStatus = getRegistrationStatus();
-    const canRegister = match.status === 'Kayıt Açık' && !isRegistered && !isReserve;
+    const canRegister = canRegisterToMatch(match, user?.id, fixture);
     const StatusIcon = regStatus.icon;
 
     return (
@@ -281,7 +303,7 @@ export const MatchRegistrationScreen: React.FC = () => {
             {/* Header */}
             <View style={[styles.header, { backgroundColor: sportColor }]}>
                 <TouchableOpacity
-                    onPress={() => navigation.goBack()}
+                    onPress={() => NavigationService.goBack()}
                     style={styles.headerButton}
                     activeOpacity={0.7}
                 >
@@ -455,23 +477,10 @@ export const MatchRegistrationScreen: React.FC = () => {
                         <Text style={styles.sectionTitle}>
                             Kayıtlı Oyuncular ({registeredPlayers.length})
                         </Text>
-
                         <View style={styles.playersList}>
-                            {registeredPlayers.map((player, index) => (
+                            {registeredPlayers.map((player) => (
                                 <View key={player.id} style={styles.playerItem}>
-                                    <View style={styles.playerAvatar}>
-                                        <Text style={styles.playerInitial}>
-                                            {player.name?.[0]}{player.surname?.[0]}
-                                        </Text>
-                                    </View>
-                                    <View style={styles.playerInfo}>
-                                        <Text style={styles.playerName}>
-                                            {player.name} {player.surname}
-                                        </Text>
-                                        <Text style={styles.playerOrder}>
-                                            #{index + 1} sırada kayıt oldu
-                                        </Text>
-                                    </View>
+                                    <Text style={styles.playerName}>{player.name}</Text>
                                 </View>
                             ))}
                         </View>
@@ -564,7 +573,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: 12,
+        paddingTop: 40,
         paddingBottom: 16,
     },
     headerButton: {

@@ -11,6 +11,7 @@ import {
   Switch,
   Modal,
   FlatList,
+  Platform,
 } from 'react-native';
 import {
   X,
@@ -21,10 +22,11 @@ import {
   Settings,
   AlertCircle,
   Search,
-  ChevronDown,
 } from 'lucide-react-native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
+import { NavigationService } from '../../navigation/NavigationService';
+import { useRoute, RouteProp } from '@react-navigation/native';
+import { LeagueStackParamList } from '../../navigation/types';
 import {
   ILeague,
   IPlayer,
@@ -38,6 +40,8 @@ import { playerService } from '../../services/playerService';
 
 type TabType = 'general' | 'players' | 'permissions';
 
+type EditLeagueRouteProp = RouteProp<LeagueStackParamList, 'editLeague'>;
+
 const SPORT_TYPES: SportType[] = [
   'Futbol',
   'Basketbol',
@@ -49,8 +53,8 @@ const SPORT_TYPES: SportType[] = [
 
 export const EditLeagueScreen: React.FC = () => {
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
-  const leagueId = navigation.params?.leagueId;
+  const route = useRoute<EditLeagueRouteProp>();
+  const { leagueId } = route.params;
 
   const [league, setLeague] = useState<ILeague | null>(null);
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
@@ -72,7 +76,7 @@ export const EditLeagueScreen: React.FC = () => {
   const loadData = async () => {
     if (!leagueId) {
       Alert.alert('Hata', 'Lig ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -85,7 +89,7 @@ export const EditLeagueScreen: React.FC = () => {
 
       if (!leagueData) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -117,18 +121,14 @@ export const EditLeagueScreen: React.FC = () => {
       setSaving(true);
       await leagueService.update(league.id, league);
       
-       Alert.alert('Başarılı', 'Lig başarıyla güncellendi', [
-      { 
-        text: 'Tamam', 
-        onPress: () => {
-          // ✅ Return params ile geri dön
-          navigation.goBack({ 
-            leagueId: league.id,
-            updated: true
-          });
+      Alert.alert('Başarılı', 'Lig başarıyla güncellendi', [
+        { 
+          text: 'Tamam', 
+          onPress: () => {
+            NavigationService.goBack();
+          }
         }
-      }
-    ]);
+      ]);
     } catch (error) {
       console.error('Error saving league:', error);
       Alert.alert('Hata', 'Lig güncellenirken bir hata oluştu');
@@ -238,7 +238,7 @@ export const EditLeagueScreen: React.FC = () => {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => NavigationService.goBack()}
             style={styles.headerButton}
             activeOpacity={0.7}
           >
@@ -630,6 +630,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   header: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',

@@ -20,14 +20,13 @@ import { playerService } from '../../services/playerService';
 import { deviceService } from '../../services/deviceService';
 import { ExpoNotificationService } from '../../hooks/useNotificationHandler';
 import { IPlayer, IResponseBase } from '../../types/types';
-import { useNavigationContext } from '../../context/NavigationContext';
 import { ArrowLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Device from 'expo-device';
 import { getOrCreateDeviceId } from '../../helper/deviceHelper';
+import { NavigationService } from '../../navigation/NavigationService';
 
 export const PhoneVerificationScreen: React.FC = () => {
-    const navigation = useNavigationContext();
     const scrollViewRef = useRef<ScrollView>(null);
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const iconScale = useRef(new Animated.Value(1)).current;
@@ -183,10 +182,10 @@ export const PhoneVerificationScreen: React.FC = () => {
                 // Check if profile is complete
                 if (!isProfileComplete(userData)) {
                     setCurrentScreen('register');
-                    navigation.navigate("register");
+                    NavigationService.navigateToRegister();
                 } else {
                     setCurrentScreen('home');
-                    navigation.navigate("home");
+                    NavigationService.navigateToMain();
                 }
 
                 setLoading(false);
@@ -254,7 +253,7 @@ export const PhoneVerificationScreen: React.FC = () => {
 
     const handleBack = () => {
         setCurrentScreen('login');
-        navigation.navigate('login');
+        NavigationService.navigateToLogin();
     };
 
     return (

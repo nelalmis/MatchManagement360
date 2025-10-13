@@ -25,7 +25,6 @@ import {
   AlertCircle,
 } from 'lucide-react-native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   IMatchFixture,
   ILeague,
@@ -36,11 +35,17 @@ import {
 } from '../../types/types';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { leagueService } from '../../services/leagueService';
+import { FixtureStackParamList, NavigationService } from '../../navigation';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { CustomHeader } from '../../components/CustomHeader';
+
+type FixturesRouteProp = RouteProp<FixtureStackParamList, 'fixtureList'>;
 
 export const FixtureListScreen: React.FC = () => {
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
-  const leagueId = navigation.params?.leagueId;
+
+  const route = useRoute<FixturesRouteProp>();
+  const { leagueId } = route.params || {};
 
   const [league, setLeague] = useState<ILeague | null>(null);
   const [fixtures, setFixtures] = useState<IMatchFixture[]>([]);
@@ -71,7 +76,7 @@ export const FixtureListScreen: React.FC = () => {
   const loadData = async () => {
     if (!leagueId) {
       Alert.alert('Hata', 'Lig ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -85,7 +90,7 @@ export const FixtureListScreen: React.FC = () => {
 
       if (!leagueData) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -94,7 +99,7 @@ export const FixtureListScreen: React.FC = () => {
 
       // Calculate stats
       const activeCount = fixturesData.filter(f => f.status === 'Aktif').length;
-      const myCount = fixturesData.filter(f => 
+      const myCount = fixturesData.filter(f =>
         f.organizerPlayerIds.includes(user?.id || '')
       ).length;
 
@@ -177,6 +182,7 @@ export const FixtureListScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      {/* <CustomHeader showDrawer={true} /> */}
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
@@ -281,7 +287,7 @@ export const FixtureListScreen: React.FC = () => {
                       isOrganizer={true}
                       sportColor={sportColor}
                       onPress={() =>
-                        navigation.navigate('fixtureDetail', { fixtureId: fixture.id })
+                        NavigationService.navigateToFixture(fixture.id)
                       }
                       formatTime={formatTime}
                       formatDay={formatDay}
@@ -303,7 +309,7 @@ export const FixtureListScreen: React.FC = () => {
                       isOrganizer={false}
                       sportColor={sportColor}
                       onPress={() =>
-                        navigation.navigate('fixtureDetail', { fixtureId: fixture.id })
+                        NavigationService.navigateToFixture(fixture.id)
                       }
                       formatTime={formatTime}
                       formatDay={formatDay}
@@ -331,7 +337,7 @@ export const FixtureListScreen: React.FC = () => {
       {league.createdBy === user?.id && (
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: sportColor }]}
-          onPress={() => navigation.navigate('createFixture', { leagueId: league.id })}
+          onPress={() => NavigationService.navigateToCreateFixture(league.id)}
           activeOpacity={0.8}
         >
           <Plus size={28} color="white" strokeWidth={2.5} />

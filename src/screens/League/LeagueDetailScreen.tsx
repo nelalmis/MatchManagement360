@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import {
   Users,
@@ -22,9 +23,9 @@ import {
   Clock,
   MapPin,
   Trophy,
+  ChevronLeft,
 } from 'lucide-react-native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   ILeague,
   IMatchFixture,
@@ -35,20 +36,25 @@ import {
 import { leagueService } from '../../services/leagueService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { standingsService } from '../../services/standingsService';
-import { useFocusEffect, useRoute } from '@react-navigation/native';
+import { RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
+import { LeagueStackParamList, NavigationService } from '../../navigation';
+import { ContactSelector } from './components/ContactSelector';
+
+type LeagueDetailRouteProp = RouteProp<LeagueStackParamList, 'leagueDetail'>;
 
 export const LeagueDetailScreen: React.FC = () => {
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
-  const route: any = useRoute();
-  const { params } = route;
-  const [leagueId] = useState(params?.leagueId);
+  const route = useRoute<LeagueDetailRouteProp>();
+  const { leagueId } = route.params; // ✅ TypeScript bilir ki leagueId: string
+  // 3. Optional parametreler için
+  const { updated } = route.params;
   const [league, setLeague] = useState<ILeague | null>(null);
   const [fixtures, setFixtures] = useState<IMatchFixture[]>([]);
   const [standings, setStandings] = useState<IStandings | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'fixtures' | 'standings' | 'players'>('fixtures');
+  const [showContactSelector, setShowContactSelector] = useState(false);
 
   const [stats, setStats] = useState({
     totalPlayers: 0,
@@ -69,7 +75,7 @@ export const LeagueDetailScreen: React.FC = () => {
       if (leagueId) {
         loadLeagueData();
       }
-    }, [leagueId, route.params?.updated])
+    }, [leagueId, updated])
   );
 
   const loadLeagueData = async () => {
@@ -81,7 +87,7 @@ export const LeagueDetailScreen: React.FC = () => {
       const leagueData = await leagueService.getById(leagueId);
       if (!leagueData) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
       setLeague(leagueData);
@@ -128,20 +134,24 @@ export const LeagueDetailScreen: React.FC = () => {
   };
 
   const handleCreateFixture = () => {
-    navigation.navigate('createFixture', { leagueId });
+    NavigationService.navigateToCreateFixture(leagueId);
   };
 
   const handleEditLeague = () => {
-    navigation.navigate('editLeague', { leagueId });
+    NavigationService.navigateToEditLeague(leagueId);
   };
 
   const handleFixturePress = (fixtureId: string) => {
-    navigation.navigate('fixtureDetail', { fixtureId });
+    NavigationService.navigateToFixture(fixtureId);
   };
 
   const handleViewFullStandings = () => {
-    navigation.navigate('standings', { leagueId });
+    NavigationService.navigateToStandings(leagueId);
   };
+
+  const handleAddPlayer = () => {
+    setShowContactSelector(false);
+  }
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('tr-TR', {
@@ -182,6 +192,14 @@ export const LeagueDetailScreen: React.FC = () => {
       >
         <View style={[styles.header, { backgroundColor: sportColor }]}>
           <View style={styles.headerContent}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => NavigationService.goBack()}
+              activeOpacity={0.7}
+            >
+              <ChevronLeft size={24} color="white" strokeWidth={2} />
+            </TouchableOpacity>
+
             <Text style={styles.sportEmoji}>{getSportIcon(league.sportType)}</Text>
             <View style={styles.headerTextContainer}>
               <Text style={styles.leagueName}>{league.title}</Text>
@@ -237,7 +255,7 @@ export const LeagueDetailScreen: React.FC = () => {
         <View style={styles.quickActionsContainer}>
           <TouchableOpacity
             style={[styles.quickActionButton, { borderColor: sportColor }]}
-            onPress={() => navigation.navigate('matchList', { leagueId })}
+            onPress={() => NavigationService.navigateToMatchList(leagueId)}
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: sportColor + '20' }]}>
@@ -252,7 +270,7 @@ export const LeagueDetailScreen: React.FC = () => {
 
           <TouchableOpacity
             style={[styles.quickActionButton, { borderColor: sportColor }]}
-            onPress={() => navigation.navigate('fixtureList', { leagueId })}
+            onPress={() => NavigationService.navigateToFixtureList(leagueId)}
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: sportColor + '20' }]}>
@@ -462,6 +480,7 @@ export const LeagueDetailScreen: React.FC = () => {
 
               {permissions.isOwner && (
                 <TouchableOpacity
+                  onPress={() => setShowContactSelector(true)}
                   style={styles.addPlayerButton}
                   activeOpacity={0.7}
                 >
@@ -485,6 +504,18 @@ export const LeagueDetailScreen: React.FC = () => {
           <Plus size={28} color="white" strokeWidth={2.5} />
         </TouchableOpacity>
       )}
+
+      <ContactSelector
+        selectedPlayerIds={[]}
+        onSelectionChange={(ids) => {
+          // Yeni seçilen oyuncu ID'lerini işleyin
+          console.log('Seçilen oyuncu ID\'leri:', ids);
+          setShowContactSelector(false);
+        }}
+        onClose={() => setShowContactSelector(false)}
+        visible={showContactSelector}
+        onManualAdd={(phone: string) => console.log(phone)}
+      />
     </View>
   );
 };
@@ -520,6 +551,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
     padding: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -568,6 +600,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  backButton: {
+    padding: 4,
+    marginRight: 8,
   },
   statsContainer: {
     flexDirection: 'row',

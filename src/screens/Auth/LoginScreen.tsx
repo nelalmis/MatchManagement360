@@ -21,10 +21,9 @@ import { IPlayer } from '../../types/types';
 import { formatPhoneNumber, isProfileComplete } from '../../helper/helper';
 import { playerService } from '../../services/playerService';
 import { ArrowRight } from 'lucide-react-native';
-import { useNavigationContext } from '../../context/NavigationContext';
+import { NavigationService } from '../../navigation/NavigationService';
 
 export const LoginScreen: React.FC = () => {
-    const navigation = useNavigationContext();
     const scrollViewRef = useRef<ScrollView>(null);
     const logoScale = useRef(new Animated.Value(1)).current;
     
@@ -32,7 +31,6 @@ export const LoginScreen: React.FC = () => {
         phoneNumber,
         setPhoneNumber,
         setUser,
-        setCurrentScreen,
         rememberDevice,
         setRememberDevice,
         setCountdown,
@@ -59,7 +57,6 @@ export const LoginScreen: React.FC = () => {
         // App state listener - app'e dönüldüğünde logo'yu resetle
         const subscription = AppState.addEventListener('change', (nextAppState: string) => {
             if (nextAppState === 'active' && Platform.OS === 'android') {
-                // App'e dönüldüğünde logo'yu normale getir
                 logoScale.setValue(1);
                 setKeyboardVisible(false);
             }
@@ -74,14 +71,12 @@ export const LoginScreen: React.FC = () => {
 
     const handleKeyboardShow = () => {
         setKeyboardVisible(true);
-        // Logo'yu küçült
         Animated.spring(logoScale, {
             toValue: 0.7,
             useNativeDriver: true,
             friction: 8,
         }).start();
         
-        // Input'a scroll (Android için gecikme)
         setTimeout(() => {
             scrollViewRef.current?.scrollTo({ y: 50, animated: true });
         }, Platform.OS === 'android' ? 200 : 100);
@@ -89,14 +84,12 @@ export const LoginScreen: React.FC = () => {
 
     const handleKeyboardHide = () => {
         setKeyboardVisible(false);
-        // Logo'yu normale döndür
         Animated.spring(logoScale, {
             toValue: 1,
             useNativeDriver: true,
             friction: 8,
         }).start();
         
-        // En başa scroll
         setTimeout(() => {
             scrollViewRef.current?.scrollTo({ y: 0, animated: true });
         }, 100);
@@ -119,13 +112,16 @@ export const LoginScreen: React.FC = () => {
                 setIsVerified(true);
 
                 if (!isProfileComplete(userData)) {
-                    navigation.navigate("register");
-                } else {
-                    await AsyncStorage.setItem('userData', JSON.stringify(userData));
+                    // Profil tamamlanmamış - Register'a yönlendir
                     setTimeout(() => {
                         setCheckingDevice(false);
-                        setCurrentScreen('home');
-                        navigation.navigate('home');
+                        NavigationService.navigateToRegister();
+                    }, 800);
+                } else {
+                    // Profil tamam - Ana sayfaya git
+                    setTimeout(() => {
+                        setCheckingDevice(false);
+                        NavigationService.navigateToMain();
                     }, 800);
                 }
                 return;
@@ -134,11 +130,9 @@ export const LoginScreen: React.FC = () => {
             await AsyncStorage.removeItem('userData');
             await AsyncStorage.removeItem('trustedDevice');
             setCheckingDevice(false);
-            setCurrentScreen('login');
         } catch (error) {
             console.error('❌ Auto login error:', error);
             setCheckingDevice(false);
-            setCurrentScreen('login');
         }
     };
 
@@ -168,21 +162,19 @@ export const LoginScreen: React.FC = () => {
                     setIsVerified(true);
 
                     if (!isProfileComplete(playerData)) {
-                        setCurrentScreen('register');
-                        navigation.navigate('register');
+                        NavigationService.navigateToRegister();
                     } else {
-                        setCurrentScreen('home');
-                        navigation.navigate('home');
+                        NavigationService.navigateToMain();
                     }
                     
                     setLoading(false);
                     return;
                 }
 
+                // Kullanıcı yok - Phone verification'a git
                 setIsVerified(false);
-                setCurrentScreen('phoneVerification');
-                navigation.navigate('phoneVerification');
                 setCountdown(60);
+                NavigationService.navigateToPhoneVerification(`+90${phoneNumber}`);
                 setLoading(false);
             } catch (error: any) {
                 setLoading(false);
@@ -237,93 +229,93 @@ export const LoginScreen: React.FC = () => {
                     )}
                 </View>
 
-                    {/* Welcome Section - Klavye açıkken gizle */}
-                    {!isKeyboardVisible && (
-                        <View style={styles.welcomeSection}>
-                            <Text style={styles.title}>Hoş Geldiniz</Text>
-                            <Text style={styles.subtitle}>
-                                Telefon numaranızı girin ve maçlara katılmaya başlayın
-                            </Text>
-                        </View>
-                    )}
-
-                    {/* Main Card - Kompakt */}
-                    <View style={styles.card}>
-                        {/* Phone Input */}
-                        <View style={styles.inputSection}>
-                            <Text style={styles.label}>Telefon Numarası</Text>
-                            <View style={styles.phoneInputContainer}>
-                                <View style={styles.countryCodeContainer}>
-                                    <Text style={styles.flagEmoji}>🇹🇷</Text>
-                                    <Text style={styles.countryCode}>+90</Text>
-                                </View>
-                                <TextInput
-                                    style={styles.phoneInput}
-                                    value={formatPhoneNumber(phoneNumber)}
-                                    onChangeText={handlePhoneChange}
-                                    placeholder="5XX XXX XX XX"
-                                    placeholderTextColor="#9CA3AF"
-                                    keyboardType="phone-pad"
-                                    maxLength={13}
-                                    editable={!loading}
-                                    returnKeyType="done"
-                                    onSubmitEditing={handleSendCode}
-                                />
-                            </View>
-                        </View>
-
-                        {/* Checkbox - Kompakt */}
-                        <TouchableOpacity
-                            style={styles.checkboxContainer}
-                            onPress={() => setRememberDevice(!rememberDevice)}
-                            activeOpacity={0.7}
-                            disabled={loading}
-                        >
-                            <View style={[styles.checkbox, rememberDevice && styles.checkboxChecked]}>
-                                {rememberDevice && (
-                                    <Text style={styles.checkmark}>✓</Text>
-                                )}
-                            </View>
-                            <Text style={styles.checkboxText}>
-                                Bu cihazı güvenilir olarak işaretle
-                            </Text>
-                        </TouchableOpacity>
-
-                        {/* Submit Button */}
-                        <TouchableOpacity
-                            style={[
-                                styles.button,
-                                (phoneNumber.length !== 10 || loading) && styles.buttonDisabled
-                            ]}
-                            onPress={handleSendCode}
-                            disabled={phoneNumber.length !== 10 || loading}
-                            activeOpacity={0.8}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="white" size="small" />
-                            ) : (
-                                <View style={styles.buttonContent}>
-                                    <Text style={styles.buttonText}>Devam Et</Text>
-                                    <ArrowRight color="white" size={20} strokeWidth={2.5} />
-                                </View>
-                            )}
-                        </TouchableOpacity>
-
-                        {/* Terms - Kompakt */}
-                        {!isKeyboardVisible && (
-                            <Text style={styles.termsText}>
-                                Devam ederek{' '}
-                                <Text style={styles.termsLink}>Kullanım Koşulları</Text>
-                                {' '}ve{' '}
-                                <Text style={styles.termsLink}>Gizlilik Politikası</Text>
-                                'nı kabul ediyorsunuz
-                            </Text>
-                        )}
+                {/* Welcome Section - Klavye açıkken gizle */}
+                {!isKeyboardVisible && (
+                    <View style={styles.welcomeSection}>
+                        <Text style={styles.title}>Hoş Geldiniz</Text>
+                        <Text style={styles.subtitle}>
+                            Telefon numaranızı girin ve maçlara katılmaya başlayın
+                        </Text>
                     </View>
-                </ScrollView>
-            </SafeAreaView>
-        );
-    };
+                )}
+
+                {/* Main Card - Kompakt */}
+                <View style={styles.card}>
+                    {/* Phone Input */}
+                    <View style={styles.inputSection}>
+                        <Text style={styles.label}>Telefon Numarası</Text>
+                        <View style={styles.phoneInputContainer}>
+                            <View style={styles.countryCodeContainer}>
+                                <Text style={styles.flagEmoji}>🇹🇷</Text>
+                                <Text style={styles.countryCode}>+90</Text>
+                            </View>
+                            <TextInput
+                                style={styles.phoneInput}
+                                value={formatPhoneNumber(phoneNumber)}
+                                onChangeText={handlePhoneChange}
+                                placeholder="5XX XXX XX XX"
+                                placeholderTextColor="#9CA3AF"
+                                keyboardType="phone-pad"
+                                maxLength={13}
+                                editable={!loading}
+                                returnKeyType="done"
+                                onSubmitEditing={handleSendCode}
+                            />
+                        </View>
+                    </View>
+
+                    {/* Checkbox - Kompakt */}
+                    <TouchableOpacity
+                        style={styles.checkboxContainer}
+                        onPress={() => setRememberDevice(!rememberDevice)}
+                        activeOpacity={0.7}
+                        disabled={loading}
+                    >
+                        <View style={[styles.checkbox, rememberDevice && styles.checkboxChecked]}>
+                            {rememberDevice && (
+                                <Text style={styles.checkmark}>✓</Text>
+                            )}
+                        </View>
+                        <Text style={styles.checkboxText}>
+                            Bu cihazı güvenilir olarak işaretle
+                        </Text>
+                    </TouchableOpacity>
+
+                    {/* Submit Button */}
+                    <TouchableOpacity
+                        style={[
+                            styles.button,
+                            (phoneNumber.length !== 10 || loading) && styles.buttonDisabled
+                        ]}
+                        onPress={handleSendCode}
+                        disabled={phoneNumber.length !== 10 || loading}
+                        activeOpacity={0.8}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="white" size="small" />
+                        ) : (
+                            <View style={styles.buttonContent}>
+                                <Text style={styles.buttonText}>Devam Et</Text>
+                                <ArrowRight color="white" size={20} strokeWidth={2.5} />
+                            </View>
+                        )}
+                    </TouchableOpacity>
+
+                    {/* Terms - Kompakt */}
+                    {!isKeyboardVisible && (
+                        <Text style={styles.termsText}>
+                            Devam ederek{' '}
+                            <Text style={styles.termsLink}>Kullanım Koşulları</Text>
+                            {' '}ve{' '}
+                            <Text style={styles.termsLink}>Gizlilik Politikası</Text>
+                            'nı kabul ediyorsunuz
+                        </Text>
+                    )}
+                </View>
+            </ScrollView>
+        </SafeAreaView>
+    );
+};
 
 const styles = StyleSheet.create({
     container: {
@@ -374,7 +366,7 @@ const styles = StyleSheet.create({
     headerContainer: {
         alignItems: 'center',
         marginBottom: 24,
-        height: 110, // Sabit yükseklik - jumping tamamen önler
+        height: 110,
     },
     logoContainer: {
         width: 80,

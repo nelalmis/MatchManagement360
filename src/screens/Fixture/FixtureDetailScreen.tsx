@@ -8,6 +8,7 @@ import {
     Alert,
     ActivityIndicator,
     RefreshControl,
+    Platform,
 } from 'react-native';
 import {
     ChevronLeft,
@@ -25,7 +26,6 @@ import {
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
     IMatchFixture,
     IMatch,
@@ -38,11 +38,12 @@ import { matchFixtureService } from '../../services/matchFixtureService';
 import { matchService } from '../../services/matchService';
 import { leagueService } from '../../services/leagueService';
 import { playerService } from '../../services/playerService';
+import { NavigationService } from '../../navigation/NavigationService';
+import { CopyableText } from '../../components/CopyableText';
 
 export const FixtureDetailScreen: React.FC = () => {
     const route: any = useRoute();
     const { user } = useAppContext();
-    const navigation = useNavigationContext();
     const fixtureId = route.params?.fixtureId;
 
     const [fixture, setFixture] = useState<IMatchFixture | null>(null);
@@ -59,7 +60,7 @@ export const FixtureDetailScreen: React.FC = () => {
     const loadData = async () => {
         if (!fixtureId) {
             Alert.alert('Hata', 'Fikstür ID bulunamadı');
-            navigation.goBack();
+            NavigationService.goBack();
             return;
         }
 
@@ -73,7 +74,7 @@ export const FixtureDetailScreen: React.FC = () => {
 
             if (!fixtureData) {
                 Alert.alert('Hata', 'Fikstür bulunamadı');
-                navigation.goBack();
+                NavigationService.goBack();
                 return;
             }
 
@@ -111,13 +112,13 @@ export const FixtureDetailScreen: React.FC = () => {
     };
 
     const handleCreateMatch = () => {
-        if (!fixture) return;
-        navigation.navigate('createMatch', { fixtureId: fixture.id });
+        // if (!fixture) return;
+        // NavigationService.navigate('createMatch', { fixtureId: fixture.id });
     };
 
     const handleEditFixture = () => {
         if (!fixture) return;
-        navigation.navigate('editFixture', { fixtureId: fixture.id });
+        NavigationService.navigateToCreateFixture(fixture.id);
     };
 
     const handleToggleStatus = async () => {
@@ -200,7 +201,7 @@ export const FixtureDetailScreen: React.FC = () => {
             {/* Header */}
             <View style={[styles.header, { backgroundColor: sportColor }]}>
                 <TouchableOpacity
-                    onPress={() => navigation.goBack()}
+                    onPress={() => NavigationService.goBack()}
                     style={styles.headerButton}
                     activeOpacity={0.7}
                 >
@@ -366,13 +367,23 @@ export const FixtureDetailScreen: React.FC = () => {
                         <Text style={styles.sectionTitle}>Ödeme Bilgileri</Text>
                         <View style={styles.card}>
                             <View style={styles.paymentRow}>
-                                <Text style={styles.paymentLabel}>Alıcı</Text>
-                                <Text style={styles.paymentValue}>{fixture.peterFullName}</Text>
+                                <CopyableText
+                                    label='Alıcı'
+                                    value={fixture.peterFullName}
+                                />
+                                {/* <Text style={styles.paymentLabel}>Alıcı</Text>
+                                <Text style={styles.paymentValue}>{fixture.peterFullName}</Text> */}
                             </View>
                             {fixture.peterIban && (
                                 <View style={styles.paymentRow}>
-                                    <Text style={styles.paymentLabel}>IBAN</Text>
-                                    <Text style={styles.paymentValue}>{fixture.peterIban}</Text>
+                                    <CopyableText
+                                        label="IBAN"
+                                        value={fixture.peterIban}
+                                        format={(iban) => iban.replace(/(.{4})/g, '$1 ').trim()}
+                                        successMessage="IBAN kopyalandı"
+                                    />
+                                    {/* <Text style={styles.paymentLabel}>IBAN</Text>
+                                    <Text style={styles.paymentValue}>{fixture.peterIban}</Text> */}
                                 </View>
                             )}
                         </View>
@@ -410,7 +421,7 @@ export const FixtureDetailScreen: React.FC = () => {
                             <MatchCard
                                 key={match.id}
                                 match={match}
-                                onPress={() => navigation.navigate('matchDetail', { matchId: match.id })}
+                                onPress={() => NavigationService.navigateToMatch(match.id)}
                                 getMatchStatusColor={getMatchStatusColor}
                                 formatDateTime={formatDateTime}
                             />
@@ -426,7 +437,7 @@ export const FixtureDetailScreen: React.FC = () => {
                             <MatchCard
                                 key={match.id}
                                 match={match}
-                                onPress={() => navigation.navigate('matchDetail', { matchId: match.id })}
+                                onPress={() => NavigationService.navigateToMatch(match.id)}
                                 getMatchStatusColor={getMatchStatusColor}
                                 formatDateTime={formatDateTime}
                                 isPast
@@ -435,7 +446,7 @@ export const FixtureDetailScreen: React.FC = () => {
                         {pastMatches.length > 5 && (
                             <TouchableOpacity
                                 style={styles.showMoreButton}
-                                onPress={() => navigation.navigate('matchList', { fixtureId: fixture.id })}
+                                onPress={() => NavigationService.navigateToMatchList(fixture.id)}
                                 activeOpacity={0.7}
                             >
                                 <Text style={styles.showMoreText}>
@@ -554,7 +565,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: 12,
+        paddingTop: Platform.OS === 'ios' ? 50 : 30,
         paddingBottom: 16,
     },
     headerButton: {

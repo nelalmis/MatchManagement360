@@ -22,7 +22,6 @@ import {
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   IMatch,
   IMatchFixture,
@@ -33,21 +32,22 @@ import {
 import { matchService } from '../../services/matchService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
+import { NavigationService } from '../../navigation/NavigationService';
+import { eventManager, Events } from '../../utils';
 
 export const ScoreEntryScreen: React.FC = () => {
   const route: any = useRoute();
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);
   const [fixture, setFixture] = useState<IMatchFixture | null>(null);
   const [team1Players, setTeam1Players] = useState<IPlayer[]>([]);
   const [team2Players, setTeam2Players] = useState<IPlayer[]>([]);
-  
+
   const [team1Score, setTeam1Score] = useState<string>('0');
   const [team2Score, setTeam2Score] = useState<string>('0');
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -58,7 +58,7 @@ export const ScoreEntryScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -68,7 +68,7 @@ export const ScoreEntryScreen: React.FC = () => {
       const matchData = await matchService.getById(matchId);
       if (!matchData) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -76,14 +76,14 @@ export const ScoreEntryScreen: React.FC = () => {
       const isOrganizer = matchData.organizerPlayerIds?.includes(user.id);
       if (!isOrganizer) {
         Alert.alert('Hata', 'Bu işlem için yetkiniz yok');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
       // Check if teams are built
       if (!matchData.team1PlayerIds || !matchData.team2PlayerIds) {
         Alert.alert('Uyarı', 'Önce takımlar oluşturulmalı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -145,7 +145,7 @@ export const ScoreEntryScreen: React.FC = () => {
   const handleScoreChange = (team: 1 | 2, value: string) => {
     // Only allow numbers
     const numericValue = value.replace(/[^0-9]/g, '');
-    
+
     if (team === 1) {
       setTeam1Score(numericValue);
     } else {
@@ -175,10 +175,10 @@ export const ScoreEntryScreen: React.FC = () => {
       return;
     }
 
-    const resultText = score1 > score2 
-      ? 'Takım 1 Kazandı' 
-      : score1 < score2 
-        ? 'Takım 2 Kazandı' 
+    const resultText = score1 > score2
+      ? 'Takım 1 Kazandı'
+      : score1 < score2
+        ? 'Takım 2 Kazandı'
         : 'Berabere';
 
     Alert.alert(
@@ -199,17 +199,19 @@ export const ScoreEntryScreen: React.FC = () => {
               );
 
               if (success) {
+                // ✅ Event tetikle
+                eventManager.emit(Events.SCORE_UPDATED, {
+                  matchId: match.id,
+                  timestamp: Date.now()
+                });
+                
                 Alert.alert(
                   '✅ Başarılı!',
                   'Maç skoru kaydedildi. Şimdi oyuncular gol/asist girişi yapabilir.',
                   [
                     {
                       text: 'Tamam',
-                      onPress: () => navigation.goBack({
-                        matchId: match.id,
-                        updated: true,
-                        _refresh: Date.now()
-                      })
+                      onPress: () => NavigationService.goBack()
                     }
                   ]
                 );
@@ -254,7 +256,7 @@ export const ScoreEntryScreen: React.FC = () => {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: sportColor }]}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => NavigationService.goBack()}
           style={styles.headerButton}
           activeOpacity={0.7}
         >
@@ -396,8 +398,8 @@ export const ScoreEntryScreen: React.FC = () => {
           <Target size={20} color="#6B7280" strokeWidth={2} />
           <Text style={styles.resultPreviewLabel}>Sonuç:</Text>
           <Text style={styles.resultPreviewText}>
-            {winnerTeam === 0 
-              ? 'Berabere' 
+            {winnerTeam === 0
+              ? 'Berabere'
               : `Takım ${winnerTeam} Kazandı`
             }
           </Text>
@@ -406,7 +408,7 @@ export const ScoreEntryScreen: React.FC = () => {
         {/* Score Summary */}
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Maç Özeti</Text>
-          
+
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Final Skoru</Text>
             <Text style={styles.summaryValue}>

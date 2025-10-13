@@ -11,28 +11,28 @@ import {
 } from 'react-native';
 import {
   Trophy,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Medal,
   Target,
   Users,
-  Calendar,
+  Medal,
+  Zap,
+  Award,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   ILeague,
   IMatch,
   IPlayerStats,
   getSportIcon,
   getSportColor,
+  SportType,
+  SPORT_CONFIGS,
 } from '../../types/types';
 import { leagueService } from '../../services/leagueService';
 import { matchService } from '../../services/matchService';
 import { playerStatsService } from '../../services/playerStatsService';
 import { playerService } from '../../services/playerService';
+import { NavigationService } from '../../navigation/NavigationService';
 
 interface StandingPlayer {
   playerId: string;
@@ -41,21 +41,71 @@ interface StandingPlayer {
   won: number;
   draw: number;
   lost: number;
-  goalsFor: number;
-  goalsAgainst: number;
-  goalDifference: number;
+  pointsFor: number; // Genel - futbol için gol, basketbol için sayı
+  pointsAgainst: number;
+  pointsDifference: number;
   points: number;
-  form: string[]; // Son 5 maç: 'W', 'D', 'L'
+  form: string[];
   rank: number;
   previousRank?: number;
+  // Sport-specific
+  sets?: number; // Tenis, Voleybol
+  aces?: number; // Tenis
+  assists?: number; // Basketbol
+  rebounds?: number; // Basketbol
 }
 
-type TabType = 'standings' | 'topScorers' | 'topAssists';
+type TabType = 'standings' | 'topScorers' | 'topAssists' | 'mvp';
+
+// Sport-specific configurations
+const getSportStatsConfig = (sportType: SportType) => {
+  switch (sportType) {
+    case 'Futbol':
+      return {
+        pointsLabel: 'Gol',
+        showDraws: true,
+        showAssists: true,
+        columns: ['O', 'G', 'B', 'M', 'A', '+/-', 'P'],
+        tabs: ['standings', 'topScorers', 'topAssists'] as TabType[],
+      };
+    case 'Basketbol':
+      return {
+        pointsLabel: 'Sayı',
+        showDraws: false,
+        showAssists: true,
+        columns: ['O', 'G', 'M', 'S', '+/-', 'P'],
+        tabs: ['standings', 'topScorers', 'topAssists'] as TabType[],
+      };
+    case 'Voleybol':
+      return {
+        pointsLabel: 'Set',
+        showDraws: false,
+        showAssists: false,
+        columns: ['O', 'G', 'M', 'S', '+/-', 'P'],
+        tabs: ['standings', 'topScorers'] as TabType[],
+      };
+    case 'Tenis':
+      return {
+        pointsLabel: 'Set',
+        showDraws: false,
+        showAssists: false,
+        columns: ['O', 'G', 'M', 'S', '+/-', 'P'],
+        tabs: ['standings', 'topScorers'] as TabType[],
+      };
+    default:
+      return {
+        pointsLabel: 'Puan',
+        showDraws: true,
+        showAssists: false,
+        columns: ['O', 'G', 'B', 'M', 'P', '+/-', 'P'],
+        tabs: ['standings', 'topScorers'] as TabType[],
+      };
+  }
+};
 
 export const StandingsScreen: React.FC = () => {
   const route: any = useRoute();
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
   const leagueId = route.params?.leagueId;
 
   const [league, setLeague] = useState<ILeague | null>(null);
@@ -66,6 +116,17 @@ export const StandingsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<TabType>('standings');
 
+  // Sport-specific config
+  const sportConfig = useMemo(() => 
+    league ? getSportStatsConfig(league.sportType) : getSportStatsConfig('Futbol'),
+    [league]
+  );
+
+  const sportColor = useMemo(() => 
+    league ? getSportColor(league.sportType) : '#16a34a',
+    [league]
+  );
+
   useEffect(() => {
     if (leagueId) {
       loadData();
@@ -75,7 +136,7 @@ export const StandingsScreen: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!leagueId) {
       Alert.alert('Hata', 'Lig ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -86,7 +147,7 @@ export const StandingsScreen: React.FC = () => {
       const leagueData = await leagueService.getById(leagueId);
       if (!leagueData) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
       setLeague(leagueData);
@@ -110,9 +171,9 @@ export const StandingsScreen: React.FC = () => {
           won: 0,
           draw: 0,
           lost: 0,
-          goalsFor: 0,
-          goalsAgainst: 0,
-          goalDifference: 0,
+          pointsFor: 0,
+          pointsAgainst: 0,
+          pointsDifference: 0,
           points: 0,
           form: [],
           rank: 0,
@@ -131,14 +192,14 @@ export const StandingsScreen: React.FC = () => {
           if (!playerStandings[playerId]) continue;
           
           playerStandings[playerId].played++;
-          playerStandings[playerId].goalsFor += team1Score;
-          playerStandings[playerId].goalsAgainst += team2Score;
+          playerStandings[playerId].pointsFor += team1Score;
+          playerStandings[playerId].pointsAgainst += team2Score;
 
           if (team1Score > team2Score) {
             playerStandings[playerId].won++;
             playerStandings[playerId].points += 3;
             playerStandings[playerId].form.push('W');
-          } else if (team1Score === team2Score) {
+          } else if (team1Score === team2Score && sportConfig.showDraws) {
             playerStandings[playerId].draw++;
             playerStandings[playerId].points += 1;
             playerStandings[playerId].form.push('D');
@@ -153,14 +214,14 @@ export const StandingsScreen: React.FC = () => {
           if (!playerStandings[playerId]) continue;
           
           playerStandings[playerId].played++;
-          playerStandings[playerId].goalsFor += team2Score;
-          playerStandings[playerId].goalsAgainst += team1Score;
+          playerStandings[playerId].pointsFor += team2Score;
+          playerStandings[playerId].pointsAgainst += team1Score;
 
           if (team2Score > team1Score) {
             playerStandings[playerId].won++;
             playerStandings[playerId].points += 3;
             playerStandings[playerId].form.push('W');
-          } else if (team2Score === team1Score) {
+          } else if (team2Score === team1Score && sportConfig.showDraws) {
             playerStandings[playerId].draw++;
             playerStandings[playerId].points += 1;
             playerStandings[playerId].form.push('D');
@@ -171,21 +232,21 @@ export const StandingsScreen: React.FC = () => {
         }
       }
 
-      // Calculate goal difference and get player names
+      // Calculate difference and get player names
       const standingsArray: StandingPlayer[] = [];
       for (const [playerId, data] of Object.entries(playerStandings)) {
         const player = await playerService.getById(playerId);
         data.playerName = player ? `${player.name} ${player.surname}` : 'Bilinmeyen';
-        data.goalDifference = data.goalsFor - data.goalsAgainst;
-        data.form = data.form.slice(-5); // Son 5 maç
+        data.pointsDifference = data.pointsFor - data.pointsAgainst;
+        data.form = data.form.slice(-5);
         standingsArray.push(data);
       }
 
-      // Sort by points, then goal difference, then goals for
+      // Sort
       standingsArray.sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
-        if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-        return b.goalsFor - a.goalsFor;
+        if (b.pointsDifference !== a.pointsDifference) return b.pointsDifference - a.pointsDifference;
+        return b.pointsFor - a.pointsFor;
       });
 
       // Assign ranks
@@ -207,31 +268,31 @@ export const StandingsScreen: React.FC = () => {
         .sort((a, b) => b.goals - a.goals)
         .slice(0, 10);
 
-      // Get player names for scorers
       for (const scorer of scorers) {
         const player = await playerService.getById(scorer.playerId);
         scorer.playerName = player ? `${player.name} ${player.surname}` : 'Bilinmeyen';
       }
       setTopScorers(scorers);
 
-      // Top assists
-      const assisters = allPlayerStats
-        .map(stat => ({
-          playerId: stat.playerId,
-          playerName: '',
-          assists: stat.totalAssists || 0,
-          matches: stat.totalMatches || 0,
-        }))
-        .filter(a => a.assists > 0)
-        .sort((a, b) => b.assists - a.assists)
-        .slice(0, 10);
+      // Top assists (if applicable)
+      if (sportConfig.showAssists) {
+        const assisters = allPlayerStats
+          .map(stat => ({
+            playerId: stat.playerId,
+            playerName: '',
+            assists: stat.totalAssists || 0,
+            matches: stat.totalMatches || 0,
+          }))
+          .filter(a => a.assists > 0)
+          .sort((a, b) => b.assists - a.assists)
+          .slice(0, 10);
 
-      // Get player names for assisters
-      for (const assister of assisters) {
-        const player = await playerService.getById(assister.playerId);
-        assister.playerName = player ? `${player.name} ${player.surname}` : 'Bilinmeyen';
+        for (const assister of assisters) {
+          const player = await playerService.getById(assister.playerId);
+          assister.playerName = player ? `${player.name} ${player.surname}` : 'Bilinmeyen';
+        }
+        setTopAssists(assisters);
       }
-      setTopAssists(assisters);
 
     } catch (error) {
       console.error('Error loading standings:', error);
@@ -239,7 +300,7 @@ export const StandingsScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [leagueId]);
+  }, [leagueId, sportConfig]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -247,24 +308,11 @@ export const StandingsScreen: React.FC = () => {
     setRefreshing(false);
   }, [loadData]);
 
-  const getRankChange = useCallback((player: StandingPlayer) => {
-    if (!player.previousRank) return null;
-    const change = player.previousRank - player.rank;
-    if (change > 0) return { type: 'up', value: change };
-    if (change < 0) return { type: 'down', value: Math.abs(change) };
-    return { type: 'same', value: 0 };
-  }, []);
-
   const getFormColor = useCallback((result: string) => {
     if (result === 'W') return '#10B981';
     if (result === 'D') return '#F59E0B';
     return '#DC2626';
   }, []);
-
-  const sportColor = useMemo(() => 
-    league ? getSportColor(league.sportType) : '#16a34a',
-    [league]
-  );
 
   if (loading || !league) {
     return (
@@ -277,70 +325,87 @@ export const StandingsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      {/* Sport Header */}
+      <View style={[styles.sportHeader, { backgroundColor: sportColor }]}>
+        <Text style={styles.sportIcon}>{getSportIcon(league.sportType)}</Text>
+        <View style={styles.sportHeaderInfo}>
+          <Text style={styles.sportHeaderTitle}>{league.title}</Text>
+          <Text style={styles.sportHeaderSubtitle}>
+            {SPORT_CONFIGS[league.sportType]?.name} • {league.playerIds.length} Oyuncu
+          </Text>
+        </View>
+      </View>
+
       {/* Tabs */}
       <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            selectedTab === 'standings' && { ...styles.tabActive, borderBottomColor: sportColor }
-          ]}
-          onPress={() => setSelectedTab('standings')}
-          activeOpacity={0.7}
-        >
-          <Trophy 
-            size={20} 
-            color={selectedTab === 'standings' ? sportColor : '#6B7280'} 
-            strokeWidth={2} 
-          />
-          <Text style={[
-            styles.tabText,
-            selectedTab === 'standings' && { ...styles.tabTextActive, color: sportColor }
-          ]}>
-            Puan Durumu
-          </Text>
-        </TouchableOpacity>
+        {sportConfig.tabs.includes('standings') && (
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              selectedTab === 'standings' && { ...styles.tabActive, borderBottomColor: sportColor }
+            ]}
+            onPress={() => setSelectedTab('standings')}
+            activeOpacity={0.7}
+          >
+            <Trophy 
+              size={18} 
+              color={selectedTab === 'standings' ? sportColor : '#6B7280'} 
+              strokeWidth={2} 
+            />
+            <Text style={[
+              styles.tabText,
+              selectedTab === 'standings' && { ...styles.tabTextActive, color: sportColor }
+            ]}>
+              Puan Durumu
+            </Text>
+          </TouchableOpacity>
+        )}
 
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            selectedTab === 'topScorers' && { ...styles.tabActive, borderBottomColor: sportColor }
-          ]}
-          onPress={() => setSelectedTab('topScorers')}
-          activeOpacity={0.7}
-        >
-          <Target 
-            size={20} 
-            color={selectedTab === 'topScorers' ? sportColor : '#6B7280'} 
-            strokeWidth={2} 
-          />
-          <Text style={[
-            styles.tabText,
-            selectedTab === 'topScorers' && { ...styles.tabTextActive, color: sportColor }
-          ]}>
-            Gol Krallığı
-          </Text>
-        </TouchableOpacity>
+        {sportConfig.tabs.includes('topScorers') && (
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              selectedTab === 'topScorers' && { ...styles.tabActive, borderBottomColor: sportColor }
+            ]}
+            onPress={() => setSelectedTab('topScorers')}
+            activeOpacity={0.7}
+          >
+            <Target 
+              size={18} 
+              color={selectedTab === 'topScorers' ? sportColor : '#6B7280'} 
+              strokeWidth={2} 
+            />
+            <Text style={[
+              styles.tabText,
+              selectedTab === 'topScorers' && { ...styles.tabTextActive, color: sportColor }
+            ]}>
+              {sportConfig.pointsLabel} Krallığı
+            </Text>
+          </TouchableOpacity>
+        )}
 
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            selectedTab === 'topAssists' && { ...styles.tabActive, borderBottomColor: sportColor }
-          ]}
-          onPress={() => setSelectedTab('topAssists')}
-          activeOpacity={0.7}
-        >
-          <Users 
-            size={20} 
-            color={selectedTab === 'topAssists' ? sportColor : '#6B7280'} 
-            strokeWidth={2} 
-          />
-          <Text style={[
-            styles.tabText,
-            selectedTab === 'topAssists' && { ...styles.tabTextActive, color: sportColor }
-          ]}>
-            Asist Krallığı
-          </Text>
-        </TouchableOpacity>
+        {sportConfig.tabs.includes('topAssists') && (
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              selectedTab === 'topAssists' && { ...styles.tabActive, borderBottomColor: sportColor }
+            ]}
+            onPress={() => setSelectedTab('topAssists')}
+            activeOpacity={0.7}
+          >
+            <Users 
+              size={18} 
+              color={selectedTab === 'topAssists' ? sportColor : '#6B7280'} 
+              strokeWidth={2} 
+            />
+            <Text style={[
+              styles.tabText,
+              selectedTab === 'topAssists' && { ...styles.tabTextActive, color: sportColor }
+            ]}>
+              Asist Krallığı
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
@@ -359,85 +424,90 @@ export const StandingsScreen: React.FC = () => {
         {selectedTab === 'standings' && (
           <View style={styles.tableContainer}>
             {/* Table Header */}
-            <View style={styles.tableHeader}>
-              <Text style={[styles.headerCell, styles.rankCell]}>#</Text>
-              <Text style={[styles.headerCell, styles.playerCell]}>Oyuncu</Text>
-              <Text style={[styles.headerCell, styles.statCell]}>O</Text>
-              <Text style={[styles.headerCell, styles.statCell]}>G</Text>
-              <Text style={[styles.headerCell, styles.statCell]}>B</Text>
-              <Text style={[styles.headerCell, styles.statCell]}>M</Text>
-              <Text style={[styles.headerCell, styles.statCell]}>A</Text>
-              <Text style={[styles.headerCell, styles.statCell]}>+/-</Text>
-              <Text style={[styles.headerCell, styles.pointsCell]}>P</Text>
-            </View>
-
-            {/* Table Rows */}
-            {standings.map((player, index) => {
-              const isCurrentUser = player.playerId === user?.id;
-              const rankChange = getRankChange(player);
-
-              return (
-                <View 
-                  key={player.playerId} 
-                  style={[
-                    styles.tableRow,
-                    isCurrentUser && styles.currentUserRow,
-                    index < 3 && styles.topThreeRow,
-                  ]}
-                >
-                  {/* Rank */}
-                  <View style={styles.rankCell}>
-                    <Text style={[
-                      styles.rankText,
-                      index < 3 && { color: sportColor, fontWeight: '700' }
-                    ]}>
-                      {player.rank}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.headerCell, styles.rankCellWidth]}>#</Text>
+                  <Text style={[styles.headerCell, styles.playerCellWidth]}>Oyuncu</Text>
+                  {sportConfig.columns.map((col, idx) => (
+                    <Text key={idx} style={[styles.headerCell, styles.statCellWidth]}>
+                      {col}
                     </Text>
-                    {index < 3 && (
-                      <Medal size={12} color={sportColor} strokeWidth={2} />
-                    )}
-                  </View>
-
-                  {/* Player Name */}
-                  <View style={styles.playerCell}>
-                    <Text style={styles.playerName} numberOfLines={1}>
-                      {player.playerName}
-                    </Text>
-                    {/* Form */}
-                    <View style={styles.formContainer}>
-                      {player.form.map((result, idx) => (
-                        <View 
-                          key={idx}
-                          style={[
-                            styles.formBadge,
-                            { backgroundColor: getFormColor(result) }
-                          ]}
-                        >
-                          <Text style={styles.formText}>{result}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* Stats */}
-                  <Text style={styles.statCell}>{player.played}</Text>
-                  <Text style={styles.statCell}>{player.won}</Text>
-                  <Text style={styles.statCell}>{player.draw}</Text>
-                  <Text style={styles.statCell}>{player.lost}</Text>
-                  <Text style={styles.statCell}>{player.goalsFor}</Text>
-                  <Text style={[
-                    styles.statCell,
-                    player.goalDifference > 0 && { color: '#10B981' },
-                    player.goalDifference < 0 && { color: '#DC2626' },
-                  ]}>
-                    {player.goalDifference > 0 ? '+' : ''}{player.goalDifference}
-                  </Text>
-                  <Text style={[styles.pointsCell, { color: sportColor }]}>
-                    {player.points}
-                  </Text>
+                  ))}
                 </View>
-              );
-            })}
+
+                {/* Table Rows */}
+                {standings.map((player, index) => {
+                  const isCurrentUser = player.playerId === user?.id;
+
+                  return (
+                    <View 
+                      key={player.playerId} 
+                      style={[
+                        styles.tableRow,
+                        isCurrentUser && styles.currentUserRow,
+                        index < 3 && styles.topThreeRow,
+                      ]}
+                    >
+                      {/* Rank */}
+                      <View style={styles.rankCellWidth}>
+                        <View style={styles.rankContent}>
+                          <Text style={[
+                            styles.rankText,
+                            index < 3 && { color: sportColor, fontWeight: '700' }
+                          ]}>
+                            {player.rank}
+                          </Text>
+                          {index < 3 && (
+                            <Medal size={10} color={sportColor} strokeWidth={2} />
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Player Name */}
+                      <View style={styles.playerCellWidth}>
+                        <Text style={styles.playerName} numberOfLines={1}>
+                          {player.playerName}
+                        </Text>
+                        {/* Form */}
+                        <View style={styles.formContainer}>
+                          {player.form.map((result, idx) => (
+                            <View 
+                              key={idx}
+                              style={[
+                                styles.formBadge,
+                                { backgroundColor: getFormColor(result) }
+                              ]}
+                            >
+                              <Text style={styles.formText}>{result}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+
+                      {/* Stats */}
+                      <Text style={styles.statCellWidth}>{player.played}</Text>
+                      <Text style={styles.statCellWidth}>{player.won}</Text>
+                      {sportConfig.showDraws && (
+                        <Text style={styles.statCellWidth}>{player.draw}</Text>
+                      )}
+                      <Text style={styles.statCellWidth}>{player.lost}</Text>
+                      <Text style={styles.statCellWidth}>{player.pointsFor}</Text>
+                      <Text style={[
+                        styles.statCellWidth,
+                        player.pointsDifference > 0 && { color: '#10B981' },
+                        player.pointsDifference < 0 && { color: '#DC2626' },
+                      ]}>
+                        {player.pointsDifference > 0 ? '+' : ''}{player.pointsDifference}
+                      </Text>
+                      <Text style={[styles.pointsCellWidth, { color: sportColor }]}>
+                        {player.points}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
 
             {standings.length === 0 && (
               <View style={styles.emptyState}>
@@ -449,8 +519,14 @@ export const StandingsScreen: React.FC = () => {
             {/* Legend */}
             <View style={styles.legend}>
               <Text style={styles.legendTitle}>Kısaltmalar:</Text>
-              <Text style={styles.legendText}>O: Oynanan, G: Galibiyet, B: Beraberlik, M: Mağlubiyet</Text>
-              <Text style={styles.legendText}>A: Atılan Gol, +/-: Averaj, P: Puan</Text>
+              <Text style={styles.legendText}>
+                O: Oynanan, G: Galibiyet
+                {sportConfig.showDraws && ', B: Beraberlik'}
+                , M: Mağlubiyet
+              </Text>
+              <Text style={styles.legendText}>
+                {sportConfig.pointsLabel.charAt(0)}: {sportConfig.pointsLabel}, +/-: Averaj, P: Puan
+              </Text>
             </View>
           </View>
         )}
@@ -489,14 +565,14 @@ export const StandingsScreen: React.FC = () => {
             {topScorers.length === 0 && (
               <View style={styles.emptyState}>
                 <Target size={48} color="#D1D5DB" strokeWidth={1.5} />
-                <Text style={styles.emptyText}>Henüz gol atılmadı</Text>
+                <Text style={styles.emptyText}>Henüz {sportConfig.pointsLabel.toLowerCase()} atılmadı</Text>
               </View>
             )}
           </View>
         )}
 
         {/* Top Assists Tab */}
-        {selectedTab === 'topAssists' && (
+        {selectedTab === 'topAssists' && sportConfig.showAssists && (
           <View style={styles.rankingContainer}>
             {topAssists.map((assister, index) => (
               <View key={assister.playerId} style={styles.rankingCard}>
@@ -558,11 +634,37 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
+  sportHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  sportIcon: {
+    fontSize: 40,
+  },
+  sportHeaderInfo: {
+    flex: 1,
+  },
+  sportHeaderTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 4,
+  },
+  sportHeaderSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+  },
   tabsContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+  },
+  tabsContent: {
+    // Removed - not needed anymore
   },
   tab: {
     flex: 1,
@@ -629,8 +731,10 @@ const styles = StyleSheet.create({
   topThreeRow: {
     backgroundColor: '#F0FDF4',
   },
-  rankCell: {
-    width: 40,
+  rankCellWidth: {
+    width: 50,
+  },
+  rankContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -640,12 +744,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6B7280',
   },
-  playerCell: {
-    flex: 1,
+  playerCellWidth: {
+    width: 140,
     marginRight: 8,
   },
   playerName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#1F2937',
     marginBottom: 4,
@@ -655,27 +759,27 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   formBadge: {
-    width: 16,
-    height: 16,
+    width: 14,
+    height: 14,
     borderRadius: 3,
     justifyContent: 'center',
     alignItems: 'center',
   },
   formText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '700',
     color: 'white',
   },
-  statCell: {
-    width: 28,
-    fontSize: 13,
+  statCellWidth: {
+    width: 32,
+    fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
     textAlign: 'center',
   },
-  pointsCell: {
-    width: 32,
-    fontSize: 15,
+  pointsCellWidth: {
+    width: 36,
+    fontSize: 14,
     fontWeight: '700',
     textAlign: 'center',
   },

@@ -25,10 +25,11 @@ import {
   Share2,
   AlertCircle,
   Timer,
+  ChevronRight,
+  Star,
 } from 'lucide-react-native';
 import { useRoute, useFocusEffect } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   IMatch,
   IMatchFixture,
@@ -36,14 +37,15 @@ import {
   getSportIcon,
   getSportColor,
 } from '../../types/types';
+import { canRegisterToMatch } from '../../helper/matchRegisterHelper';
 import { matchService } from '../../services/matchService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
+import { NavigationService } from '../../navigation/NavigationService';
 
 export const MatchDetailScreen: React.FC = () => {
   const route: any = useRoute();
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);
@@ -100,7 +102,7 @@ export const MatchDetailScreen: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!matchId) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -110,7 +112,7 @@ export const MatchDetailScreen: React.FC = () => {
       const matchData = await matchService.getById(matchId);
       if (!matchData) {
         Alert.alert('Maç Bulunamadı', 'Bu maç silinmiş olabilir.');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -177,7 +179,7 @@ export const MatchDetailScreen: React.FC = () => {
         Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu. Lütfen tekrar deneyin.');
       }
 
-      navigation.goBack();
+      NavigationService.goBack();
     } finally {
       setLoading(false);
     }
@@ -204,25 +206,35 @@ export const MatchDetailScreen: React.FC = () => {
     }
   }, [match]);
 
-  const handleRegister = useCallback(() => {
+  const handleRegister = () => {
     if (!match) return;
-    navigation.navigate('matchRegistration', { matchId: match.id });
-  }, [match, navigation]);
+    NavigationService.navigateToMatchRegistration(match.id); // ✅ DEĞİŞTİ
+  };
 
-  const handleBuildTeam = useCallback(() => {
+  const handleBuildTeam = () => {
     if (!match) return;
-    navigation.navigate('teamBuilding', { matchId: match.id });
-  }, [match, navigation]);
+    NavigationService.navigateToTeamBuilding(match.id); // ✅ DEĞİŞTİ
+  };
 
-  const handleScoreEntry = useCallback(() => {
+  const handleScoreEntry = () => {
     if (!match) return;
-    navigation.navigate('scoreEntry', { matchId: match.id });
-  }, [match, navigation]);
+    NavigationService.navigateToScoreEntry(match.id); // ✅ DEĞİŞTİ
+  };
 
-  const handlePaymentTracking = useCallback(() => {
+  const handleGoalAssistEntry = () => {
     if (!match) return;
-    navigation.navigate('paymentTracking', { matchId: match.id });
-  }, [match, navigation]);
+    NavigationService.navigateToGoalAssistEntry(match.id); // ✅ DEĞİŞTİ
+  };
+
+  const handlePlayerRating = () => {
+    if (!match) return;
+    NavigationService.navigateToPlayerRating(match.id); // ✅ DEĞİŞTİ
+  };
+
+  const handlePaymentTracking = () => {
+    if (!match) return;
+    NavigationService.navigateToPaymentTracking(match.id); // ✅ DEĞİŞTİ
+  };
 
   const formatDateTime = useCallback((date: Date) => {
     return new Date(date).toLocaleDateString('tr-TR', {
@@ -259,8 +271,8 @@ export const MatchDetailScreen: React.FC = () => {
   );
 
   const canRegister = useMemo(() =>
-    match?.status === 'Kayıt Açık' && !isRegistered,
-    [match?.status, isRegistered]
+    canRegisterToMatch(match, user?.id, fixture),
+    [match, user?.id, fixture]
   );
 
   const showTeams = useMemo(() =>
@@ -288,7 +300,7 @@ export const MatchDetailScreen: React.FC = () => {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: sportColor }]}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => NavigationService.goBack()}
           style={styles.headerButton}
           activeOpacity={0.7}
         >
@@ -304,7 +316,7 @@ export const MatchDetailScreen: React.FC = () => {
 
         {isOrganizer ? (
           <TouchableOpacity
-            onPress={() => navigation.navigate('editMatch', { matchId: match.id })}
+            onPress={() => NavigationService.navigateToEditMatch(match.id)}
             style={styles.headerButton}
             activeOpacity={0.7}
           >
@@ -427,6 +439,45 @@ export const MatchDetailScreen: React.FC = () => {
                 <Text style={styles.teamScore}>{match.team2Score || 0}</Text>
               </View>
             </View>
+            {/* Gol/Asist Girişi */}
+            {match.status === 'Skor Onay Bekliyor' && isRegistered && (
+              <TouchableOpacity
+                style={[styles.playerActionCard, { borderColor: sportColor }]}
+                onPress={handleGoalAssistEntry}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.playerActionIcon, { backgroundColor: sportColor + '20' }]}>
+                  <Target size={28} color={sportColor} strokeWidth={2} />
+                </View>
+                <View style={styles.playerActionContent}>
+                  <Text style={styles.playerActionTitle}>Gol & Asist Girişi</Text>
+                  <Text style={styles.playerActionText}>
+                    Attığınız gol ve yaptığınız asistleri girin
+                  </Text>
+                </View>
+                <ChevronRight size={24} color={sportColor} strokeWidth={2} />
+              </TouchableOpacity>
+            )}
+
+            {/* ✅ YENİ: Oyuncu Puanlama */}
+            {match.status === 'Ödeme Bekliyor' && isRegistered && (
+              <TouchableOpacity
+                style={[styles.playerActionCard, { borderColor: '#F59E0B' }]}
+                onPress={() => NavigationService.navigateToPlayerRating(match.id )}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.playerActionIcon, { backgroundColor: '#FEF3C720' }]}>
+                  <Star size={28} color="#F59E0B" strokeWidth={2} />
+                </View>
+                <View style={styles.playerActionContent}>
+                  <Text style={styles.playerActionTitle}>Oyuncu Puanlama</Text>
+                  <Text style={styles.playerActionText}>
+                    Takım arkadaşlarınızı puanlayın
+                  </Text>
+                </View>
+                <ChevronRight size={24} color="#F59E0B" strokeWidth={2} />
+              </TouchableOpacity>
+            )}
 
             {/* MVP */}
             {mvpPlayer && (
@@ -600,6 +651,7 @@ export const MatchDetailScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
+              {/* Skor Girişi */}
               {showTeams && match.status === 'Oynanıyor' && (
                 <TouchableOpacity
                   style={styles.organizerButton}
@@ -611,6 +663,32 @@ export const MatchDetailScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
+              {/* Gol/Asist Onayları */}
+              {(match.status === 'Skor Onay Bekliyor' ||
+                match.status === 'Ödeme Bekliyor') && (
+                  <TouchableOpacity
+                    style={styles.organizerButton}
+                    onPress={handleGoalAssistEntry}
+                    activeOpacity={0.7}
+                  >
+                    <Trophy size={20} color={sportColor} strokeWidth={2} />
+                    <Text style={styles.organizerButtonText}>Gol/Asist Onayları</Text>
+                  </TouchableOpacity>
+                )}
+
+              {/* ✅ YENİ: Puanlama Durumu */}
+              {match.status === 'Ödeme Bekliyor' && (
+                <TouchableOpacity
+                  style={styles.organizerButton}
+                  onPress={() => NavigationService.navigateToPlayerRating(match.id)}
+                  activeOpacity={0.7}
+                >
+                  <Award size={20} color="#F59E0B" strokeWidth={2} />
+                  <Text style={styles.organizerButtonText}>Puanlama Durumu</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Ödeme Takibi */}
               {match.pricePerPlayer && (
                 <TouchableOpacity
                   style={styles.organizerButton}
@@ -667,7 +745,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 50,
     paddingBottom: 16,
   },
   headerButton: {
@@ -808,6 +886,46 @@ const styles = StyleSheet.create({
   },
   scoreTeam: {
     alignItems: 'center',
+  },
+
+  playerActionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    // borderColor dinamik olarak verilecek
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  playerActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    // backgroundColor dinamik olarak verilecek
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  playerActionContent: {
+    flex: 1,
+  },
+  playerActionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  playerActionText: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
   },
   teamName: {
     fontSize: 14,

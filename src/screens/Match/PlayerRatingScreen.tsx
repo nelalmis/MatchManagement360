@@ -1,3 +1,5 @@
+// screens/Match/PlayerRatingScreen.tsx
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -22,7 +24,8 @@ import {
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
+import { NavigationService } from '../../navigation/NavigationService';
+import { eventManager, Events } from '../../utils';
 import {
   IMatch,
   IMatchFixture,
@@ -33,23 +36,30 @@ import {
 import { matchService } from '../../services/matchService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
+import { matchRatingService } from '../../services/matchRatingService'; // ✅ EKLE
+import { playerRatingProfileService } from '../../services/playerRatingProfileService'; // ✅ EKLE
 
 // Rating interface for temporary storage
 interface PlayerRating {
   playerId: string;
   rating: number; // 1-5
+  categories?: {
+    skill?: number;
+    teamwork?: number;
+    sportsmanship?: number;
+    effort?: number;
+  };
 }
 
 export const PlayerRatingScreen: React.FC = () => {
   const route: any = useRoute();
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);
   const [fixture, setFixture] = useState<IMatchFixture | null>(null);
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -62,6 +72,17 @@ export const PlayerRatingScreen: React.FC = () => {
   const [mvpPlayer, setMvpPlayer] = useState<string | null>(null);
   const [averageRatings, setAverageRatings] = useState<Record<string, { avg: number; count: number }>>({});
 
+  // ✅ Event listener
+  useEffect(() => {
+    const unsubscribe = eventManager.on(Events.MATCH_UPDATED, (data) => {
+      if (data.matchId === matchId) {
+        loadData();
+      }
+    });
+
+    return unsubscribe;
+  }, [matchId]);
+
   useEffect(() => {
     loadData();
   }, [matchId]);
@@ -69,7 +90,7 @@ export const PlayerRatingScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -79,28 +100,47 @@ export const PlayerRatingScreen: React.FC = () => {
       const matchData = await matchService.getById(matchId);
       if (!matchData) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
       // Check if goals are confirmed
-      if (matchData.status !== 'Ödeme Bekliyor' && matchData.status !== 'Tamamlandı') {
+      if (matchData.status !== 'Ödeme Bekliyor' &&
+        //TODO: burası kontrol edilecek matchData.status !== 'Oyuncu Puanlama' &&
+        matchData.status !== 'Tamamlandı') {
         Alert.alert('Uyarı', 'Önce gol/asist girişleri onaylanmalı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
       setMatch(matchData);
 
       // Check if user played in match
-      const playerInMatch = 
+      const playerInMatch =
         matchData.team1PlayerIds?.includes(user.id) ||
         matchData.team2PlayerIds?.includes(user.id) || false;
       setIsPlayerInMatch(playerInMatch);
 
       if (!playerInMatch) {
         Alert.alert('Uyarı', 'Sadece maçta oynayan oyuncular puanlama yapabilir');
-        navigation.goBack();
+        NavigationService.goBack();
+        return;
+      }
+
+      // ✅ Check if user already rated this match
+      const existingRating = await matchRatingService.getByRaterMatch(user.id, matchId);
+      if (existingRating && existingRating.length > 0) {
+        setHasRated(true);
+        Alert.alert(
+          'Zaten Puanladınız',
+          'Bu maçı daha önce puanladınız. Puanlamaları görüntüleyebilirsiniz.',
+          [
+            {
+              text: 'Tamam',
+              onPress: () => NavigationService.goBack()
+            }
+          ]
+        );
         return;
       }
 
@@ -120,17 +160,18 @@ export const PlayerRatingScreen: React.FC = () => {
       // Initialize empty ratings
       const initialRatings: PlayerRating[] = players.map(p => ({
         playerId: p.id!,
-        rating: 0
+        rating: 0,
+        categories: {
+          skill: 0,
+          teamwork: 0,
+          sportsmanship: 0,
+          effort: 0
+        }
       }));
       setRatings(initialRatings);
 
-      // TODO: Check if user already rated (from database)
-      // For now, we'll assume this is stored somewhere
-      // setHasRated(true/false);
-
-      // TODO: Calculate average ratings and MVP from database
-      // This would come from all players' ratings stored in DB
-      calculateMVP(matchData);
+      // ✅ Calculate current MVP and averages from database
+      await calculateMVP(matchData);
 
     } catch (error) {
       console.error('Error loading match:', error);
@@ -146,51 +187,69 @@ export const PlayerRatingScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const calculateMVP = (matchData: IMatch) => {
-    // TODO: This should calculate from all players' ratings in database
-    // For now, we'll use a mock calculation
-    
-    // In real implementation:
-    // 1. Fetch all ratings for this match from database
-    // 2. Calculate average rating for each player
-    // 3. Set MVP as player with highest average
-    
-    const mockAverages: Record<string, { avg: number; count: number }> = {};
-    
-    // Mock data - in real app this comes from DB
-    allPlayers.forEach(player => {
-      mockAverages[player.id!] = {
-        avg: Math.random() * 2 + 3, // Random 3-5 rating
-        count: Math.floor(Math.random() * 10) + 5 // 5-15 raters
-      };
-    });
+  const calculateMVP = async (matchData: IMatch) => {
+    try {
+      // ✅ Get all ratings for this match from database
+      const matchRatings = await matchRatingService.getRatingsByMatch(matchId);
 
-    setAverageRatings(mockAverages);
-
-    // Find MVP (highest average rating)
-    let maxAvg = 0;
-    let mvp: string | null = null;
-
-    Object.keys(mockAverages).forEach(playerId => {
-      if (mockAverages[playerId].avg > maxAvg) {
-        maxAvg = mockAverages[playerId].avg;
-        mvp = playerId;
+      if (matchRatings.length === 0) {
+        // No ratings yet, no MVP
+        setMvpPlayer(null);
+        setAverageRatings({});
+        return;
       }
-    });
 
-    setMvpPlayer(mvp);
+      // ✅ Calculate average rating for each player
+      const playerAverages: Record<string, { avg: number; count: number }> = {};
+
+      allPlayers.forEach(player => {
+        const playerRatings = matchRatings.filter(
+          (r: any) => r.ratedPlayerId === player.id
+        );
+
+        if (playerRatings.length > 0) {
+          const totalRating = playerRatings.reduce(
+            (sum: number, r: any) => sum + (r.rating || 0),
+            0
+          );
+          const avgRating = totalRating / playerRatings.length;
+
+          playerAverages[player.id!] = {
+            avg: parseFloat(avgRating.toFixed(2)),
+            count: playerRatings.length
+          };
+        }
+      });
+
+      setAverageRatings(playerAverages);
+
+      // ✅ Find MVP (highest average rating)
+      let maxAvg = 0;
+      let mvp: string | null = null;
+
+      Object.keys(playerAverages).forEach(playerId => {
+        if (playerAverages[playerId].avg > maxAvg) {
+          maxAvg = playerAverages[playerId].avg;
+          mvp = playerId;
+        }
+      });
+
+      setMvpPlayer(mvp);
+    } catch (error) {
+      console.error('Error calculating MVP:', error);
+    }
   };
 
   const handleRatingChange = (playerId: string, rating: number) => {
-    setRatings(prev => 
-      prev.map(r => 
+    setRatings(prev =>
+      prev.map(r =>
         r.playerId === playerId ? { ...r, rating } : r
       )
     );
   };
 
   const handleSubmitRatings = async () => {
-    if (!match) return;
+    if (!match || !fixture) return;
 
     // Validation: Check if all players are rated
     const unrated = ratings.filter(r => r.rating === 0);
@@ -220,14 +279,70 @@ export const PlayerRatingScreen: React.FC = () => {
             try {
               setSaving(true);
 
-              // TODO: Save ratings to database
-              // In real implementation, this would:
-              // 1. Save each rating to a 'match_ratings' collection
-              // 2. Recalculate average ratings for all players
-              // 3. Update MVP if needed
+              // ✅ Save each rating to database
+              const savePromises = ratings.map(async (rating) => {
+                // Determine if rater and rated player are teammates or opponents
+                const raterInTeam1 = match.team1PlayerIds?.includes(user?.id);
+                const ratedInTeam1 = match.team1PlayerIds?.includes(rating.playerId);
+                const isTeammate = raterInTeam1 === ratedInTeam1;
 
-              // Mock success
-              await new Promise(resolve => setTimeout(resolve, 1000));
+                const ratingData = {
+                  id: null,
+                  matchId: match.id,
+                  raterId: user?.id,                    // ✅ Puanlayan
+                  ratedPlayerId: rating.playerId,      // ✅ Puanlanan
+                  rating: rating.rating,
+                  categories: rating.categories,
+                  isTeammateRating: isTeammate,
+                  isAnonymous: true,                   // ✅ Eklendi
+                  leagueId: fixture.leagueId,
+                  //seasonId: fixture.seasonId, //TODO seasonId eklenmeli
+                  createdAt: new Date().toISOString()
+                };
+
+                return await matchRatingService.add(ratingData);
+              });
+
+              const results = await Promise.all(savePromises);
+              const allSuccess = results.every(r => r && r.success);
+
+              if (!allSuccess) {
+                Alert.alert('Hata', 'Bazı puanlamalar kaydedilemedi');
+                return;
+              }
+
+              // ✅ Update player rating profiles for all RATED players
+              const profileUpdatePromises = ratings.map(rating =>
+                playerRatingProfileService.updateProfileFromMatch(
+                  rating.playerId,           // ✅ Bu doğru - ratedPlayerId bu context'te playerId
+                  fixture.leagueId,
+                  new Date().toISOString(),   //fixture.seasonId, TODO: season Id eklenmeli
+                  match.id
+                )
+              );
+
+              await Promise.all(profileUpdatePromises);
+
+              // ✅ Recalculate and update MVP
+              await matchRatingService.recalculateMatchMVP(match.id);
+
+              // ✅ Update match status if all players have rated
+              const allPlayersCount = (match.team1PlayerIds?.length || 0) +
+                (match.team2PlayerIds?.length || 0);
+              const allRatingsCount = await matchRatingService.countRatersByMatch(match.id);
+
+              if (allRatingsCount >= allPlayersCount - 1) {
+                // All players have submitted ratings (excluding current rater who just submitted)
+                await matchService.update(match.id, {
+                  status: 'Tamamlandı'
+                });
+              }
+
+              // ✅ Event tetikle
+              eventManager.emit(Events.MATCH_UPDATED, {
+                matchId: match.id,
+                timestamp: Date.now()
+              });
 
               Alert.alert(
                 '✅ Başarılı!',
@@ -235,15 +350,10 @@ export const PlayerRatingScreen: React.FC = () => {
                 [
                   {
                     text: 'Tamam',
-                    onPress: () => navigation.goBack({
-                      matchId: match.id,
-                      updated: true,
-                      _refresh: Date.now()
-                    })
+                    onPress: () => NavigationService.goBack()
                   }
                 ]
               );
-
             } catch (error) {
               console.error('Error saving ratings:', error);
               Alert.alert('Hata', 'Puanlamalar kaydedilirken bir hata oluştu');
@@ -295,7 +405,7 @@ export const PlayerRatingScreen: React.FC = () => {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: sportColor }]}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => NavigationService.goBack()}
           style={styles.headerButton}
           activeOpacity={0.7}
         >
@@ -316,7 +426,12 @@ export const PlayerRatingScreen: React.FC = () => {
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#16a34a"
+            colors={['#16a34a']}
+          />
         }
       >
         {/* Progress Card */}
@@ -363,7 +478,7 @@ export const PlayerRatingScreen: React.FC = () => {
         </View>
 
         {/* MVP Preview (if calculated) */}
-        {mvpPlayer && (
+        {mvpPlayer && averageRatings[mvpPlayer] && (
           <View style={styles.mvpCard}>
             <View style={styles.mvpHeader}>
               <Crown size={24} color="#F59E0B" strokeWidth={2} />
@@ -467,11 +582,11 @@ export const PlayerRatingScreen: React.FC = () => {
                     <View style={styles.ratingFeedback}>
                       <Check size={14} color="#10B981" strokeWidth={2.5} />
                       <Text style={styles.ratingFeedbackText}>
-                        {currentRating === 5 ? '⭐ Mükemmel!' : 
-                         currentRating === 4 ? '✨ Harika!' :
-                         currentRating === 3 ? '👍 İyi!' :
-                         currentRating === 2 ? '👌 Fena değil' :
-                         '✓ Puanlandı'}
+                        {currentRating === 5 ? '⭐ Mükemmel!' :
+                          currentRating === 4 ? '✨ Harika!' :
+                            currentRating === 3 ? '👍 İyi!' :
+                              currentRating === 2 ? '👌 Fena değil' :
+                                '✓ Puanlandı'}
                       </Text>
                     </View>
                   )}

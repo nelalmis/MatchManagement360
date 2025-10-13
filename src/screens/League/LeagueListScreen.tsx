@@ -8,6 +8,8 @@ import {
   RefreshControl,
   TextInput,
   ActivityIndicator,
+  Alert,
+  Platform,
 } from 'react-native';
 import {
   Plus,
@@ -20,7 +22,6 @@ import {
   ChevronRight,
 } from 'lucide-react-native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   ILeague,
   SportType,
@@ -29,16 +30,17 @@ import {
   getSportColor,
 } from '../../types/types';
 import { leagueService } from '../../services/leagueService';
+import { NavigationService } from '../../navigation/NavigationService';
+// import { CustomHeader } from '../../components/CustomHeader';
 
 export const LeagueListScreen: React.FC = () => {
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
 
   const [leagues, setLeagues] = useState<ILeague[]>([]);
   const [filteredLeagues, setFilteredLeagues] = useState<ILeague[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSport, setSelectedSport] = useState<SportType | 'all'>('all');
@@ -67,10 +69,10 @@ export const LeagueListScreen: React.FC = () => {
 
       // Kullanıcının liglerini getir
       const myLeagues = await leagueService.getLeaguesByPlayer(user.id);
-      
+
       // Aktif ligleri getir
       const activeLeagues = await leagueService.getActiveLeagues();
-      
+
       // Tüm ligleri birleştir ve tekrarları kaldır
       const allLeagues = [...myLeagues, ...activeLeagues];
       const uniqueLeagues = allLeagues.filter(
@@ -117,7 +119,7 @@ export const LeagueListScreen: React.FC = () => {
     filtered.sort((a, b) => {
       const aActive = new Date(a.seasonEndDate) > new Date();
       const bActive = new Date(b.seasonEndDate) > new Date();
-      
+
       if (aActive !== bActive) return aActive ? -1 : 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
@@ -284,7 +286,7 @@ export const LeagueListScreen: React.FC = () => {
                       isActive={isLeagueActive(league)}
                       isMember={true}
                       onPress={() =>
-                        navigation.navigate('leagueDetail', { leagueId: league.id })
+                        NavigationService.navigateToLeague(league.id)
                       }
                       formatDate={formatDate}
                     />
@@ -305,7 +307,7 @@ export const LeagueListScreen: React.FC = () => {
                       isActive={isLeagueActive(league)}
                       isMember={false}
                       onPress={() =>
-                        navigation.navigate('leagueDetail', { leagueId: league.id })
+                        NavigationService.navigateToLeague(league.id)
                       }
                       formatDate={formatDate}
                     />
@@ -331,7 +333,7 @@ export const LeagueListScreen: React.FC = () => {
       {/* Floating Add Button */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => navigation.navigate('createLeague')}
+        onPress={() => NavigationService.navigateToCreateLeague()}
         activeOpacity={0.8}
       >
         <Plus size={28} color="white" strokeWidth={2.5} />
@@ -487,28 +489,36 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    paddingVertical: 12,      // 👈 Üst-alt padding
+    gap: 8,
+
   },
   filtersContent: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     gap: 8,
+    paddingTop: 0, // 👈 Padding'i kaldır veya azalt
   },
   filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: Platform.OS === 'ios' ? 14 : 12,
+    paddingVertical: Platform.OS === 'ios' ? 7 : 6,
+    borderRadius: Platform.OS === 'ios' ? 18 : 16,
     backgroundColor: '#F3F4F6',
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: '#E5E7EB',
+    marginRight: 8,
+    height: 32,              // 👈 Sabit yükseklik
+
+  },
+  filterChipText: {
+    fontSize: Platform.OS === 'ios' ? 13 : 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    lineHeight: Platform.OS === 'ios' ? 18 : 16,
   },
   filterChipActive: {
     backgroundColor: '#DCFCE7',
     borderColor: '#16a34a',
-  },
-  filterChipText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
   },
   filterChipTextActive: {
     color: '#16a34a',

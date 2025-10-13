@@ -30,7 +30,6 @@ import {
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   IMatch,
   IMatchFixture,
@@ -41,17 +40,18 @@ import {
 import { matchService } from '../../services/matchService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
+import { NavigationService } from '../../navigation/NavigationService';
+import { eventManager, Events } from '../../utils';
 
 export const GoalAssistEntryScreen: React.FC = () => {
   const route: any = useRoute();
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);
   const [fixture, setFixture] = useState<IMatchFixture | null>(null);
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -72,7 +72,7 @@ export const GoalAssistEntryScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -82,14 +82,14 @@ export const GoalAssistEntryScreen: React.FC = () => {
       const matchData = await matchService.getById(matchId);
       if (!matchData) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
       // Check if score is entered
       if (matchData.status !== 'Skor Onay Bekliyor' && matchData.status !== 'Ödeme Bekliyor' && matchData.status !== 'Tamamlandı') {
         Alert.alert('Uyarı', 'Önce maç skoru girilmeli');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -100,7 +100,7 @@ export const GoalAssistEntryScreen: React.FC = () => {
       setIsOrganizer(organizer);
 
       // Check if user played in match
-      const playerInMatch = 
+      const playerInMatch =
         matchData.team1PlayerIds?.includes(user.id) ||
         matchData.team2PlayerIds?.includes(user.id) || false;
       setIsPlayerInMatch(playerInMatch);
@@ -186,7 +186,7 @@ export const GoalAssistEntryScreen: React.FC = () => {
     // Validate against team score
     const isTeam1 = match.team1PlayerIds?.includes(user.id);
     const teamScore = isTeam1 ? match.team1Score : match.team2Score;
-    
+
     if (goals > (teamScore || 0)) {
       Alert.alert('Hata', `Girdiğiniz gol sayısı takım skorundan fazla olamaz (Max: ${teamScore})`);
       return;
@@ -311,7 +311,7 @@ export const GoalAssistEntryScreen: React.FC = () => {
     if (!match || !isOrganizer) return;
 
     const pendingCount = match.goalScorers?.filter(g => !g.confirmed).length || 0;
-    
+
     if (pendingCount === 0) {
       Alert.alert('Bilgi', 'Onay bekleyen kayıt yok');
       return;
@@ -331,8 +331,43 @@ export const GoalAssistEntryScreen: React.FC = () => {
               const success = await matchService.confirmGoalScorers(match.id);
 
               if (success) {
-                Alert.alert('✅ Tamamlandı!', 'Tüm kayıtlar onaylandı. Artık oyuncular birbirlerini puanlayabilir.');
-                await loadData();
+                // ✅ Event tetikle
+                eventManager.emit(Events.SCORE_UPDATED, {
+                  matchId: match.id,
+                  timestamp: Date.now()
+                });
+
+                Alert.alert(
+                  '✅ Tamamlandı!',
+                  'Tüm kayıtlar onaylandı. Artık oyuncular birbirlerini puanlayabilir.',
+                  [
+                    {
+                      text: 'Tamam',
+                      onPress: () => {
+                        // ✅ Puanlama ekranına yönlendir
+                        Alert.alert(
+                          '⭐ Oyuncu Puanlama',
+                          'Şimdi maçta oynayan oyuncular birbirlerini puanlayabilir. Puanlama ekranına gitmek ister misiniz?',
+                          [
+                            {
+                              text: 'Sonra',
+                              onPress: () => NavigationService.goBack() // ✅
+                            },
+                            {
+                              text: 'Puanla',
+                              onPress: () => {
+                                NavigationService.goBack(); // ✅ GoalAssist'ten çık
+                                setTimeout(() => {
+                                  NavigationService.navigateToPlayerRating(match.id); // ✅ DEĞİŞTİ
+                                }, 100);
+                              }
+                            }
+                          ]
+                        );
+                      }
+                    }
+                  ]
+                );
               } else {
                 Alert.alert('Hata', 'Onaylama başarısız oldu');
               }
@@ -347,7 +382,6 @@ export const GoalAssistEntryScreen: React.FC = () => {
       ]
     );
   };
-
   const getPlayerName = (playerId: string) => {
     const player = allPlayers.find(p => p.id === playerId);
     if (!player) return 'Oyuncu';
@@ -381,7 +415,7 @@ export const GoalAssistEntryScreen: React.FC = () => {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: sportColor }]}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => NavigationService.goBack()}
           style={styles.headerButton}
           activeOpacity={0.7}
         >

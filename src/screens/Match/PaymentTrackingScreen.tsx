@@ -29,7 +29,6 @@ import {
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
-import { useNavigationContext } from '../../context/NavigationContext';
 import {
   IMatch,
   IMatchFixture,
@@ -40,17 +39,18 @@ import {
 import { matchService } from '../../services/matchService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
+import { NavigationService } from '../../navigation/NavigationService';
+import { eventManager, Events } from '../../utils';
 
 export const PaymentTrackingScreen: React.FC = () => {
   const route: any = useRoute();
   const { user } = useAppContext();
-  const navigation = useNavigationContext();
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);
   const [fixture, setFixture] = useState<IMatchFixture | null>(null);
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -64,7 +64,7 @@ export const PaymentTrackingScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      navigation.goBack();
+      NavigationService.goBack();
       return;
     }
 
@@ -74,7 +74,7 @@ export const PaymentTrackingScreen: React.FC = () => {
       const matchData = await matchService.getById(matchId);
       if (!matchData) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -82,7 +82,7 @@ export const PaymentTrackingScreen: React.FC = () => {
       const organizer = matchData.organizerPlayerIds?.includes(user.id) || false;
       if (!organizer) {
         Alert.alert('Hata', 'Bu işlem için yetkiniz yok');
-        navigation.goBack();
+        NavigationService.goBack();
         return;
       }
 
@@ -259,18 +259,22 @@ export const PaymentTrackingScreen: React.FC = () => {
               const success = await matchService.completeMatch(match.id);
 
               if (success) {
+                // ✅ Event tetikle
+                eventManager.emit(Events.MATCH_UPDATED, {
+                  matchId: match.id,
+                  timestamp: Date.now()
+                });
+
                 Alert.alert(
                   '🎉 Tebrikler!',
                   'Maç başarıyla tamamlandı. Puan durumu güncellendi.',
                   [
                     {
                       text: 'Tamam',
-                      onPress: () => navigation.goBack({
-                        matchId: match.id,
-                        updated: true,
-                        completed: true,
-                        _refresh: Date.now()
-                      })
+                      onPress: () => {
+                        // ✅ Basit goBack - Event zaten tetiklendi
+                        NavigationService.goBack();
+                      }
                     }
                   ]
                 );
@@ -288,7 +292,6 @@ export const PaymentTrackingScreen: React.FC = () => {
       ]
     );
   };
-
   const handleCopyIBAN = async () => {
     if (!match?.peterIban && !fixture?.peterIban) {
       Alert.alert('Bilgi', 'IBAN bilgisi bulunamadı');
@@ -296,11 +299,11 @@ export const PaymentTrackingScreen: React.FC = () => {
     }
 
     const iban = match?.peterIban || fixture?.peterIban || '';
-    
+
     // In React Native, you'd use Clipboard API
     // import Clipboard from '@react-native-clipboard/clipboard';
     // Clipboard.setString(iban);
-    
+
     Alert.alert('✅ Kopyalandı', 'IBAN numarası panoya kopyalandı');
   };
 
@@ -367,7 +370,7 @@ Lütfen açıklama kısmına adınızı yazınız.
       {/* Header */}
       <View style={[styles.header, { backgroundColor: sportColor }]}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => NavigationService.goBack()}
           style={styles.headerButton}
           activeOpacity={0.7}
         >
