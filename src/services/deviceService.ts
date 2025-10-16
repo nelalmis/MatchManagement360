@@ -1,5 +1,6 @@
 import { deviceApi } from "../api/deviceApi";
-import { IDevice, IResponseBase } from "../types/types";
+import { IResponseBase } from "../types/base/baseTypes";
+import { IDevice } from "../types/types";
 
 export const deviceService = {
   async add(deviceData: IDevice): Promise<IResponseBase> {

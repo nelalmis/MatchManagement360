@@ -1,5 +1,6 @@
 import { matchFixtureApi } from "../api/matchFixtureApi";
-import { IMatchFixture, IResponseBase } from "../types/types";
+import { IResponseBase } from "../types/base/baseTypes";
+import { IMatchFixture } from "../types/types";
 
 export const matchFixtureService = {
   async add(fixtureData: IMatchFixture): Promise<IResponseBase> {

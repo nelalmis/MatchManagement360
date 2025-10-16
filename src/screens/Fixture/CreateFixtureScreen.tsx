@@ -38,16 +38,15 @@ import {
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
 import { leagueService } from '../../services/leagueService';
-import { FixtureStackParamList, NavigationService } from '../../navigation';
+import { CreateFixtureRouteProp, NavigationService } from '../../navigation';
 import { RouteProp, useRoute } from '@react-navigation/native';
 
 type TabType = 'basic' | 'schedule' | 'players' | 'organizers';
-type CreateFixutreRootParameter = RouteProp<FixtureStackParamList, 'createFixture'>;
 
 
 export const CreateFixtureScreen: React.FC = () => {
   const { user } = useAppContext();
-    const route = useRoute<CreateFixutreRootParameter>();
+    const route = useRoute<CreateFixtureRouteProp>();
 
   const leagueId = route.params?.leagueId;
 

@@ -26,7 +26,6 @@ import {
 import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useRoute, RouteProp } from '@react-navigation/native';
-import { LeagueStackParamList } from '../../navigation/types';
 import {
   ILeague,
   IPlayer,
@@ -37,10 +36,10 @@ import {
 } from '../../types/types';
 import { leagueService } from '../../services/leagueService';
 import { playerService } from '../../services/playerService';
+import { EditLeagueRouteProp } from '../../navigation';
 
 type TabType = 'general' | 'players' | 'permissions';
 
-type EditLeagueRouteProp = RouteProp<LeagueStackParamList, 'editLeague'>;
 
 const SPORT_TYPES: SportType[] = [
   'Futbol',

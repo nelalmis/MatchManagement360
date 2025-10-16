@@ -1,12 +1,19 @@
 import { matchApi } from "../api/matchApi";
 import { matchFixtureApi } from "../api/matchFixtureApi";
-import { IMatch, IResponseBase, buildSquad } from "../types/types";
+import { matchInvitationService } from "./matchInvitationService";
+import { IMatch, buildSquad, SportType, MatchType } from "../types/types";
+import { friendlyMatchConfigService } from "./friendlyMatchConfigService";
+import { IResponseBase } from "../types/base/baseTypes";
 
 export const matchService = {
+  // ============================================
+  // EXISTING METHODS (kept as is)
+  // ============================================
+  
   async add(matchData: IMatch): Promise<IResponseBase> {
     const response = await matchApi.add({
       ...matchData,
-      id: undefined, // id'yi undefined yap, null yerine
+      id: undefined,
       createdAt: new Date().toISOString(),
       premiumPlayerIds: matchData.premiumPlayerIds || [],
       directPlayerIds: matchData.directPlayerIds || [],
@@ -32,6 +39,12 @@ export const matchService = {
 
   async delete(id: string): Promise<boolean> {
     const response = await matchApi.delete(id);
+    
+    // Clean up invitations when match is deleted
+    if (response.success) {
+      await matchInvitationService.cancelAllMatchInvitations(id);
+    }
+    
     return response.success;
   },
 
@@ -39,7 +52,6 @@ export const matchService = {
     try {
       const data: any = await matchApi.getById(id);
       if (!data) return null;
-
       return this.mapMatch(data);
     } catch (err) {
       console.error("getById Match hatası:", err);
@@ -57,8 +69,6 @@ export const matchService = {
     }
   },
 
-  // services/matchService.ts içine ekle
-
   async getMatchesByLeague(leagueId: string): Promise<IMatch[]> {
     try {
       if (!leagueId) {
@@ -66,30 +76,21 @@ export const matchService = {
         return [];
       }
 
-      // 1. Lige ait tüm fixture'ları getir
       const fixtures = await matchFixtureApi.getFixturesByLeague(leagueId);
+      if (fixtures.length === 0) return [];
 
-      if (fixtures.length === 0) {
-        return [];
-      }
-
-      // 2. Her fixture'ın maçlarını paralel olarak getir
-      const matchPromises = fixtures.map((fixture:any) =>
+      const matchPromises = fixtures.map((fixture: any) =>
         matchApi.getMatchesByFixture(fixture.id!)
       );
 
       const matchesArrays = await Promise.all(matchPromises);
-
-      // 3. Flatten ve map
       const allMatches = matchesArrays.flat();
       const mappedMatches = allMatches.map(this.mapMatch);
 
-      // 4. Duplicates'leri temizle
-      const uniqueMatches = mappedMatches.filter((match:any, index:number, self:any[]) =>
+      const uniqueMatches = mappedMatches.filter((match: any, index: number, self: any[]) =>
         index === self.findIndex((m) => m.id === match.id)
       );
 
-      // 5. Tarihe göre sırala (en yeni önce)
       uniqueMatches.sort((a, b) =>
         new Date(b.matchStartTime).getTime() - new Date(a.matchStartTime).getTime()
       );
@@ -100,6 +101,7 @@ export const matchService = {
       return [];
     }
   },
+
   async getMatchesByFixture(fixtureId: string): Promise<IMatch[]> {
     try {
       const matches: any[] = await matchApi.getMatchesByFixture(fixtureId);
@@ -160,7 +162,382 @@ export const matchService = {
     }
   },
 
-  // PLAYER REGISTRATION
+  // ============================================
+  // NEW: FRIENDLY MATCH METHODS
+  // ============================================
+
+  /**
+   * Create a friendly match
+   */
+  async createFriendlyMatch(data: {
+    organizerId: string;
+    sportType: SportType;
+    title: string;
+    matchStartTime: Date;
+    location: string;
+    staffPlayerCount: number;
+    reservePlayerCount: number;
+    isPublic: boolean;
+    affectsStats: boolean;
+    affectsStandings: boolean;
+    invitedPlayerIds?: string[];
+    linkedLeagueId?: string;
+    pricePerPlayer?: number;
+    peterIban?: string;
+    peterFullName?: string;
+    useDefaults?: boolean;
+  }): Promise<IResponseBase> {
+    try {
+      // Get defaults if requested
+      let defaults: any = {};
+      if (data.useDefaults) {
+        const config = await friendlyMatchConfigService.getDefaultSettings(data.organizerId);
+        if (config) {
+          defaults = {
+            location: config.location || data.location,
+            staffPlayerCount: config.staffCount || data.staffPlayerCount,
+            reservePlayerCount: config.reserveCount || data.reservePlayerCount,
+            pricePerPlayer: config.price || data.pricePerPlayer,
+            peterIban: config.peterIban || data.peterIban,
+            peterFullName: config.peterFullName || data.peterFullName
+          };
+        }
+      }
+
+      const matchData: any = {
+        type: MatchType.FRIENDLY,              // 'type' not 'matchType'
+        sportType: data.sportType,
+        title: data.title,
+        matchStartTime: data.matchStartTime,
+        registrationTime: new Date(),
+        registrationEndTime: data.matchStartTime,
+        matchEndTime: new Date(data.matchStartTime.getTime() + 2 * 60 * 60 * 1000), // +2 hours
+        
+        // Friendly specific
+        organizerId: data.organizerId,
+        isPublic: data.isPublic,
+        invitedPlayerIds: data.invitedPlayerIds || [],
+        linkedLeagueId: data.linkedLeagueId,
+        
+        // Stats settings
+        affectsStats: data.affectsStats,
+        affectsStandings: data.affectsStandings,
+        
+        // Authorities
+        organizerPlayerIds: [data.organizerId],
+        teamBuildingAuthorityPlayerIds: [data.organizerId],
+        
+        // Settings with defaults
+        ...defaults,
+        location: defaults.location || data.location,
+        staffPlayerCount: defaults.staffPlayerCount || data.staffPlayerCount,
+        reservePlayerCount: defaults.reservePlayerCount || data.reservePlayerCount,
+        pricePerPlayer: defaults.pricePerPlayer || data.pricePerPlayer,
+        peterIban: defaults.peterIban || data.peterIban,
+        peterFullName: defaults.peterFullName || data.peterFullName,
+        
+        status: 'Kayıt Açık'
+      };
+
+      return await this.add(matchData);
+    } catch (err) {
+      console.error("createFriendlyMatch hatası:", err);
+      throw err;
+    }
+  },
+
+  /**
+   * Create friendly match from template
+   */
+  async createFromTemplate(
+    organizerId: string,
+    templateId: string,
+    overrides?: Partial<IMatch>
+  ): Promise<IResponseBase> {
+    try {
+      const templateData = await friendlyMatchConfigService.applyTemplateToMatch(
+        organizerId,
+        templateId,
+        overrides
+      );
+
+      return await this.add({
+        ...templateData,
+        type: MatchType.FRIENDLY,              // 'type' not 'matchType'
+        organizerPlayerIds: [organizerId],
+        teamBuildingAuthorityPlayerIds: [organizerId],
+        status: 'Kayıt Açık'
+      });
+    } catch (err) {
+      console.error("createFromTemplate hatası:", err);
+      throw err;
+    }
+  },
+
+  /**
+   * Save match as template
+   */
+  async saveMatchAsTemplate(
+    matchId: string,
+    organizerId: string,
+    templateName: string
+  ): Promise<string> {
+    try {
+      const match = await this.getById(matchId);
+      if (!match) throw new Error('Maç bulunamadı');
+
+      // Extract template-worthy settings
+      const settings = {
+        sportType: match.sportType,
+        location: match.location,
+        staffPlayerCount: match.staffPlayerCount,
+        reservePlayerCount: match.reservePlayerCount,
+        pricePerPlayer: match.pricePerPlayer,
+        peterIban: match.peterIban,
+        peterFullName: match.peterFullName,
+        isPublic: match.isPublic,
+        affectsStats: match.affectsStats,
+        affectsStandings: match.affectsStandings
+      };
+
+      return await friendlyMatchConfigService.saveTemplate(
+        organizerId,
+        templateName,
+        settings
+      );
+    } catch (err) {
+      console.error("saveMatchAsTemplate hatası:", err);
+      throw err;
+    }
+  },
+
+  /**
+   * Get public friendly matches
+   */
+  async getPublicFriendlyMatches(filters?: {
+    sportType?: string;
+    location?: string;
+    minDate?: Date;
+    maxDate?: Date;
+  }): Promise<IMatch[]> {
+    try {
+      const matches: any[] = await matchApi.getPublicFriendlyMatches(filters);
+      return matches.map(this.mapMatch);
+    } catch (err) {
+      console.error("getPublicFriendlyMatches hatası:", err);
+      return [];
+    }
+  },
+
+  /**
+   * Get matches by type
+   */
+  async getMatchesByType(type: MatchType): Promise<IMatch[]> {
+    try {
+      const matches: any[] = await matchApi.getMatchesByType(type);
+      return matches.map(this.mapMatch);
+    } catch (err) {
+      console.error("getMatchesByType hatası:", err);
+      return [];
+    }
+  },
+
+  /**
+   * Get player matches grouped by type
+   */
+  async getPlayerMatchesGrouped(playerId: string) {
+    try {
+      const grouped = await matchApi.getPlayerMatchesGrouped(playerId);
+      return {
+        all: grouped.all.map(this.mapMatch),
+        league: grouped.league.map(this.mapMatch),
+        friendly: grouped.friendly.map(this.mapMatch)
+      };
+    } catch (err) {
+      console.error("getPlayerMatchesGrouped hatası:", err);
+      return { all: [], league: [], friendly: [] };
+    }
+  },
+
+  /**
+   * Calculate player statistics
+   */
+  async calculatePlayerStats(playerId: string, options?: {
+    includeLeague?: boolean;
+    includeFriendly?: boolean;
+  }) {
+    try {
+      const matches: any[] = await matchApi.getMatchesForStats(playerId, {
+        includeLeague: options?.includeLeague ?? true,
+        includeFriendly: options?.includeFriendly ?? true,
+        onlyCompleted: true
+      });
+
+      const stats = {
+        totalMatches: matches.length,
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        goalsScored: 0,
+        assists: 0,
+        mvpCount: 0,
+        cleanSheets: 0
+      };
+
+      matches.forEach((match: any) => {
+        // Calculate wins/losses/draws
+        const isTeam1 = match.team1PlayerIds?.includes(playerId);
+        const isTeam2 = match.team2PlayerIds?.includes(playerId);
+
+        if (match.team1Score > match.team2Score) {
+          if (isTeam1) stats.wins++;
+          else if (isTeam2) stats.losses++;
+        } else if (match.team2Score > match.team1Score) {
+          if (isTeam2) stats.wins++;
+          else if (isTeam1) stats.losses++;
+        } else {
+          stats.draws++;
+        }
+
+        // Calculate goals and assists
+        const playerGoals = match.goalScorers?.find((g: any) => g.playerId === playerId);
+        if (playerGoals) {
+          stats.goalsScored += playerGoals.goals || 0;
+          stats.assists += playerGoals.assists || 0;
+        }
+
+        // MVP count
+        if (match.playerIdOfMatchMVP === playerId) {
+          stats.mvpCount++;
+        }
+
+        // Clean sheets (for goalkeepers)
+        if (isTeam1 && match.team2Score === 0) stats.cleanSheets++;
+        if (isTeam2 && match.team1Score === 0) stats.cleanSheets++;
+      });
+
+      // Separate stats by type
+      const leagueMatches = matches.filter((m: any) => m.type === MatchType.LEAGUE);
+      const friendlyMatches = matches.filter((m: any) => m.type === MatchType.FRIENDLY);
+
+      return {
+        all: stats,
+        league: this.calculateStatsForMatches(leagueMatches, playerId),
+        friendly: this.calculateStatsForMatches(friendlyMatches, playerId)
+      };
+    } catch (err) {
+      console.error("calculatePlayerStats hatası:", err);
+      return {
+        all: { totalMatches: 0, wins: 0, losses: 0, draws: 0, goalsScored: 0, assists: 0, mvpCount: 0, cleanSheets: 0 },
+        league: { totalMatches: 0, wins: 0, losses: 0, draws: 0, goalsScored: 0, assists: 0, mvpCount: 0, cleanSheets: 0 },
+        friendly: { totalMatches: 0, wins: 0, losses: 0, draws: 0, goalsScored: 0, assists: 0, mvpCount: 0, cleanSheets: 0 }
+      };
+    }
+  },
+
+  calculateStatsForMatches(matches: any[], playerId: string) {
+    const stats = {
+      totalMatches: matches.length,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      goalsScored: 0,
+      assists: 0,
+      mvpCount: 0,
+      cleanSheets: 0
+    };
+
+    matches.forEach((match: any) => {
+      const isTeam1 = match.team1PlayerIds?.includes(playerId);
+      const isTeam2 = match.team2PlayerIds?.includes(playerId);
+
+      if (match.team1Score > match.team2Score) {
+        if (isTeam1) stats.wins++;
+        else if (isTeam2) stats.losses++;
+      } else if (match.team2Score > match.team1Score) {
+        if (isTeam2) stats.wins++;
+        else if (isTeam1) stats.losses++;
+      } else {
+        stats.draws++;
+      }
+
+      const playerGoals = match.goalScorers?.find((g: any) => g.playerId === playerId);
+      if (playerGoals) {
+        stats.goalsScored += playerGoals.goals || 0;
+        stats.assists += playerGoals.assists || 0;
+      }
+
+      if (match.playerIdOfMatchMVP === playerId) {
+        stats.mvpCount++;
+      }
+
+      if (isTeam1 && match.team2Score === 0) stats.cleanSheets++;
+      if (isTeam2 && match.team1Score === 0) stats.cleanSheets++;
+    });
+
+    return stats;
+  },
+
+  // ============================================
+  // INVITATION INTEGRATION
+  // ============================================
+
+  /**
+   * Invite players to match
+   */
+  async invitePlayersToMatch(
+    matchId: string,
+    inviterId: string,
+    playerIds: string[],
+    message?: string,
+    expiresInHours?: number
+  ) {
+    try {
+      const match = await this.getById(matchId);
+      if (!match) throw new Error('Maç bulunamadı');
+
+      return await matchInvitationService.sendBulkInvitations({
+        matchId,
+        matchType: match.type || MatchType.FRIENDLY,  // Use 'type' field
+        inviterId,
+        inviteeIds: playerIds,
+        message,
+        expiresInHours
+      });
+    } catch (err) {
+      console.error("invitePlayersToMatch hatası:", err);
+      throw err;
+    }
+  },
+
+  /**
+   * Accept match invitation and register
+   */
+  async acceptInvitationAndRegister(invitationId: string, playerId: string): Promise<boolean> {
+    try {
+      // Accept invitation
+      await matchInvitationService.acceptInvitation(invitationId);
+
+      // Get invitation to find match
+      const invitation = await matchInvitationService.getPendingInvitations(playerId);
+      const acceptedInvitation = invitation.find(inv => inv.id === invitationId);
+
+      if (!acceptedInvitation) {
+        throw new Error('Davet bulunamadı');
+      }
+
+      // Register to match
+      return await this.registerPlayer(acceptedInvitation.matchId, playerId);
+    } catch (err) {
+      console.error("acceptInvitationAndRegister hatası:", err);
+      return false;
+    }
+  },
+
+  // ============================================
+  // EXISTING METHODS (continued)
+  // ============================================
+
   async registerPlayer(matchId: string, playerId: string): Promise<boolean> {
     try {
       const match = await this.getById(matchId);
@@ -209,7 +586,6 @@ export const matchService = {
     }
   },
 
-  // TEAM BUILDING
   async buildTeams(matchId: string, staffPlayerCount: number, reservePlayerCount: number): Promise<boolean> {
     try {
       const match = await this.getById(matchId);
@@ -268,7 +644,6 @@ export const matchService = {
     }
   },
 
-  // SCORE MANAGEMENT
   async updateScore(
     matchId: string,
     team1Score: number,
@@ -354,7 +729,6 @@ export const matchService = {
     }
   },
 
-  // PAYMENT MANAGEMENT
   async initializePayments(matchId: string, amount: number): Promise<boolean> {
     try {
       const match = await this.getById(matchId);
@@ -402,7 +776,6 @@ export const matchService = {
 
       await this.update(matchId, { paymentStatus });
 
-      // Check if all payments are complete
       if (paymentStatus.every(p => p.paid)) {
         await this.update(matchId, { status: 'Tamamlandı' });
       }
@@ -414,7 +787,6 @@ export const matchService = {
     }
   },
 
-  // STATUS MANAGEMENT
   async updateMatchStatus(matchId: string, status: IMatch['status']): Promise<boolean> {
     try {
       await this.update(matchId, { status });
@@ -437,43 +809,128 @@ export const matchService = {
     return this.updateMatchStatus(matchId, 'Tamamlandı');
   },
 
-  // Helper method
   mapMatch(data: any): IMatch {
     return {
       id: data.id,
+      type: data.type || data.matchType || MatchType.LEAGUE, // 'type' field in interface
+      sportType: data.sportType,
+      
+      // League Match fields
       fixtureId: data.fixtureId,
+      leagueId: data.leagueId,
+      tournamentId: data.tournamentId,
+      seasonId: data.seasonId,
+      
+      // Friendly Match fields
+      organizerId: data.organizerId,
+      isPublic: data.isPublic,
+      invitedPlayerIds: data.invitedPlayerIds || [],
+      linkedLeagueId: data.linkedLeagueId,
+      
+      // Common fields
       eventId: data.eventId,
       title: data.title,
       registrationTime: data.registrationTime?.toDate?.() || new Date(data.registrationTime),
       registrationEndTime: data.registrationEndTime?.toDate?.() || new Date(data.registrationEndTime),
       matchStartTime: data.matchStartTime?.toDate?.() || new Date(data.matchStartTime),
       matchEndTime: data.matchEndTime?.toDate?.() || new Date(data.matchEndTime),
+      
+      // Player lists
       premiumPlayerIds: data.premiumPlayerIds || [],
       directPlayerIds: data.directPlayerIds || [],
       guestPlayerIds: data.guestPlayerIds || [],
       registeredPlayerIds: data.registeredPlayerIds || [],
       reservePlayerIds: data.reservePlayerIds || [],
+      
+      // Squad settings
+      staffPlayerCount: data.staffPlayerCount,
+      reservePlayerCount: data.reservePlayerCount,
+      minPlayersToStartMatch: data.minPlayersToStartMatch,
+      maxPlayersAllowed: data.maxPlayersAllowed,
+      
+      // Teams
       team1PlayerIds: data.team1PlayerIds,
       team2PlayerIds: data.team2PlayerIds,
       playerPositions: data.playerPositions || {},
+      
+      // Score
       score: data.score,
       team1Score: data.team1Score,
       team2Score: data.team2Score,
       goalScorers: data.goalScorers || [],
+      
+      // Rating & MVP
       playerIdOfMatchMVP: data.playerIdOfMatchMVP,
+      mvpCalculatedAt: data.mvpCalculatedAt,
+      mvpAutoCalculated: data.mvpAutoCalculated || false,
+      ratingsSummary: data.ratingsSummary,
+      
+      // Comments
+      commentsEnabled: data.commentsEnabled || false,
+      totalComments: data.totalComments,
+      
+      // Payment
       paymentStatus: data.paymentStatus || [],
+      
+      // Authorities
       organizerPlayerIds: data.organizerPlayerIds || [],
       teamBuildingAuthorityPlayerIds: data.teamBuildingAuthorityPlayerIds || [],
+      
+      // Match specific settings
       location: data.location,
       pricePerPlayer: data.pricePerPlayer,
       peterIban: data.peterIban,
       peterFullName: data.peterFullName,
+      
+      // Status
       status: data.status,
+      
+      // Friendly match stats settings
+      affectsStats: data.affectsStats,
+      affectsStandings: data.affectsStandings,
+      requiresApproval: data.requiresApproval,
+      isApproved: data.isApproved,
+      approvedBy: data.approvedBy,
+      approvedAt: data.approvedAt,
+      
+      // Meta
       matchBoardSheetId: data.matchBoardSheetId,
       createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
-      mvpAutoCalculated: data.mvpAutoCalculated,
-      commentsEnabled: data.commentsEnabled
+      updatedAt: data.updatedAt
     };
   }
-}
+};
+
+
+/*
+
+// 1. Friendly maç oluştur
+const match = await matchService.createFriendlyMatch({
+  organizerId: 'user123',
+  sportType: 'Futbol',
+  title: 'Cumartesi Maçı',
+  matchStartTime: new Date('2025-10-18T15:00:00'),
+  location: 'Beşiktaş Halı Saha',
+  staffPlayerCount: 10,
+  reservePlayerCount: 2,
+  isPublic: true,
+  affectsStats: true,
+  affectsStandings: false,
+  useDefaults: true
+});
+
+// 2. Oyunculara davet gönder
+await matchService.invitePlayersToMatch(
+  match.id,
+  'user123',
+  ['player1', 'player2', 'player3'],
+  'Cumartesi maçına gelir misin?',
+  48
+);
+
+// 3. İstatistikleri hesapla
+const stats = await matchService.calculatePlayerStats('player1', {
+  includeLeague: true,
+  includeFriendly: true
+});
+*/

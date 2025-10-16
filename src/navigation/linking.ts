@@ -1,8 +1,7 @@
-// ============================================
-// DEEP LINKING CONFIGURATION (UPDATED FOR 6 TABS)
-// ============================================
+// src/navigation/linking.ts
 
 import { LinkingOptions } from '@react-navigation/native';
+import { NavigationService } from './NavigationService';
 import { RootStackParamList } from './types';
 
 export const linking: LinkingOptions<RootStackParamList> = {
@@ -17,7 +16,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
       // ============================================
       // AUTH SCREENS
       // ============================================
-      Auth: {
+      auth: {
         screens: {
           login: 'login',
           register: 'register',
@@ -26,52 +25,64 @@ export const linking: LinkingOptions<RootStackParamList> = {
       },
 
       // ============================================
-      // MAIN APP (6 TABS)
+      // MAIN APP (5 TABS)
       // ============================================
-      Main: {
+      main: {
         screens: {
           // ============================================
           // 1. HOME TAB
           // ============================================
-          HomeTab: {
+          homeTab: {
             screens: {
-              home: '',
+              homeScreen: '',
             },
           },
 
           // ============================================
           // 2. LEAGUES TAB
           // ============================================
-          LeaguesTab: {
+          leaguesTab: {
             screens: {
               leagueList: 'leagues',
               leagueDetail: 'league/:leagueId',
               createLeague: 'league/create',
               editLeague: 'league/:leagueId/edit',
-              standings: 'league/:leagueId/standings',
-              topScorers: 'league/:leagueId/top-scorers',
-              topAssists: 'league/:leagueId/top-assists',
-              mvp: 'league/:leagueId/mvp',
-            },
-          },
-
-          // ============================================
-          // 3. FIXTURES TAB
-          // ============================================
-          FixturesTab: {
-            screens: {
-              fixtureList: 'fixtures',
+              fixtureList: 'league/:leagueId/fixtures',
               fixtureDetail: 'fixture/:fixtureId',
               createFixture: 'fixture/create',
               editFixture: 'fixture/:fixtureId/edit',
-              matchList: 'matches',
             },
           },
 
           // ============================================
-          // 4. STANDINGS TAB
+          // 3. MATCHES TAB
           // ============================================
-          StandingsTab: {
+          matchesTab: {
+            screens: {
+              matchList: 'matches',
+              myMatches: 'my-matches',
+              matchDetail: 'match/:matchId',
+              createFriendlyMatch: 'match/create',
+              friendlyMatchInvitations: 'match/invitations',
+              manageInvitations: 'match/:matchId/manage-invitations',
+              editFriendlyMatch: 'match/:matchId/edit-friendly',
+              editMatch: 'match/:matchId/edit',
+              friendlyMatchTemplates: 'match/templates',
+              createFriendlyMatchTemplate: 'match/template/create',
+              editFriendlyMatchTemplate: 'match/template/:templateId/edit',
+              matchRegistration: 'match/:matchId/register',
+              teamBuilding: 'match/:matchId/team',
+              scoreEntry: 'match/:matchId/score',
+              goalAssistEntry: 'match/:matchId/goals',
+              playerRating: 'match/:matchId/rating',
+              paymentTracking: 'match/:matchId/payment',
+            },
+          },
+
+          // ============================================
+          // 4. STATS TAB
+          // ============================================
+          statsTab: {
             screens: {
               standingsList: 'stats',
               standings: 'stats/:leagueId/standings',
@@ -82,64 +93,135 @@ export const linking: LinkingOptions<RootStackParamList> = {
           },
 
           // ============================================
-          // 5. PROFILE TAB ⭐ YENİ
+          // 5. PROFILE TAB
           // ============================================
-          ProfileTab: {
+          profileTab: {
             screens: {
-              playerProfile: 'profile', // Kendi profilim
-              playerStats: 'profile/stats',
-              myMatches: 'profile/matches',
+              playerStats: 'profile',
+              playerProfile: 'profile/view',
               editProfile: 'profile/edit',
-            },
-          },
-
-          // ============================================
-          // 6. SETTINGS TAB ⭐ YENİ
-          // ============================================
-          SettingsTab: {
-            screens: {
+              selectPositions: 'profile/positions',
               settings: 'settings',
               notificationSettings: 'settings/notifications',
             },
           },
         },
       },
-
-      // ============================================
-      // MODAL SCREENS (Root level)
-      // ============================================
-      
-      // Match Screens
-      matchDetail: 'match/:matchId',
-      matchRegistration: 'match/:matchId/register',
-      teamBuilding: 'match/:matchId/team',
-      scoreEntry: 'match/:matchId/score',
-      goalAssistEntry: 'match/:matchId/goals',
-      playerRating: 'match/:matchId/rating',
-      paymentTracking: 'match/:matchId/payment',
-      editMatch: 'match/:matchId/edit',
-      
-      // Player Screens (Sadece başka oyuncular için)
-      playerProfile: 'player/:playerId',
     },
   },
 };
 
 // ============================================
-// DEEP LINK HELPERS (UPDATED)
+// DEEP LINK HELPERS
 // ============================================
 
 export const DeepLinkHelper = {
   // ============================================
+  // HOME LINKS
+  // ============================================
+  
+  createHomeLink(): string {
+    return 'matchmanagement://';
+  },
+
+  // ============================================
+  // LEAGUE LINKS
+  // ============================================
+  
+  createLeagueListLink(): string {
+    return 'matchmanagement://leagues';
+  },
+
+  createLeagueLink(leagueId: string): string {
+    return `matchmanagement://league/${leagueId}`;
+  },
+
+  createCreateLeagueLink(): string {
+    return 'matchmanagement://league/create';
+  },
+
+  createEditLeagueLink(leagueId: string): string {
+    return `matchmanagement://league/${leagueId}/edit`;
+  },
+
+  // ============================================
+  // FIXTURE LINKS
+  // ============================================
+  
+  createFixtureListLink(leagueId: string): string {
+    return `matchmanagement://league/${leagueId}/fixtures`;
+  },
+
+  createFixtureLink(fixtureId: string): string {
+    return `matchmanagement://fixture/${fixtureId}`;
+  },
+
+  createCreateFixtureLink(): string {
+    return 'matchmanagement://fixture/create';
+  },
+
+  createEditFixtureLink(fixtureId: string): string {
+    return `matchmanagement://fixture/${fixtureId}/edit`;
+  },
+
+  // ============================================
   // MATCH LINKS
   // ============================================
   
+  createMatchListLink(): string {
+    return 'matchmanagement://matches';
+  },
+
+  createMyMatchesLink(): string {
+    return 'matchmanagement://my-matches';
+  },
+
   createMatchLink(matchId: string): string {
     return `matchmanagement://match/${matchId}`;
   },
 
+  createCreateFriendlyMatchLink(): string {
+    return 'matchmanagement://match/create';
+  },
+
+  createFriendlyMatchInvitationsLink(): string {
+    return 'matchmanagement://match/invitations';
+  },
+
+  createManageInvitationsLink(matchId: string): string {
+    return `matchmanagement://match/${matchId}/manage-invitations`;
+  },
+
+  createEditFriendlyMatchLink(matchId: string): string {
+    return `matchmanagement://match/${matchId}/edit-friendly`;
+  },
+
+  createEditMatchLink(matchId: string): string {
+    return `matchmanagement://match/${matchId}/edit`;
+  },
+
+  createFriendlyMatchTemplatesLink(): string {
+    return 'matchmanagement://match/templates';
+  },
+
+  createCreateTemplateLink(): string {
+    return 'matchmanagement://match/template/create';
+  },
+
+  createEditTemplateLink(templateId: string): string {
+    return `matchmanagement://match/template/${templateId}/edit`;
+  },
+
   createMatchRegistrationLink(matchId: string): string {
     return `matchmanagement://match/${matchId}/register`;
+  },
+
+  createTeamBuildingLink(matchId: string): string {
+    return `matchmanagement://match/${matchId}/team`;
+  },
+
+  createScoreEntryLink(matchId: string): string {
+    return `matchmanagement://match/${matchId}/score`;
   },
 
   createGoalAssistLink(matchId: string): string {
@@ -155,58 +237,51 @@ export const DeepLinkHelper = {
   },
 
   // ============================================
-  // LEAGUE LINKS
+  // STATS LINKS
   // ============================================
   
-  createLeagueLink(leagueId: string): string {
-    return `matchmanagement://league/${leagueId}`;
+  createStatsListLink(): string {
+    return 'matchmanagement://stats';
+  },
+
+  createStandingsLink(leagueId: string): string {
+    return `matchmanagement://stats/${leagueId}/standings`;
+  },
+
+  createTopScorersLink(leagueId: string): string {
+    return `matchmanagement://stats/${leagueId}/top-scorers`;
+  },
+
+  createTopAssistsLink(leagueId: string): string {
+    return `matchmanagement://stats/${leagueId}/top-assists`;
+  },
+
+  createMVPLink(leagueId: string): string {
+    return `matchmanagement://stats/${leagueId}/mvp`;
   },
 
   // ============================================
-  // FIXTURE LINKS
+  // PROFILE LINKS
   // ============================================
   
-  createFixtureLink(fixtureId: string): string {
-    return `matchmanagement://fixture/${fixtureId}`;
-  },
-
-  // ============================================
-  // PLAYER LINKS
-  // ============================================
-  
-  /**
-   * Başka bir oyuncunun profil linki
-   */
-  createPlayerLink(playerId: string): string {
-    return `matchmanagement://player/${playerId}`;
-  },
-
-  /**
-   * Kendi profilim linki (Tab içinde)
-   */
   createMyProfileLink(): string {
-    return `matchmanagement://profile`;
+    return 'matchmanagement://profile';
   },
 
-  /**
-   * Kendi istatistiklerim linki (Tab içinde)
-   */
   createMyStatsLink(): string {
-    return `matchmanagement://profile/stats`;
+    return 'matchmanagement://profile';
   },
 
-  /**
-   * Geçmiş maçlarım linki (Tab içinde)
-   */
-  createMyMatchesLink(): string {
-    return `matchmanagement://profile/matches`;
+  createPlayerProfileLink(): string {
+    return 'matchmanagement://profile/view';
   },
 
-  /**
-   * Profil düzenle linki (Tab içinde)
-   */
   createEditProfileLink(): string {
-    return `matchmanagement://profile/edit`;
+    return 'matchmanagement://profile/edit';
+  },
+
+  createSelectPositionsLink(): string {
+    return 'matchmanagement://profile/positions';
   },
 
   // ============================================
@@ -214,11 +289,11 @@ export const DeepLinkHelper = {
   // ============================================
   
   createSettingsLink(): string {
-    return `matchmanagement://settings`;
+    return 'matchmanagement://settings';
   },
 
   createNotificationSettingsLink(): string {
-    return `matchmanagement://settings/notifications`;
+    return 'matchmanagement://settings/notifications';
   },
 
   // ============================================
@@ -235,69 +310,189 @@ export const DeepLinkHelper = {
   /**
    * Deep link'ten ekran ve params çıkar
    */
-  parseDeepLink(url: string): { screen: string; tab?: string; params?: any } | null {
+  parseDeepLink(url: string): { 
+    tab?: string; 
+    screen?: string; 
+    params?: any;
+  } | null {
     try {
       const deepLink = this.convertWebToDeepLink(url);
       const path = deepLink.replace('matchmanagement://', '');
+      
+      if (!path) {
+        return { tab: 'homeTab', screen: 'homeScreen' };
+      }
+
       const parts = path.split('/');
 
       // ============================================
-      // MATCH SCREENS (Root Modal)
+      // HOME
       // ============================================
-      if (parts[0] === 'match' && parts[1]) {
-        const matchId = parts[1];
+      if (parts[0] === '' || parts[0] === 'home') {
+        return { tab: 'homeTab', screen: 'homeScreen' };
+      }
+
+      // ============================================
+      // LEAGUES
+      // ============================================
+      if (parts[0] === 'leagues') {
+        return { tab: 'leaguesTab', screen: 'leagueList' };
+      }
+
+      if (parts[0] === 'league') {
+        if (parts[1] === 'create') {
+          return { tab: 'leaguesTab', screen: 'createLeague' };
+        }
+        if (parts[1] && parts[2] === 'edit') {
+          return { tab: 'leaguesTab', screen: 'editLeague', params: { leagueId: parts[1] } };
+        }
+        if (parts[1] && parts[2] === 'fixtures') {
+          return { tab: 'leaguesTab', screen: 'fixtureList', params: { leagueId: parts[1] } };
+        }
+        if (parts[1]) {
+          return { tab: 'leaguesTab', screen: 'leagueDetail', params: { leagueId: parts[1] } };
+        }
+      }
+
+      // ============================================
+      // FIXTURES
+      // ============================================
+      if (parts[0] === 'fixture') {
+        if (parts[1] === 'create') {
+          return { tab: 'leaguesTab', screen: 'createFixture' };
+        }
+        if (parts[1] && parts[2] === 'edit') {
+          return { tab: 'leaguesTab', screen: 'editFixture', params: { fixtureId: parts[1] } };
+        }
+        if (parts[1]) {
+          return { tab: 'leaguesTab', screen: 'fixtureDetail', params: { fixtureId: parts[1] } };
+        }
+      }
+
+      // ============================================
+      // MATCHES
+      // ============================================
+      if (parts[0] === 'matches') {
+        return { tab: 'matchesTab', screen: 'matchList' };
+      }
+
+      if (parts[0] === 'my-matches') {
+        return { tab: 'matchesTab', screen: 'myMatches' };
+      }
+
+      if (parts[0] === 'match') {
+        // Templates
+        if (parts[1] === 'templates') {
+          return { tab: 'matchesTab', screen: 'friendlyMatchTemplates' };
+        }
+        if (parts[1] === 'template') {
+          if (parts[2] === 'create') {
+            return { tab: 'matchesTab', screen: 'createFriendlyMatchTemplate' };
+          }
+          if (parts[2] && parts[3] === 'edit') {
+            return { 
+              tab: 'matchesTab', 
+              screen: 'editFriendlyMatchTemplate', 
+              params: { templateId: parts[2] } 
+            };
+          }
+        }
+
+        // Match operations
+        if (parts[1] === 'create') {
+          return { tab: 'matchesTab', screen: 'createFriendlyMatch' };
+        }
+        if (parts[1] === 'invitations') {
+          return { tab: 'matchesTab', screen: 'friendlyMatchInvitations' };
+        }
+
+        // Match specific operations
+        if (parts[1]) {
+          const matchId = parts[1];
+          
+          if (parts[2] === 'register') {
+            return { tab: 'matchesTab', screen: 'matchRegistration', params: { matchId } };
+          }
+          if (parts[2] === 'team') {
+            return { tab: 'matchesTab', screen: 'teamBuilding', params: { matchId } };
+          }
+          if (parts[2] === 'score') {
+            return { tab: 'matchesTab', screen: 'scoreEntry', params: { matchId } };
+          }
+          if (parts[2] === 'goals') {
+            return { tab: 'matchesTab', screen: 'goalAssistEntry', params: { matchId } };
+          }
+          if (parts[2] === 'rating') {
+            return { tab: 'matchesTab', screen: 'playerRating', params: { matchId } };
+          }
+          if (parts[2] === 'payment') {
+            return { tab: 'matchesTab', screen: 'paymentTracking', params: { matchId } };
+          }
+          if (parts[2] === 'manage-invitations') {
+            return { tab: 'matchesTab', screen: 'manageInvitations', params: { matchId } };
+          }
+          if (parts[2] === 'edit-friendly') {
+            return { tab: 'matchesTab', screen: 'editFriendlyMatch', params: { matchId } };
+          }
+          if (parts[2] === 'edit') {
+            return { tab: 'matchesTab', screen: 'editMatch', params: { matchId } };
+          }
+          
+          // Default: match detail
+          return { tab: 'matchesTab', screen: 'matchDetail', params: { matchId } };
+        }
+      }
+
+      // ============================================
+      // STATS
+      // ============================================
+      if (parts[0] === 'stats') {
+        if (!parts[1]) {
+          return { tab: 'statsTab', screen: 'standingsList' };
+        }
         
-        if (parts[2] === 'register') {
-          return { screen: 'matchRegistration', params: { matchId } };
-        } else if (parts[2] === 'team') {
-          return { screen: 'teamBuilding', params: { matchId } };
-        } else if (parts[2] === 'score') {
-          return { screen: 'scoreEntry', params: { matchId } };
-        } else if (parts[2] === 'goals') {
-          return { screen: 'goalAssistEntry', params: { matchId } };
-        } else if (parts[2] === 'rating') {
-          return { screen: 'playerRating', params: { matchId } };
-        } else if (parts[2] === 'payment') {
-          return { screen: 'paymentTracking', params: { matchId } };
-        } else if (parts[2] === 'edit') {
-          return { screen: 'editMatch', params: { matchId } };
-        } else {
-          return { screen: 'matchDetail', params: { matchId } };
+        const leagueId = parts[1];
+        
+        if (parts[2] === 'standings') {
+          return { tab: 'statsTab', screen: 'standings', params: { leagueId } };
+        }
+        if (parts[2] === 'top-scorers') {
+          return { tab: 'statsTab', screen: 'topScorers', params: { leagueId } };
+        }
+        if (parts[2] === 'top-assists') {
+          return { tab: 'statsTab', screen: 'topAssists', params: { leagueId } };
+        }
+        if (parts[2] === 'mvp') {
+          return { tab: 'statsTab', screen: 'mvp', params: { leagueId } };
         }
       }
 
       // ============================================
-      // PLAYER SCREENS
+      // PROFILE
       // ============================================
-      
-      // Başka oyuncunun profili (Root Modal)
-      if (parts[0] === 'player' && parts[1]) {
-        const playerId = parts[1];
-        return { screen: 'playerProfile', params: { playerId } };
-      }
-
-      // Kendi profilim (ProfileTab)
       if (parts[0] === 'profile') {
-        if (parts[1] === 'stats') {
-          return { tab: 'ProfileTab', screen: 'playerStats' };
-        } else if (parts[1] === 'matches') {
-          return { tab: 'ProfileTab', screen: 'myMatches' };
-        } else if (parts[1] === 'edit') {
-          return { tab: 'ProfileTab', screen: 'editProfile' };
-        } else {
-          return { tab: 'ProfileTab', screen: 'playerProfile' };
+        if (!parts[1]) {
+          return { tab: 'profileTab', screen: 'playerStats' };
+        }
+        if (parts[1] === 'view') {
+          return { tab: 'profileTab', screen: 'playerProfile' };
+        }
+        if (parts[1] === 'edit') {
+          return { tab: 'profileTab', screen: 'editProfile' };
+        }
+        if (parts[1] === 'positions') {
+          return { tab: 'profileTab', screen: 'selectPositions' };
         }
       }
 
       // ============================================
-      // SETTINGS SCREENS (SettingsTab)
+      // SETTINGS
       // ============================================
       if (parts[0] === 'settings') {
         if (parts[1] === 'notifications') {
-          return { tab: 'SettingsTab', screen: 'notificationSettings' };
-        } else {
-          return { tab: 'SettingsTab', screen: 'settings' };
+          return { tab: 'profileTab', screen: 'notificationSettings' };
         }
+        return { tab: 'profileTab', screen: 'settings' };
       }
 
       return null;
@@ -318,22 +513,26 @@ export const DeepLinkHelper = {
       return;
     }
 
-    // Root level modal screen
-    if (parsed.screen && !parsed.tab) {
+    if (parsed.tab && parsed.screen) {
       // @ts-ignore
-      NavigationService.navigate(parsed.screen, parsed.params);
-    }
-    
-    // Tab içindeki screen
-    else if (parsed.tab && parsed.screen) {
-      // @ts-ignore
-      NavigationService.navigate('Main', {
-        screen: parsed.tab,
-        params: {
-          screen: parsed.screen,
-          params: parsed.params
-        }
+      NavigationService.navigate(parsed.tab, {
+        screen: parsed.screen,
+        params: parsed.params,
       });
+    } else if (parsed.tab) {
+      // @ts-ignore
+      NavigationService.navigate(parsed.tab);
     }
+  },
+
+  /**
+   * Share link oluştur (Web + Deep link)
+   */
+  createShareableLink(deepLink: string): {
+    deepLink: string;
+    webLink: string;
+  } {
+    const webLink = deepLink.replace('matchmanagement://', 'https://matchmanagement.app/');
+    return { deepLink, webLink };
   },
 };

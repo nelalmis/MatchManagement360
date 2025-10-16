@@ -1,14 +1,13 @@
-// services/playerRatingProfileService.ts
-
 import { playerRatingProfileApi } from "../api/playerRatingProfileApi";
 import { matchRatingApi } from "../api/matchRatingApi";
-import { matchApi } from "../api/matchApi"; // ✅ Direkt API kullan
+import { matchApi } from "../api/matchApi";
 import {
     IPlayerRatingProfile,
-    IResponseBase,
+    MatchType,
     calculateRatingTrend,
     hasEnoughRatings
 } from "../types/types";
+import { IResponseBase } from "../types/base/baseTypes";
 
 export const playerRatingProfileService = {
     // ============================================
@@ -116,13 +115,16 @@ export const playerRatingProfileService = {
     // INITIALIZE & UPDATE PROFILE
     // ============================================
 
+    /**
+     * Initialize profile with friendly support
+     * UPDATED: Now includes overall, league, and friendly objects
+     */
     async initializeProfile(
         playerId: string,
         leagueId: string,
         seasonId: string
     ): Promise<IResponseBase | null> {
         try {
-            // Check if profile already exists
             const existing = await this.getProfileByPlayerLeagueSeason(
                 playerId,
                 leagueId,
@@ -133,12 +135,33 @@ export const playerRatingProfileService = {
                 return { success: true, id: existing.id };
             }
 
-            // Create new profile
             const profileData: IPlayerRatingProfile = {
                 id: null,
                 playerId,
                 leagueId,
                 seasonId,
+                // Overall stats (all matches combined)
+                overall: {
+                    overallRating: 0,
+                    totalRatingsReceived: 0,
+                    mvpCount: 0,
+                    mvpRate: 0
+                },
+                // League match stats
+                league: {
+                    overallRating: 0,
+                    totalRatingsReceived: 0,
+                    mvpCount: 0,
+                    mvpRate: 0
+                },
+                // Friendly match stats
+                friendly: {
+                    overallRating: 0,
+                    totalRatingsReceived: 0,
+                    mvpCount: 0,
+                    mvpRate: 0
+                },
+                // Legacy fields (overall stats)
                 overallRating: 0,
                 totalRatingsReceived: 0,
                 categoryAverages: {
@@ -169,6 +192,10 @@ export const playerRatingProfileService = {
         }
     },
 
+    /**
+     * Update profile from match (supports League and Friendly)
+     * UPDATED: Now updates appropriate stats based on match type
+     */
     async updateProfileFromMatch(
         playerId: string,
         leagueId: string,
@@ -176,7 +203,6 @@ export const playerRatingProfileService = {
         matchId: string
     ): Promise<boolean> {
         try {
-            // Get or create profile
             let profile = await this.getProfileByPlayerLeagueSeason(playerId, leagueId, seasonId);
             
             if (!profile) {
@@ -184,6 +210,13 @@ export const playerRatingProfileService = {
                 profile = await this.getProfileByPlayerLeagueSeason(playerId, leagueId, seasonId);
                 if (!profile) return false;
             }
+
+            // Get match data to determine type
+            const matchData: any = await matchApi.getById(matchId);
+            if (!matchData) return false;
+
+            const matchType = matchData.type || MatchType.LEAGUE;
+            const isFriendlyMatch = matchType === MatchType.FRIENDLY;
 
             // Get match ratings for this player
             const matchRatings = await matchRatingApi.getRatingsByMatch(matchId);
@@ -194,16 +227,49 @@ export const playerRatingProfileService = {
             // Calculate average rating for this match
             const matchAverage = playerRatings.reduce((sum: number, r: any) => sum + r.rating, 0) / playerRatings.length;
 
-            // Update totals
-            const updatedProfile = { ...profile };
-            updatedProfile.totalRatingsReceived += playerRatings.length;
+            const updatedProfile: any = { ...profile };
 
-            // Update overall rating (weighted average)
-            const totalWeight = updatedProfile.totalRatingsReceived;
-            const previousWeight = totalWeight - playerRatings.length;
-            const previousTotal = updatedProfile.overallRating * previousWeight;
-            const newTotal = previousTotal + (matchAverage * playerRatings.length);
-            updatedProfile.overallRating = parseFloat((newTotal / totalWeight).toFixed(2));
+            // Initialize objects if needed
+            if (!updatedProfile.overall) {
+                updatedProfile.overall = { overallRating: 0, totalRatingsReceived: 0, mvpCount: 0, mvpRate: 0 };
+            }
+            if (!updatedProfile.league) {
+                updatedProfile.league = { overallRating: 0, totalRatingsReceived: 0, mvpCount: 0, mvpRate: 0 };
+            }
+            if (!updatedProfile.friendly) {
+                updatedProfile.friendly = { overallRating: 0, totalRatingsReceived: 0, mvpCount: 0, mvpRate: 0 };
+            }
+
+            // Update appropriate stats based on match type
+            if (isFriendlyMatch) {
+                // Update friendly stats
+                const friendlyTotal = updatedProfile.friendly.totalRatingsReceived + playerRatings.length;
+                const friendlyPreviousTotal = updatedProfile.friendly.overallRating * updatedProfile.friendly.totalRatingsReceived;
+                const friendlyNewTotal = friendlyPreviousTotal + (matchAverage * playerRatings.length);
+                
+                updatedProfile.friendly.overallRating = parseFloat((friendlyNewTotal / friendlyTotal).toFixed(2));
+                updatedProfile.friendly.totalRatingsReceived = friendlyTotal;
+            } else {
+                // Update league stats
+                const leagueTotal = updatedProfile.league.totalRatingsReceived + playerRatings.length;
+                const leaguePreviousTotal = updatedProfile.league.overallRating * updatedProfile.league.totalRatingsReceived;
+                const leagueNewTotal = leaguePreviousTotal + (matchAverage * playerRatings.length);
+                
+                updatedProfile.league.overallRating = parseFloat((leagueNewTotal / leagueTotal).toFixed(2));
+                updatedProfile.league.totalRatingsReceived = leagueTotal;
+            }
+
+            // Always update overall stats
+            const overallTotal = updatedProfile.overall.totalRatingsReceived + playerRatings.length;
+            const overallPreviousTotal = updatedProfile.overall.overallRating * updatedProfile.overall.totalRatingsReceived;
+            const overallNewTotal = overallPreviousTotal + (matchAverage * playerRatings.length);
+            
+            updatedProfile.overall.overallRating = parseFloat((overallNewTotal / overallTotal).toFixed(2));
+            updatedProfile.overall.totalRatingsReceived = overallTotal;
+
+            // Update legacy fields (overall stats)
+            updatedProfile.overallRating = updatedProfile.overall.overallRating;
+            updatedProfile.totalRatingsReceived = updatedProfile.overall.totalRatingsReceived;
 
             // Update last five ratings
             const lastFive = [...updatedProfile.lastFiveRatings, matchAverage];
@@ -214,7 +280,7 @@ export const playerRatingProfileService = {
                 updatedProfile.ratingTrend = calculateRatingTrend(updatedProfile.lastFiveRatings);
             }
 
-            // Update category averages if available
+            // Update category averages
             if (playerRatings.some((r: any) => r.categories)) {
                 const categoryTotals = {
                     skill: 0,
@@ -244,19 +310,35 @@ export const playerRatingProfileService = {
                 }
             }
 
-            // ✅ Check if player was MVP in this match - Direkt API kullan
-            const matchData: any = await matchApi.getById(matchId);
-            if (matchData && matchData.playerIdOfMatchMVP === playerId) {
-                updatedProfile.mvpCount += 1;
+            // Check if player was MVP
+            if (matchData.playerIdOfMatchMVP === playerId) {
+                if (isFriendlyMatch) {
+                    updatedProfile.friendly.mvpCount += 1;
+                } else {
+                    updatedProfile.league.mvpCount += 1;
+                }
+                updatedProfile.overall.mvpCount += 1;
+                updatedProfile.mvpCount = updatedProfile.overall.mvpCount; // Legacy field
             }
 
-            // Update MVP rate
+            // Update MVP rates
             const totalMatches = await this.getPlayerMatchCount(playerId, leagueId, seasonId);
             if (totalMatches > 0) {
-                updatedProfile.mvpRate = parseFloat(((updatedProfile.mvpCount / totalMatches) * 100).toFixed(2));
+                updatedProfile.overall.mvpRate = parseFloat(((updatedProfile.overall.mvpCount / totalMatches) * 100).toFixed(2));
+                updatedProfile.mvpRate = updatedProfile.overall.mvpRate; // Legacy field
             }
 
-            // Save updated profile
+            // Calculate league/friendly specific MVP rates
+            const leagueMatches = await this.getPlayerMatchCountByType(playerId, leagueId, seasonId, MatchType.LEAGUE);
+            if (leagueMatches > 0) {
+                updatedProfile.league.mvpRate = parseFloat(((updatedProfile.league.mvpCount / leagueMatches) * 100).toFixed(2));
+            }
+
+            const friendlyMatches = await this.getPlayerMatchCountByType(playerId, leagueId, seasonId, MatchType.FRIENDLY);
+            if (friendlyMatches > 0) {
+                updatedProfile.friendly.mvpRate = parseFloat(((updatedProfile.friendly.mvpCount / friendlyMatches) * 100).toFixed(2));
+            }
+
             const profileId = (profile as any).id;
             await this.update(profileId, updatedProfile);
 
@@ -274,19 +356,40 @@ export const playerRatingProfileService = {
     async updateMVPCount(
         playerId: string,
         leagueId: string,
-        seasonId: string
+        seasonId: string,
+        matchType: MatchType = MatchType.LEAGUE
     ): Promise<boolean> {
         try {
             const profile = await this.getProfileByPlayerLeagueSeason(playerId, leagueId, seasonId);
             if (!profile) return false;
 
-            const updatedProfile = { ...profile };
-            updatedProfile.mvpCount += 1;
+            const updatedProfile: any = { ...profile };
 
-            // Update MVP rate
+            // Initialize if needed
+            if (!updatedProfile.overall) {
+                updatedProfile.overall = { overallRating: 0, totalRatingsReceived: 0, mvpCount: 0, mvpRate: 0 };
+            }
+            if (!updatedProfile.league) {
+                updatedProfile.league = { overallRating: 0, totalRatingsReceived: 0, mvpCount: 0, mvpRate: 0 };
+            }
+            if (!updatedProfile.friendly) {
+                updatedProfile.friendly = { overallRating: 0, totalRatingsReceived: 0, mvpCount: 0, mvpRate: 0 };
+            }
+
+            // Update MVP count
+            if (matchType === MatchType.FRIENDLY) {
+                updatedProfile.friendly.mvpCount += 1;
+            } else {
+                updatedProfile.league.mvpCount += 1;
+            }
+            updatedProfile.overall.mvpCount += 1;
+            updatedProfile.mvpCount = updatedProfile.overall.mvpCount;
+
+            // Update MVP rates
             const totalMatches = await this.getPlayerMatchCount(playerId, leagueId, seasonId);
             if (totalMatches > 0) {
-                updatedProfile.mvpRate = parseFloat(((updatedProfile.mvpCount / totalMatches) * 100).toFixed(2));
+                updatedProfile.overall.mvpRate = parseFloat(((updatedProfile.overall.mvpCount / totalMatches) * 100).toFixed(2));
+                updatedProfile.mvpRate = updatedProfile.overall.mvpRate;
             }
 
             const profileId = (profile as any).id;
@@ -358,6 +461,60 @@ export const playerRatingProfileService = {
     },
 
     // ============================================
+    // NEW: FRIENDLY MATCH METHODS (Use API)
+    // ============================================
+
+    async getTopFriendlyRatedPlayers(leagueId: string, seasonId: string, limit: number = 10) {
+        try {
+            return await playerRatingProfileApi.getTopFriendlyRatedPlayers(leagueId, seasonId, limit);
+        } catch (err) {
+            console.error("getTopFriendlyRatedPlayers hatası:", err);
+            return [];
+        }
+    },
+
+    async getTopLeagueRatedPlayers(leagueId: string, seasonId: string, limit: number = 10) {
+        try {
+            return await playerRatingProfileApi.getTopLeagueRatedPlayers(leagueId, seasonId, limit);
+        } catch (err) {
+            console.error("getTopLeagueRatedPlayers hatası:", err);
+            return [];
+        }
+    },
+
+    async getPlayerRatingComparison(playerId: string, leagueId: string, seasonId: string) {
+        try {
+            return await playerRatingProfileApi.getPlayerRatingComparison(playerId, leagueId, seasonId);
+        } catch (err) {
+            console.error("getPlayerRatingComparison hatası:", err);
+            return null;
+        }
+    },
+
+    async getMVPLeadersByType(
+        leagueId: string,
+        seasonId: string,
+        matchType: 'overall' | 'league' | 'friendly',
+        limit: number = 10
+    ) {
+        try {
+            return await playerRatingProfileApi.getMVPLeadersByType(leagueId, seasonId, matchType, limit);
+        } catch (err) {
+            console.error("getMVPLeadersByType hatası:", err);
+            return [];
+        }
+    },
+
+    async getRatingSummary(leagueId: string, seasonId: string) {
+        try {
+            return await playerRatingProfileApi.getRatingSummary(leagueId, seasonId);
+        } catch (err) {
+            console.error("getRatingSummary hatası:", err);
+            return null;
+        }
+    },
+
+    // ============================================
     // PLAYER COMPARISON
     // ============================================
 
@@ -376,24 +533,26 @@ export const playerRatingProfileService = {
             return {
                 player1: {
                     playerId: player1Id,
-                    overallRating: profile1.overallRating,
-                    totalRatings: profile1.totalRatingsReceived,
-                    mvpCount: profile1.mvpCount,
+                    overall: profile1.overall,
+                    league: profile1.league,
+                    friendly: profile1.friendly,
                     trend: profile1.ratingTrend,
                     categories: profile1.categoryAverages
                 },
                 player2: {
                     playerId: player2Id,
-                    overallRating: profile2.overallRating,
-                    totalRatings: profile2.totalRatingsReceived,
-                    mvpCount: profile2.mvpCount,
+                    overall: profile2.overall,
+                    league: profile2.league,
+                    friendly: profile2.friendly,
                     trend: profile2.ratingTrend,
                     categories: profile2.categoryAverages
                 },
                 comparison: {
-                    ratingDifference: parseFloat((profile1.overallRating - profile2.overallRating).toFixed(2)),
-                    mvpDifference: profile1.mvpCount - profile2.mvpCount,
-                    betterPlayer: profile1.overallRating > profile2.overallRating ? player1Id : player2Id
+                    overallRatingDiff: parseFloat(((profile1.overall?.overallRating || 0) - (profile2.overall?.overallRating || 0)).toFixed(2)),
+                    leagueRatingDiff: parseFloat(((profile1.league?.overallRating || 0) - (profile2.league?.overallRating || 0)).toFixed(2)),
+                    friendlyRatingDiff: parseFloat(((profile1.friendly?.overallRating || 0) - (profile2.friendly?.overallRating || 0)).toFixed(2)),
+                    mvpDiff: (profile1.mvpCount || 0) - (profile2.mvpCount || 0),
+                    betterOverall: (profile1.overall?.overallRating || 0) > (profile2.overall?.overallRating || 0) ? player1Id : player2Id
                 }
             };
         } catch (err) {
@@ -417,6 +576,8 @@ export const playerRatingProfileService = {
 
             const insights = {
                 overallPerformance: this.getRatingLevel(profile.overallRating),
+                leaguePerformance: this.getRatingLevel(profile.league?.overallRating || 0),
+                friendlyPerformance: this.getRatingLevel(profile.friendly?.overallRating || 0),
                 consistency: this.getConsistencyLevel(profile.lastFiveRatings),
                 trend: profile.ratingTrend,
                 mvpStatus: this.getMVPStatus(profile.mvpRate),
@@ -442,19 +603,39 @@ export const playerRatingProfileService = {
         seasonId: string
     ): Promise<number> {
         try {
-            // This would need to query matches collection
-            // For now, we'll estimate based on ratings
             const ratings = await matchRatingApi.getRatingsByPlayerLeagueSeason(
                 playerId,
                 leagueId,
                 seasonId
             );
 
-            // Count unique matches
             const uniqueMatches = new Set(ratings.map((r: any) => r.matchId));
             return uniqueMatches.size;
         } catch (err) {
             console.error("getPlayerMatchCount hatası:", err);
+            return 0;
+        }
+    },
+
+    async getPlayerMatchCountByType(
+        playerId: string,
+        leagueId: string,
+        seasonId: string,
+        matchType: MatchType
+    ): Promise<number> {
+        try {
+            const ratings = await matchRatingApi.getRatingsByPlayerLeagueSeason(
+                playerId,
+                leagueId,
+                seasonId
+            );
+
+            // Filter by match type
+            const filteredRatings = ratings.filter((r: any) => r.matchType === matchType);
+            const uniqueMatches = new Set(filteredRatings.map((r: any) => r.matchId));
+            return uniqueMatches.size;
+        } catch (err) {
+            console.error("getPlayerMatchCountByType hatası:", err);
             return 0;
         }
     },
@@ -529,6 +710,26 @@ export const playerRatingProfileService = {
             playerId: data.playerId,
             leagueId: data.leagueId,
             seasonId: data.seasonId,
+            // New grouped stats
+            overall: data.overall || {
+                overallRating: data.overallRating || 0,
+                totalRatingsReceived: data.totalRatingsReceived || 0,
+                mvpCount: data.mvpCount || 0,
+                mvpRate: data.mvpRate || 0
+            },
+            league: data.league || {
+                overallRating: 0,
+                totalRatingsReceived: 0,
+                mvpCount: 0,
+                mvpRate: 0
+            },
+            friendly: data.friendly || {
+                overallRating: 0,
+                totalRatingsReceived: 0,
+                mvpCount: 0,
+                mvpRate: 0
+            },
+            // Legacy fields
             overallRating: data.overallRating || 0,
             totalRatingsReceived: data.totalRatingsReceived || 0,
             categoryAverages: data.categoryAverages || {},

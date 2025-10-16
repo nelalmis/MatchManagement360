@@ -22,11 +22,13 @@ import { formatPhoneNumber, isProfileComplete } from '../../helper/helper';
 import { playerService } from '../../services/playerService';
 import { ArrowRight } from 'lucide-react-native';
 import { NavigationService } from '../../navigation/NavigationService';
+import { deviceService } from '../../services/deviceService';
+import { getOrCreateDeviceId } from '../../helper/deviceHelper';
 
 export const LoginScreen: React.FC = () => {
     const scrollViewRef = useRef<ScrollView>(null);
     const logoScale = useRef(new Animated.Value(1)).current;
-    
+
     const {
         phoneNumber,
         setPhoneNumber,
@@ -43,7 +45,7 @@ export const LoginScreen: React.FC = () => {
 
     useEffect(() => {
         checkAutoLogin();
-        
+
         // Klavye event listeners
         const keyboardWillShow = Keyboard.addListener(
             Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -76,7 +78,7 @@ export const LoginScreen: React.FC = () => {
             useNativeDriver: true,
             friction: 8,
         }).start();
-        
+
         setTimeout(() => {
             scrollViewRef.current?.scrollTo({ y: 50, animated: true });
         }, Platform.OS === 'android' ? 200 : 100);
@@ -89,7 +91,7 @@ export const LoginScreen: React.FC = () => {
             useNativeDriver: true,
             friction: 8,
         }).start();
-        
+
         setTimeout(() => {
             scrollViewRef.current?.scrollTo({ y: 0, animated: true });
         }, 100);
@@ -103,7 +105,7 @@ export const LoginScreen: React.FC = () => {
 
             if (storedUserData && trustedDevice === 'true') {
                 const userData = JSON.parse(storedUserData) as IPlayer;
-                
+
                 if (userData.id) {
                     await playerService.updateLastLogin(userData.id);
                 }
@@ -121,12 +123,12 @@ export const LoginScreen: React.FC = () => {
                     // Profil tamam - Ana sayfaya git
                     setTimeout(() => {
                         setCheckingDevice(false);
-                        NavigationService.navigateToMain();
+                        NavigationService.navigateToHomeTab();
                     }, 800);
                 }
                 return;
             }
-            
+
             await AsyncStorage.removeItem('userData');
             await AsyncStorage.removeItem('trustedDevice');
             setCheckingDevice(false);
@@ -140,33 +142,41 @@ export const LoginScreen: React.FC = () => {
         if (phoneNumber.length === 10) {
             setLoading(true);
             Keyboard.dismiss();
-            
+
             try {
                 const formattedPhone = `+90${phoneNumber}`;
                 const playerByPhone = await playerService.getPlayerByPhone(formattedPhone);
-                
+                const device = await deviceService.getDeviceByDeviceId(await getOrCreateDeviceId());
                 if (playerByPhone) {
                     const playerData = playerByPhone as IPlayer;
-                    
                     await AsyncStorage.setItem('userData', JSON.stringify(playerData));
-                    
-                    if (rememberDevice) {
-                        await AsyncStorage.setItem('trustedDevice', 'true');
+                    setUser(playerData);
+                    //Cihaz kontrolü
+                    if (!rememberDevice) {
+                        await AsyncStorage.removeItem('trustedDevice');
                     }
-                    
+                    if (!device) {
+                        setIsVerified(false);
+                        NavigationService.navigateToPhoneVerification(`+90${phoneNumber}`);
+                        return;
+                    }
+                    // if (device && device.playerId && device.playerId !== playerData.id) {
+                    //     // Cihaz başka bir kullanıcıya kayıtlı, hata ver
+                    //     Alert.alert('Hata', 'Bu cihaz başka bir kullanıcıya kayıtlı. Lütfen farklı bir cihazla giriş yapmayı deneyin veya destek ile iletişime geçin.');
+                    //     setLoading(false);
+                    //     return;
+                    // }
+                    setIsVerified(true);
                     if (playerData.id) {
                         await playerService.updateLastLogin(playerData.id);
                     }
-
-                    setUser(playerData);
-                    setIsVerified(true);
 
                     if (!isProfileComplete(playerData)) {
                         NavigationService.navigateToRegister();
                     } else {
                         NavigationService.navigateToMain();
                     }
-                    
+
                     setLoading(false);
                     return;
                 }

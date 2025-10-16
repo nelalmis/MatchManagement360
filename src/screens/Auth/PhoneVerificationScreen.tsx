@@ -18,13 +18,14 @@ import { useAppContext } from '../../context/AppContext';
 import { formatPhoneNumber, isProfileComplete } from '../../helper/helper';
 import { playerService } from '../../services/playerService';
 import { deviceService } from '../../services/deviceService';
-import { ExpoNotificationService } from '../../hooks/useNotificationHandler';
-import { IPlayer, IResponseBase } from '../../types/types';
+// import { ExpoNotificationService } from '../../hooks/useNotificationHandler';
+import { IPlayer } from '../../types/types';
 import { ArrowLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Device from 'expo-device';
 import { getOrCreateDeviceId } from '../../helper/deviceHelper';
 import { NavigationService } from '../../navigation/NavigationService';
+import { IResponseBase } from '../../types/base/baseTypes';
 
 export const PhoneVerificationScreen: React.FC = () => {
     const scrollViewRef = useRef<ScrollView>(null);
@@ -106,16 +107,16 @@ export const PhoneVerificationScreen: React.FC = () => {
         try {
             console.log('📱 Device token kaydediliyor...');
             
-            const pushToken = await ExpoNotificationService.getExpoPushToken();
-            if (!pushToken) {
-                console.warn('⚠️ Push token alınamadı');
-                return;
-            }
-
+            // const pushToken = await ExpoNotificationService.getExpoPushToken();
+            // if (!pushToken) {
+            //     console.warn('⚠️ Push token alınamadı');
+            //     return;
+            // }
+            const deviceId = await getOrCreateDeviceId();
             const deviceName = Device.deviceName || 'Unknown Device';
             const platform = Platform.OS;
 
-            const existingDevice = await deviceService.getDeviceByDeviceId(pushToken);
+            const existingDevice = await deviceService.getDeviceByDeviceId(deviceId);
 
             if (existingDevice) {
                 await deviceService.update(existingDevice.id.toString(), {
@@ -128,7 +129,7 @@ export const PhoneVerificationScreen: React.FC = () => {
                 await deviceService.add({
                     id: getOrCreateDeviceId(),
                     playerId,
-                    deviceId: pushToken,
+                    deviceId: deviceId,
                     deviceName,
                     platform,
                     isActive: true,
@@ -185,7 +186,7 @@ export const PhoneVerificationScreen: React.FC = () => {
                     NavigationService.navigateToRegister();
                 } else {
                     setCurrentScreen('home');
-                    NavigationService.navigateToMain();
+                    NavigationService.navigateToHomeTab();
                 }
 
                 setLoading(false);

@@ -304,7 +304,7 @@ export const PlayerRatingScreen: React.FC = () => {
               });
 
               const results = await Promise.all(savePromises);
-              const allSuccess = results.every(r => r && r.success);
+              const allSuccess = results.every((r:any) => r && r.success);
 
               if (!allSuccess) {
                 Alert.alert('Hata', 'Bazı puanlamalar kaydedilemedi');

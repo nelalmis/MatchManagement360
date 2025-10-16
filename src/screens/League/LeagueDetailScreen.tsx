@@ -37,10 +37,9 @@ import { leagueService } from '../../services/leagueService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { standingsService } from '../../services/standingsService';
 import { RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
-import { LeagueStackParamList, NavigationService } from '../../navigation';
+import {  LeagueDetailRouteProp, NavigationService } from '../../navigation';
 import { ContactSelector } from './components/ContactSelector';
 
-type LeagueDetailRouteProp = RouteProp<LeagueStackParamList, 'leagueDetail'>;
 
 export const LeagueDetailScreen: React.FC = () => {
   const { user } = useAppContext();
@@ -255,7 +254,7 @@ export const LeagueDetailScreen: React.FC = () => {
         <View style={styles.quickActionsContainer}>
           <TouchableOpacity
             style={[styles.quickActionButton, { borderColor: sportColor }]}
-            onPress={() => NavigationService.navigateToMatchList(leagueId)}
+            onPress={() => NavigationService.navigateToMatchList({ leagueId })}
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: sportColor + '20' }]}>

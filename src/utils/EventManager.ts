@@ -22,10 +22,10 @@ class EventManager {
     if (!this.events.has(eventName)) {
       this.events.set(eventName, []);
     }
-    
+
     const callbacks = this.events.get(eventName)!;
     callbacks.push(callback);
-    
+
     // Unsubscribe fonksiyonu döndür
     return () => this.off(eventName, callback);
   }
@@ -114,33 +114,40 @@ export const Events = {
   MATCH_DELETED: 'matchDeleted',
   MATCH_REGISTERED: 'matchRegistered',
   MATCH_UNREGISTERED: 'matchUnregistered',
-  
+  INVITATION_SENT: 'invitationSent',
+  INVITATION_ACCEPTED: 'invitationAccepted',
+  INVITATION_DECLINED: 'invitationDeclined',
+  INVITATION_UPDATED: 'invitationUpdated',
+  INVITATION_CANCELLED: 'invitationCancelled',
+  TEMPLATE_UPDATED: 'template_updated',
+  TEMPLATE_CREATED: 'template_created',
+  TEMPLATE_DELETED: 'template_deleted',
   // Fixture events
   FIXTURE_UPDATED: 'fixtureUpdated',
   FIXTURE_CREATED: 'fixtureCreated',
   FIXTURE_DELETED: 'fixtureDeleted',
-  
+
   // League events
   LEAGUE_UPDATED: 'leagueUpdated',
   LEAGUE_CREATED: 'leagueCreated',
   LEAGUE_DELETED: 'leagueDeleted',
-  
+
   // Player events
   PLAYER_UPDATED: 'playerUpdated',
   PROFILE_UPDATED: 'profileUpdated',
-  
+
   // Team events
   TEAM_UPDATED: 'teamUpdated',
   TEAM_CREATED: 'teamCreated',
-  
+
   // Score events
   SCORE_UPDATED: 'scoreUpdated',
   SCORE_CONFIRMED: 'scoreConfirmed',
-  
+
   // Payment events
   PAYMENT_UPDATED: 'paymentUpdated',
   PAYMENT_CONFIRMED: 'paymentConfirmed',
-  
+
   // Notification events
   NOTIFICATION_RECEIVED: 'notificationReceived',
   NOTIFICATION_READ: 'notificationRead',

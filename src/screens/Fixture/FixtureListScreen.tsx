@@ -35,16 +35,13 @@ import {
 } from '../../types/types';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { leagueService } from '../../services/leagueService';
-import { FixtureStackParamList, NavigationService } from '../../navigation';
-import { RouteProp, useRoute } from '@react-navigation/native';
-import { CustomHeader } from '../../components/CustomHeader';
-
-type FixturesRouteProp = RouteProp<FixtureStackParamList, 'fixtureList'>;
+import { FixtureListRouteProp, NavigationService } from '../../navigation';
+import { useRoute } from '@react-navigation/native';
 
 export const FixtureListScreen: React.FC = () => {
   const { user } = useAppContext();
 
-  const route = useRoute<FixturesRouteProp>();
+  const route = useRoute<FixtureListRouteProp>();
   const { leagueId } = route.params || {};
 
   const [league, setLeague] = useState<ILeague | null>(null);

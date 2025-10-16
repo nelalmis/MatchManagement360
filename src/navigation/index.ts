@@ -4,11 +4,10 @@
 // Tüm navigation export'ları
 
 // Main Navigator
-export { RootNavigatorV3 } from './RootNavigatorV3';
+export { RootNavigator } from './RootNavigator';
 
 // Types
 export * from './types';
-
 // Service
 export { NavigationService, navigationRef } from './NavigationService';
 
@@ -25,13 +24,7 @@ export {
 } from './guards/NavigationGuards';
 
 // Stacks (Eğer dışarıdan kullanılacaksa)
-export { AuthStack } from './stacks/AuthStack';
-export { LeagueStack } from './stacks/LeagueStack';
-export { FixtureStack } from './stacks/FixtureStack';
-// export { MatchStack } from './stacks/MatchStack';
-export { StandingsStack } from './stacks/StandingsStack';
-export { HomeStack } from './stacks/HomeStack';
-export { ProfileStack } from './stacks/ProfileStack';
+export { AuthStack } from './AuthStack';
+export { MainNavigator } from './MainNavigator';
 
 // Tab Navigator
-export { MainTabNavigator } from './tabs/MainTabNavigator';

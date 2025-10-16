@@ -36,15 +36,14 @@ import {
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import { FixtureStackParamList, NavigationService } from '../../navigation';
+import { EditFixtureRouteProp, NavigationService } from '../../navigation';
 import { eventManager, Events, FixtureEventData } from '../../utils';
 
 type TabType = 'basic' | 'schedule' | 'players' | 'organizers';
-type EditFixtureRootParameter = RouteProp<FixtureStackParamList, 'editFixture'>;
 
 export const EditFixtureScreen: React.FC = () => {
   const { user } = useAppContext();
-  const route = useRoute<EditFixtureRootParameter>();
+  const route = useRoute<EditFixtureRouteProp>();
   const fixtureId = route.params?.fixtureId;
 
   // State

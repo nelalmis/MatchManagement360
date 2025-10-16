@@ -27,6 +27,11 @@ import {
   Timer,
   ChevronRight,
   Star,
+  Globe,
+  Lock,
+  TrendingUp,
+  Mail,
+  UserPlus,
 } from 'lucide-react-native';
 import { useRoute, useFocusEffect } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
@@ -34,13 +39,17 @@ import {
   IMatch,
   IMatchFixture,
   IPlayer,
+  ILeague,
+  MatchType,
   getSportIcon,
   getSportColor,
 } from '../../types/types';
 import { canRegisterToMatch } from '../../helper/matchRegisterHelper';
 import { matchService } from '../../services/matchService';
 import { matchFixtureService } from '../../services/matchFixtureService';
+import { leagueService } from '../../services/leagueService';
 import { playerService } from '../../services/playerService';
+import { matchInvitationService } from '../../services/matchInvitationService';
 import { NavigationService } from '../../navigation/NavigationService';
 
 export const MatchDetailScreen: React.FC = () => {
@@ -50,10 +59,14 @@ export const MatchDetailScreen: React.FC = () => {
 
   const [match, setMatch] = useState<IMatch | null>(null);
   const [fixture, setFixture] = useState<IMatchFixture | null>(null);
+  const [league, setLeague] = useState<ILeague | null>(null);
   const [registeredPlayers, setRegisteredPlayers] = useState<IPlayer[]>([]);
   const [team1Players, setTeam1Players] = useState<IPlayer[]>([]);
   const [team2Players, setTeam2Players] = useState<IPlayer[]>([]);
   const [mvpPlayer, setMvpPlayer] = useState<IPlayer | null>(null);
+  const [organizer, setOrganizer] = useState<IPlayer | null>(null);
+  const [invitedPlayers, setInvitedPlayers] = useState<IPlayer[]>([]);
+  const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [countdown, setCountdown] = useState('');
@@ -61,6 +74,7 @@ export const MatchDetailScreen: React.FC = () => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [canBuildTeam, setCanBuildTeam] = useState(false);
+  const [isInvited, setIsInvited] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -118,9 +132,22 @@ export const MatchDetailScreen: React.FC = () => {
 
       setMatch(matchData);
 
-      // Get fixture
-      const fixtureData = await matchFixtureService.getById(matchData.fixtureId);
-      setFixture(fixtureData);
+      const isFriendly = matchData.type === MatchType.FRIENDLY;
+
+      // Get fixture & league for League matches
+      if (!isFriendly && matchData.fixtureId) {
+        const fixtureData = await matchFixtureService.getById(matchData.fixtureId);
+        setFixture(fixtureData);
+
+        if (fixtureData && matchData.leagueId) {
+          const leagueData = await leagueService.getById(matchData.leagueId);
+          setLeague(leagueData);
+        }
+      } else if (isFriendly && matchData.linkedLeagueId) {
+        // Friendly match bağlı liga
+        const leagueData = await leagueService.getById(matchData.linkedLeagueId);
+        setLeague(leagueData);
+      }
 
       // Check user permissions
       if (user?.id) {
@@ -130,8 +157,19 @@ export const MatchDetailScreen: React.FC = () => {
           matchData.team2PlayerIds?.includes(user.id) || false;
 
         setIsRegistered(registered);
-        setIsOrganizer(matchData.organizerPlayerIds?.includes(user.id) || false);
-        setCanBuildTeam(matchData.teamBuildingAuthorityPlayerIds?.includes(user.id) || false);
+        
+        // Friendly match için organizatör kontrolü
+        const organizerCheck = isFriendly 
+          ? matchData.organizerId === user.id
+          : matchData.organizerPlayerIds?.includes(user.id) || false;
+        
+        setIsOrganizer(organizerCheck);
+        setCanBuildTeam(matchData.teamBuildingAuthorityPlayerIds?.includes(user.id) || organizerCheck);
+
+        // Davet kontrolü (friendly için)
+        if (isFriendly && !matchData.isPublic) {
+          setIsInvited(matchData.invitedPlayerIds?.includes(user.id) || false);
+        }
       }
 
       // Load players in parallel
@@ -166,6 +204,30 @@ export const MatchDetailScreen: React.FC = () => {
         );
       }
 
+      // Load organizer (friendly için)
+      if (isFriendly && matchData.organizerId) {
+        playerPromises.push(
+          playerService.getById(matchData.organizerId)
+            .then(player => setOrganizer(player))
+        );
+      }
+
+      // Load invited players (friendly için)
+      if (isFriendly && !matchData.isPublic && matchData.invitedPlayerIds && matchData.invitedPlayerIds.length > 0) {
+        playerPromises.push(
+          playerService.getPlayersByIds(matchData.invitedPlayerIds)
+            .then(players => setInvitedPlayers(players))
+        );
+
+        // Pending invitations count
+        if (isOrganizer) {
+          playerPromises.push(
+            matchInvitationService.getActiveMatchInvitations(matchId)
+              .then((count:any) => setPendingInvitationsCount(count))
+          );
+        }
+      }
+
       await Promise.all(playerPromises);
 
     } catch (error: any) {
@@ -195,7 +257,10 @@ export const MatchDetailScreen: React.FC = () => {
     if (!match) return;
 
     try {
-      const message = `🎮 ${match.title}\n\n📅 ${formatDateTime(match.matchStartTime)}${match.location ? `\n📍 ${match.location}` : ''}\n\n⚽ Maça katılmak için uygulamayı kullanın!`;
+      const isFriendly = match.type === MatchType.FRIENDLY;
+      const matchTypeLabel = isFriendly ? '🤝 Dostluk Maçı' : '🏆 Lig Maçı';
+      
+      const message = `${matchTypeLabel}: ${match.title}\n\n📅 ${formatDateTime(match.matchStartTime)}${match.location ? `\n📍 ${match.location}` : ''}\n\n⚽ Maça katılmak için uygulamayı kullanın!`;
 
       await Share.share({
         message,
@@ -208,32 +273,37 @@ export const MatchDetailScreen: React.FC = () => {
 
   const handleRegister = () => {
     if (!match) return;
-    NavigationService.navigateToMatchRegistration(match.id); // ✅ DEĞİŞTİ
+    NavigationService.navigateToMatchRegistration(match.id);
   };
 
   const handleBuildTeam = () => {
     if (!match) return;
-    NavigationService.navigateToTeamBuilding(match.id); // ✅ DEĞİŞTİ
+    NavigationService.navigateToTeamBuilding(match.id);
   };
 
   const handleScoreEntry = () => {
     if (!match) return;
-    NavigationService.navigateToScoreEntry(match.id); // ✅ DEĞİŞTİ
+    NavigationService.navigateToScoreEntry(match.id);
   };
 
   const handleGoalAssistEntry = () => {
     if (!match) return;
-    NavigationService.navigateToGoalAssistEntry(match.id); // ✅ DEĞİŞTİ
+    NavigationService.navigateToGoalAssistEntry(match.id);
   };
 
   const handlePlayerRating = () => {
     if (!match) return;
-    NavigationService.navigateToPlayerRating(match.id); // ✅ DEĞİŞTİ
+    NavigationService.navigateToPlayerRating(match.id);
   };
 
   const handlePaymentTracking = () => {
     if (!match) return;
-    NavigationService.navigateToPaymentTracking(match.id); // ✅ DEĞİŞTİ
+    NavigationService.navigateToPaymentTracking(match.id);
+  };
+
+  const handleManageInvitations = () => {
+    if (!match) return;
+    NavigationService.navigateToManageInvitations(match.id);
   };
 
   const formatDateTime = useCallback((date: Date) => {
@@ -260,9 +330,21 @@ export const MatchDetailScreen: React.FC = () => {
   }, []);
 
   // Memoized values
+  const isFriendly = useMemo(() => 
+    match?.type === MatchType.FRIENDLY,
+    [match]
+  );
+
+  const sportType = useMemo(() => {
+    if (isFriendly && match?.sportType) return match.sportType;
+    if (fixture) return fixture.sportType;
+    if (league) return league.sportType;
+    return undefined;
+  }, [isFriendly, match, fixture, league]);
+
   const sportColor = useMemo(() =>
-    fixture ? getSportColor(fixture.sportType) : '#16a34a',
-    [fixture]
+    sportType ? getSportColor(sportType) : '#16a34a',
+    [sportType]
   );
 
   const statusColor = useMemo(() =>
@@ -270,10 +352,17 @@ export const MatchDetailScreen: React.FC = () => {
     [match, getMatchStatusColor]
   );
 
-  const canRegister = useMemo(() =>
-    canRegisterToMatch(match, user?.id, fixture),
-    [match, user?.id, fixture]
-  );
+  const canRegister = useMemo(() => {
+    if (!match || !user?.id) return false;
+    
+    // Friendly match için özel kontrol
+    if (isFriendly) {
+      // Public değilse ve davet listesinde değilse kayıt olamaz
+      if (!match.isPublic && !isInvited) return false;
+    }
+    
+    return canRegisterToMatch(match, user.id, fixture);
+  }, [match, user?.id, fixture, isFriendly, isInvited]);
 
   const showTeams = useMemo(() =>
     (match?.team1PlayerIds?.length || 0) > 0 && (match?.team2PlayerIds?.length || 0) > 0,
@@ -285,8 +374,7 @@ export const MatchDetailScreen: React.FC = () => {
     [match?.paymentStatus]
   );
 
-
-  if (loading || !match || !fixture) {
+  if (loading || !match) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#16a34a" />
@@ -308,10 +396,34 @@ export const MatchDetailScreen: React.FC = () => {
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>{match.title}</Text>
-          <Text style={styles.headerSubtitle}>
-            {getSportIcon(fixture.sportType)} {fixture.title}
-          </Text>
+          <View style={styles.headerTitleRow}>
+            {isFriendly ? (
+              <Users size={16} color="white" strokeWidth={2.5} />
+            ) : (
+              <Trophy size={16} color="white" strokeWidth={2.5} />
+            )}
+            <Text style={styles.headerTitle}>{match.title}</Text>
+          </View>
+          {isFriendly ? (
+            <View style={styles.headerSubtitleRow}>
+              <Text style={styles.headerSubtitle}>Dostluk Maçı</Text>
+              {match.isPublic ? (
+                <>
+                  <Globe size={12} color="rgba(255,255,255,0.9)" strokeWidth={2} />
+                  <Text style={styles.headerSubtitle}>Açık</Text>
+                </>
+              ) : (
+                <>
+                  <Lock size={12} color="rgba(255,255,255,0.9)" strokeWidth={2} />
+                  <Text style={styles.headerSubtitle}>Özel</Text>
+                </>
+              )}
+            </View>
+          ) : (
+            <Text style={styles.headerSubtitle}>
+              {sportType && getSportIcon(sportType)} {fixture?.title || league?.title || 'Lig Maçı'}
+            </Text>
+          )}
         </View>
 
         {isOrganizer ? (
@@ -345,6 +457,35 @@ export const MatchDetailScreen: React.FC = () => {
           />
         }
       >
+        {/* Match Type Badge */}
+        <View style={styles.matchTypeBadgeContainer}>
+          {isFriendly ? (
+            <View style={[styles.matchTypeBadge, { backgroundColor: '#10B981' + '20' }]}>
+              <Users size={14} color="#10B981" strokeWidth={2} />
+              <Text style={[styles.matchTypeBadgeText, { color: '#10B981' }]}>
+                Dostluk Maçı
+              </Text>
+            </View>
+          ) : (
+            <View style={[styles.matchTypeBadge, { backgroundColor: '#3B82F6' + '20' }]}>
+              <Trophy size={14} color="#3B82F6" strokeWidth={2} />
+              <Text style={[styles.matchTypeBadgeText, { color: '#3B82F6' }]}>
+                Lig Maçı
+              </Text>
+            </View>
+          )}
+
+          {/* Stats Impact Badge (Friendly için) */}
+          {isFriendly && !match.affectsStandings && (
+            <View style={[styles.impactBadge, { backgroundColor: '#F59E0B' + '15' }]}>
+              <TrendingUp size={12} color="#F59E0B" strokeWidth={2} />
+              <Text style={[styles.impactBadgeText, { color: '#F59E0B' }]}>
+                Puan durumunu etkilemez
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Status Banner */}
         <View style={[styles.statusBanner, { backgroundColor: statusColor + '20' }]}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -370,9 +511,51 @@ export const MatchDetailScreen: React.FC = () => {
           >
             <AlertCircle size={20} color="#10B981" strokeWidth={2} />
             <Text style={styles.registrationAlertText}>
-              Kayıt açık - Hemen katıl!
+              {isFriendly && !match.isPublic ? 'Davet edildiniz - Katılın!' : 'Kayıt açık - Hemen katıl!'}
             </Text>
             <UserCheck size={20} color="#10B981" strokeWidth={2.5} />
+          </TouchableOpacity>
+        )}
+
+        {/* Organizer Info (Friendly için) */}
+        {isFriendly && organizer && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Organizatör</Text>
+            <View style={styles.organizerCard}>
+              <View style={styles.organizerAvatar}>
+                <Text style={styles.organizerAvatarText}>
+                  {organizer.name?.[0]}{organizer.surname?.[0]}
+                </Text>
+              </View>
+              <View style={styles.organizerInfo}>
+                <Text style={styles.organizerName}>
+                  {organizer.name} {organizer.surname}
+                </Text>
+                <Text style={styles.organizerLabel}>Maç Organizatörü</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Invitations Banner (Friendly - Organizer) */}
+        {isFriendly && isOrganizer && pendingInvitationsCount > 0 && (
+          <TouchableOpacity
+            style={styles.invitationBanner}
+            onPress={handleManageInvitations}
+            activeOpacity={0.7}
+          >
+            <View style={styles.invitationBannerLeft}>
+              <Mail size={20} color="#10B981" strokeWidth={2} />
+              <View style={styles.invitationBannerText}>
+                <Text style={styles.invitationBannerTitle}>
+                  {pendingInvitationsCount} Bekleyen Davet
+                </Text>
+                <Text style={styles.invitationBannerSubtitle}>
+                  Davetiye durumlarını görüntüle
+                </Text>
+              </View>
+            </View>
+            <ChevronRight size={20} color="#10B981" strokeWidth={2} />
           </TouchableOpacity>
         )}
 
@@ -399,9 +582,16 @@ export const MatchDetailScreen: React.FC = () => {
           <View style={styles.infoCard}>
             <Users size={20} color="#F59E0B" strokeWidth={2} />
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Kayıtlı Oyuncu</Text>
+              <Text style={styles.infoLabel}>
+                {isFriendly && !match.isPublic ? 'Davetli & Kayıtlı' : 'Kayıtlı Oyuncu'}
+              </Text>
               <Text style={styles.infoValue}>
                 {registeredPlayers.length} oyuncu
+                {isFriendly && !match.isPublic && invitedPlayers.length > 0 && (
+                  <Text style={styles.infoValueSecondary}>
+                    {' '}/ {invitedPlayers.length} davetli
+                  </Text>
+                )}
               </Text>
             </View>
           </View>
@@ -439,6 +629,7 @@ export const MatchDetailScreen: React.FC = () => {
                 <Text style={styles.teamScore}>{match.team2Score || 0}</Text>
               </View>
             </View>
+
             {/* Gol/Asist Girişi */}
             {match.status === 'Skor Onay Bekliyor' && isRegistered && (
               <TouchableOpacity
@@ -459,11 +650,11 @@ export const MatchDetailScreen: React.FC = () => {
               </TouchableOpacity>
             )}
 
-            {/* ✅ YENİ: Oyuncu Puanlama */}
+            {/* Oyuncu Puanlama */}
             {match.status === 'Ödeme Bekliyor' && isRegistered && (
               <TouchableOpacity
                 style={[styles.playerActionCard, { borderColor: '#F59E0B' }]}
-                onPress={() => NavigationService.navigateToPlayerRating(match.id )}
+                onPress={handlePlayerRating}
                 activeOpacity={0.7}
               >
                 <View style={[styles.playerActionIcon, { backgroundColor: '#FEF3C720' }]}>
@@ -640,6 +831,23 @@ export const MatchDetailScreen: React.FC = () => {
             <Text style={styles.sectionTitle}>Organizatör İşlemleri</Text>
 
             <View style={styles.organizerActions}>
+              {/* Davetiye Yönetimi (Friendly için) */}
+              {isFriendly && !match.isPublic && (
+                <TouchableOpacity
+                  style={styles.organizerButton}
+                  onPress={handleManageInvitations}
+                  activeOpacity={0.7}
+                >
+                  <UserPlus size={20} color="#10B981" strokeWidth={2} />
+                  <Text style={styles.organizerButtonText}>Davetiye Yönetimi</Text>
+                  {pendingInvitationsCount > 0 && (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>{pendingInvitationsCount}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
+
               {!showTeams && match.status === 'Kayıt Kapandı' && (
                 <TouchableOpacity
                   style={styles.organizerButton}
@@ -651,7 +859,6 @@ export const MatchDetailScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
-              {/* Skor Girişi */}
               {showTeams && match.status === 'Oynanıyor' && (
                 <TouchableOpacity
                   style={styles.organizerButton}
@@ -663,24 +870,21 @@ export const MatchDetailScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
-              {/* Gol/Asist Onayları */}
-              {(match.status === 'Skor Onay Bekliyor' ||
-                match.status === 'Ödeme Bekliyor') && (
-                  <TouchableOpacity
-                    style={styles.organizerButton}
-                    onPress={handleGoalAssistEntry}
-                    activeOpacity={0.7}
-                  >
-                    <Trophy size={20} color={sportColor} strokeWidth={2} />
-                    <Text style={styles.organizerButtonText}>Gol/Asist Onayları</Text>
-                  </TouchableOpacity>
-                )}
+              {(match.status === 'Skor Onay Bekliyor' || match.status === 'Ödeme Bekliyor') && (
+                <TouchableOpacity
+                  style={styles.organizerButton}
+                  onPress={handleGoalAssistEntry}
+                  activeOpacity={0.7}
+                >
+                  <Trophy size={20} color={sportColor} strokeWidth={2} />
+                  <Text style={styles.organizerButtonText}>Gol/Asist Onayları</Text>
+                </TouchableOpacity>
+              )}
 
-              {/* ✅ YENİ: Puanlama Durumu */}
               {match.status === 'Ödeme Bekliyor' && (
                 <TouchableOpacity
                   style={styles.organizerButton}
-                  onPress={() => NavigationService.navigateToPlayerRating(match.id)}
+                  onPress={handlePlayerRating}
                   activeOpacity={0.7}
                 >
                   <Award size={20} color="#F59E0B" strokeWidth={2} />
@@ -688,7 +892,6 @@ export const MatchDetailScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
 
-              {/* Ödeme Takibi */}
               {match.pricePerPlayer && (
                 <TouchableOpacity
                   style={styles.organizerButton}
@@ -715,7 +918,9 @@ export const MatchDetailScreen: React.FC = () => {
             activeOpacity={0.7}
           >
             <UserCheck size={20} color="white" strokeWidth={2.5} />
-            <Text style={styles.registerButtonText}>Maça Kayıt Ol</Text>
+            <Text style={styles.registerButtonText}>
+              {isFriendly && !match.isPublic ? 'Daveti Kabul Et' : 'Maça Kayıt Ol'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -758,18 +963,61 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: 'white',
   },
+  headerSubtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
   headerSubtitle: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
   },
   content: {
     flex: 1,
+  },
+  matchTypeBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    flexWrap: 'wrap',
+  },
+  matchTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  matchTypeBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  impactBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+  },
+  impactBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   statusBanner: {
     flexDirection: 'row',
@@ -778,6 +1026,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     gap: 8,
+    marginTop: 12,
   },
   statusDot: {
     width: 8,
@@ -836,6 +1085,77 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 12,
   },
+  organizerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  organizerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  organizerAvatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#16a34a',
+  },
+  organizerInfo: {
+    flex: 1,
+  },
+  organizerName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  organizerLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  invitationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#DCFCE7',
+    padding: 14,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#10B981',
+  },
+  invitationBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  invitationBannerText: {
+    flex: 1,
+  },
+  invitationBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#15803d',
+    marginBottom: 2,
+  },
+  invitationBannerSubtitle: {
+    fontSize: 12,
+    color: '#15803d',
+  },
   infoCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -864,6 +1184,11 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     fontWeight: '600',
   },
+  infoValueSecondary: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
   paymentStatus: {
     fontSize: 12,
     color: '#10B981',
@@ -887,17 +1212,14 @@ const styles = StyleSheet.create({
   scoreTeam: {
     alignItems: 'center',
   },
-
   playerActionCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginTop: 16,
+    marginTop: 12,
     padding: 16,
     borderRadius: 16,
     borderWidth: 2,
-    // borderColor dinamik olarak verilecek
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -908,7 +1230,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    // backgroundColor dinamik olarak verilecek
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -954,6 +1275,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
     borderRadius: 12,
     padding: 12,
+    marginTop: 12,
   },
   mvpText: {
     fontSize: 14,
@@ -1148,6 +1470,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#1F2937',
+  },
+  notificationBadge: {
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  notificationBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '700',
   },
   bottomSpacing: {
     height: 20,

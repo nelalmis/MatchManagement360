@@ -4,8 +4,9 @@ import { matchCommentApi } from "../api/matchCommentApi";
 import { matchApi } from "../api/matchApi";
 import {
     IMatchComment,
-    IResponseBase
+    MatchType
 } from "../types/types";
+import { IResponseBase } from "../types/base/baseTypes";
 
 export const matchCommentService = {
     // ============================================
@@ -69,6 +70,7 @@ export const matchCommentService = {
 
     async submitComment(
         matchId: string,
+        matchType: MatchType,  // YENİ: Maç tipi eklendi
         playerId: string,
         comment: string,
         type: 'general' | 'highlight' | 'improvement'
@@ -77,6 +79,7 @@ export const matchCommentService = {
             const commentData: IMatchComment = {
                 id: null,
                 matchId,
+                matchType,  // YENİ: Maç tipini kaydet
                 playerId,
                 comment: comment.trim(),
                 type,
@@ -86,7 +89,7 @@ export const matchCommentService = {
             };
 
             const result = await this.add(commentData);
-            
+
             // Update match total comments count
             if (result.success) {
                 await this.updateMatchCommentCount(matchId);
@@ -180,7 +183,7 @@ export const matchCommentService = {
         try {
             // Option 1: Delete the comment
             return await this.delete(commentId);
-            
+
             // Option 2: Mark as rejected (if you want to keep history)
             // await this.update(commentId, { isApproved: false });
             // return true;
@@ -196,7 +199,7 @@ export const matchCommentService = {
     ): Promise<{ success: number; failed: number }> {
         try {
             const pendingComments = await this.getPendingCommentsByMatch(matchId);
-            
+
             let success = 0;
             let failed = 0;
 
@@ -227,7 +230,7 @@ export const matchCommentService = {
             if (!comment) return false;
 
             const likes = comment.likes || [];
-            
+
             // Check if already liked
             if (likes.includes(playerId)) {
                 return false; // Already liked
@@ -236,7 +239,7 @@ export const matchCommentService = {
             // Add like
             likes.push(playerId);
             await this.update(commentId, { likes });
-            
+
             return true;
         } catch (err) {
             console.error("likeComment hatası:", err);
@@ -251,7 +254,7 @@ export const matchCommentService = {
 
             const likes = (comment.likes || []).filter(id => id !== playerId);
             await this.update(commentId, { likes });
-            
+
             return true;
         } catch (err) {
             console.error("unlikeComment hatası:", err);
@@ -265,7 +268,7 @@ export const matchCommentService = {
             if (!comment) return false;
 
             const likes = comment.likes || [];
-            
+
             if (likes.includes(playerId)) {
                 // Unlike
                 return await this.unlikeComment(commentId, playerId);
@@ -321,9 +324,9 @@ export const matchCommentService = {
 
             // Get most liked comment
             const mostLiked = approvedComments.length > 0
-                ? approvedComments.reduce((prev, current) => 
+                ? approvedComments.reduce((prev, current) =>
                     ((current.likes?.length || 0) > (prev.likes?.length || 0)) ? current : prev
-                  )
+                )
                 : null;
 
             return {
@@ -361,7 +364,7 @@ export const matchCommentService = {
             const approvedComments = comments.filter(c => c.isApproved);
 
             const totalLikesReceived = approvedComments.reduce(
-                (sum, c) => sum + (c.likes?.length || 0), 
+                (sum, c) => sum + (c.likes?.length || 0),
                 0
             );
 
@@ -370,7 +373,7 @@ export const matchCommentService = {
                 approvedComments: approvedComments.length,
                 pendingComments: comments.length - approvedComments.length,
                 totalLikesReceived,
-                averageLikesPerComment: approvedComments.length > 0 
+                averageLikesPerComment: approvedComments.length > 0
                     ? (totalLikesReceived / approvedComments.length).toFixed(1)
                     : 0
             };
@@ -393,7 +396,7 @@ export const matchCommentService = {
     async updateMatchCommentCount(matchId: string): Promise<boolean> {
         try {
             const comments = await this.getApprovedCommentsByMatch(matchId);
-            
+
             await matchApi.update(matchId, {
                 totalComments: comments.length
             });
@@ -474,7 +477,7 @@ export const matchCommentService = {
 
         // Check for inappropriate content (basic)
         const inappropriateWords = ['spam', 'test123']; // Add more as needed
-        const hasInappropriate = inappropriateWords.some(word => 
+        const hasInappropriate = inappropriateWords.some(word =>
             trimmedComment.toLowerCase().includes(word)
         );
 
@@ -493,6 +496,7 @@ export const matchCommentService = {
         return {
             id: data.id,
             matchId: data.matchId,
+            matchType: data.matchType,
             playerId: data.playerId,
             comment: data.comment,
             type: data.type,

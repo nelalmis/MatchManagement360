@@ -1,3 +1,5 @@
+// screens/Match/MatchRegistrationScreen.tsx
+
 import React, { useState, useEffect } from 'react';
 import {
     View,
@@ -19,8 +21,11 @@ import {
     AlertCircle,
     UserCheck,
     UserX,
-    Trophy,
     Info,
+    CreditCard,
+    User,
+    ArrowRight,
+    Sparkles,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
@@ -30,6 +35,7 @@ import {
     IPlayer,
     getSportIcon,
     getSportColor,
+    MatchType,
 } from '../../types/types';
 import { canRegisterToMatch } from '../../helper/matchRegisterHelper';
 import { matchService } from '../../services/matchService';
@@ -152,7 +158,6 @@ export const MatchRegistrationScreen: React.FC = () => {
                             const success = await matchService.registerPlayer(match.id, user.id);
 
                             if (success) {
-                                // ✅ Event tetikle
                                 eventManager.emit(Events.MATCH_REGISTERED, {
                                     matchId: match.id,
                                     timestamp: Date.now()
@@ -166,7 +171,7 @@ export const MatchRegistrationScreen: React.FC = () => {
                                     [
                                         {
                                             text: 'Tamam',
-                                            onPress: () => NavigationService.goBack() // ✅ DEĞİŞTİ
+                                            onPress: () => NavigationService.goBack()
                                         }
                                     ]
                                 );
@@ -201,7 +206,6 @@ export const MatchRegistrationScreen: React.FC = () => {
                             const success = await matchService.unregisterPlayer(match.id, user.id);
 
                             if (success) {
-                                // ✅ Event tetikle
                                 eventManager.emit(Events.MATCH_UNREGISTERED, {
                                     matchId: match.id,
                                     timestamp: Date.now()
@@ -210,7 +214,7 @@ export const MatchRegistrationScreen: React.FC = () => {
                                 Alert.alert('Başarılı', 'Kayıt iptal edildi', [
                                     {
                                         text: 'Tamam',
-                                        onPress: () => NavigationService.goBack() // ✅ DEĞİŞTİ
+                                        onPress: () => NavigationService.goBack()
                                     }
                                 ]);
                             } else {
@@ -225,6 +229,11 @@ export const MatchRegistrationScreen: React.FC = () => {
                 }
             ]
         );
+    };
+
+    const handleGoToMatch = () => {
+        if (!match?.id) return;
+        NavigationService.navigateToMatch(match.id);
     };
 
     const formatDateTime = (date: Date) => {
@@ -267,23 +276,6 @@ export const MatchRegistrationScreen: React.FC = () => {
         return { color: '#10B981', text: 'Açık', icon: Check };
     };
 
-    // Yardımcı fonksiyon: Maça kayıt olabilir mi?
-    const canRegisterToMatch = (match:IMatch, userId:any, fixture:IMatchFixture) => {
-        if (!match || !userId || !fixture) return false;
-        const now = new Date();
-        if (match.status !== 'Kayıt Açık') return false;
-        if (now < new Date(match.registrationTime)) return false;
-        if (now > new Date(match.registrationEndTime)) return false;
-        if (match.registeredPlayerIds?.includes(userId)) return false;
-        if (match.reservePlayerIds?.includes(userId)) return false;
-        const totalRegistered = match.registeredPlayerIds?.length || 0;
-        const totalDirect = match.directPlayerIds?.length || 0;
-        const staffSlots = fixture.staffPlayerCount || 0;
-        const occupied = totalRegistered + totalDirect;
-        if (occupied >= staffSlots) return false;
-        return true;
-    };
-
     if (loading || !match || !fixture) {
         return (
             <View style={styles.loadingContainer}>
@@ -297,6 +289,7 @@ export const MatchRegistrationScreen: React.FC = () => {
     const regStatus = getRegistrationStatus();
     const canRegister = canRegisterToMatch(match, user?.id, fixture);
     const StatusIcon = regStatus.icon;
+    const isFriendly = match.type === MatchType.FRIENDLY;
 
     return (
         <View style={styles.container}>
@@ -311,7 +304,9 @@ export const MatchRegistrationScreen: React.FC = () => {
                 </TouchableOpacity>
 
                 <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>Maç Kaydı</Text>
+                    <Text style={styles.headerTitle}>
+                        {isFriendly ? 'Arkadaşlık Maçı' : 'Maç Kaydı'}
+                    </Text>
                     <Text style={styles.headerSubtitle}>
                         {getSportIcon(fixture.sportType)} {match.title}
                     </Text>
@@ -321,6 +316,16 @@ export const MatchRegistrationScreen: React.FC = () => {
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+                {/* Friendly Match Badge */}
+                {isFriendly && (
+                    <View style={styles.friendlyBadge}>
+                        <Sparkles size={20} color="#F59E0B" strokeWidth={2} />
+                        <Text style={styles.friendlyBadgeText}>
+                            Bu bir arkadaşlık maçıdır
+                        </Text>
+                    </View>
+                )}
+
                 {/* Status Card */}
                 <View style={[styles.statusCard, { backgroundColor: regStatus.color + '20' }]}>
                     <StatusIcon size={24} color={regStatus.color} strokeWidth={2} />
@@ -381,16 +386,47 @@ export const MatchRegistrationScreen: React.FC = () => {
                         </View>
                     </View>
 
-                    {match.pricePerPlayer && (
+                    {match.pricePerPlayer && match.pricePerPlayer > 0 && (
                         <View style={styles.infoCard}>
                             <DollarSign size={20} color="#10B981" strokeWidth={2} />
                             <View style={styles.infoContent}>
                                 <Text style={styles.infoLabel}>Ücret</Text>
-                                <Text style={styles.infoValue}>{match.pricePerPlayer} TL / Kişi</Text>
+                                <Text style={styles.infoValue}>{match.pricePerPlayer} ₺ / Kişi</Text>
                             </View>
                         </View>
                     )}
+
+                    
                 </View>
+
+                {/* Payment Info - Friendly Match */}
+                {isFriendly && (match.peterIban || match.peterFullName) && (
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Ödeme Bilgileri</Text>
+                        
+                        <View style={styles.paymentCard}>
+                            {match.peterFullName && (
+                                <View style={styles.paymentRow}>
+                                    <User size={18} color="#6B7280" strokeWidth={2} />
+                                    <View style={styles.paymentContent}>
+                                        <Text style={styles.paymentLabel}>Hesap Sahibi</Text>
+                                        <Text style={styles.paymentValue}>{match.peterFullName}</Text>
+                                    </View>
+                                </View>
+                            )}
+
+                            {match.peterIban && (
+                                <View style={styles.paymentRow}>
+                                    <CreditCard size={18} color="#6B7280" strokeWidth={2} />
+                                    <View style={styles.paymentContent}>
+                                        <Text style={styles.paymentLabel}>IBAN</Text>
+                                        <Text style={styles.paymentValue}>{match.peterIban}</Text>
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+                )}
 
                 {/* Quota Info */}
                 <View style={styles.section}>
@@ -478,12 +514,36 @@ export const MatchRegistrationScreen: React.FC = () => {
                             Kayıtlı Oyuncular ({registeredPlayers.length})
                         </Text>
                         <View style={styles.playersList}>
-                            {registeredPlayers.map((player) => (
+                            {registeredPlayers.map((player, index) => (
                                 <View key={player.id} style={styles.playerItem}>
-                                    <Text style={styles.playerName}>{player.name}</Text>
+                                    <View style={styles.playerAvatar}>
+                                        <Text style={styles.playerInitial}>
+                                            {player.name?.charAt(0).toUpperCase()}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.playerInfo}>
+                                        <Text style={styles.playerName}>{player.name}</Text>
+                                        <Text style={styles.playerOrder}>#{index + 1} sırada</Text>
+                                    </View>
                                 </View>
                             ))}
                         </View>
+                    </View>
+                )}
+
+                {/* Go to Match Button */}
+                {(isRegistered || isReserve) && (
+                    <View style={styles.section}>
+                        <TouchableOpacity
+                            style={[styles.goToMatchButton, { borderColor: sportColor }]}
+                            onPress={handleGoToMatch}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[styles.goToMatchText, { color: sportColor }]}>
+                                Maç Detaylarını Gör
+                            </Text>
+                            <ArrowRight size={20} color={sportColor} strokeWidth={2} />
+                        </TouchableOpacity>
                     </View>
                 )}
 
@@ -493,10 +553,21 @@ export const MatchRegistrationScreen: React.FC = () => {
                     <View style={styles.infoBoxContent}>
                         <Text style={styles.infoBoxTitle}>Bilgilendirme</Text>
                         <Text style={styles.infoBoxText}>
-                            • Kadro dolarsa yedek listesine alınırsınız{'\n'}
-                            • Premium oyuncular önceliklidir{'\n'}
-                            • Maç başlamadan 24 saat öncesine kadar iptal edebilirsiniz{'\n'}
-                            • Kayıt iptal ederseniz sıranızı kaybedersiniz
+                            {isFriendly ? (
+                                <>
+                                    • Arkadaşlık maçları için davet sistemi kullanılır{'\n'}
+                                    • Kayıt olduktan sonra maç detaylarına erişebilirsiniz{'\n'}
+                                    • Ödeme bilgileri yukarıda belirtilmiştir{'\n'}
+                                    • Kayıt iptal ederseniz sıranızı kaybedersiniz
+                                </>
+                            ) : (
+                                <>
+                                    • Kadro dolarsa yedek listesine alınırsınız{'\n'}
+                                    • Premium oyuncular önceliklidir{'\n'}
+                                    • Maç başlamadan 24 saat öncesine kadar iptal edebilirsiniz{'\n'}
+                                    • Kayıt iptal ederseniz sıranızı kaybedersiniz
+                                </>
+                            )}
                         </Text>
                     </View>
                 </View>
@@ -573,7 +644,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: 40,
+        paddingTop: 50,
         paddingBottom: 16,
     },
     headerButton: {
@@ -598,6 +669,25 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
+    },
+    friendlyBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginHorizontal: 16,
+        marginTop: 16,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        backgroundColor: '#FEF3C7',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#F59E0B',
+    },
+    friendlyBadgeText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#92400E',
     },
     statusCard: {
         flexDirection: 'row',
@@ -681,6 +771,36 @@ const styles = StyleSheet.create({
     },
     infoValue: {
         fontSize: 15,
+        color: '#1F2937',
+        fontWeight: '600',
+    },
+    paymentCard: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    paymentRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingVertical: 8,
+    },
+    paymentContent: {
+        flex: 1,
+    },
+    paymentLabel: {
+        fontSize: 12,
+        color: '#6B7280',
+        fontWeight: '500',
+        marginBottom: 4,
+    },
+    paymentValue: {
+        fontSize: 14,
         color: '#1F2937',
         fontWeight: '600',
     },
@@ -768,7 +888,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     playerInitial: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: '700',
         color: '#16a34a',
     },
@@ -784,6 +904,20 @@ const styles = StyleSheet.create({
     playerOrder: {
         fontSize: 12,
         color: '#6B7280',
+    },
+    goToMatchButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: 'white',
+        paddingVertical: 14,
+        borderRadius: 12,
+        borderWidth: 2,
+    },
+    goToMatchText: {
+        fontSize: 15,
+        fontWeight: '600',
     },
     infoBox: {
         flexDirection: 'row',

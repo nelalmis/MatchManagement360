@@ -1,5 +1,6 @@
 import { playerApi } from "../api/playerApi";
-import { IPlayer, IResponseBase, SportType } from "../types/types";
+import { IResponseBase } from "../types/base/baseTypes";
+import { IPlayer, SportType } from "../types/types";
 
 export const playerService = {
   async add(playerData: IPlayer): Promise<IResponseBase> {

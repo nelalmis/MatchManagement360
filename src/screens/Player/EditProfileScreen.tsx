@@ -164,15 +164,15 @@ export const EditProfileScreen: React.FC = () => {
   }, []);
 
   const handleSelectPositions = useCallback((sport: SportType) => {
-    NavigationService.navigateToSelectPositions(
-      sport,
-      sportPositions[sport] || [],
-      (positions: string[]) => {
-        setSportPositions((prev) => ({
-          ...prev,
-          [sport]: positions,
-        }));
-      });
+    // NavigationService.navigateToSelectPositions(
+    //   sport,
+    //   sportPositions[sport] || [],
+    //   (positions: string[]) => {
+    //     setSportPositions((prev) => ({
+    //       ...prev,
+    //       [sport]: positions,
+    //     }));
+    //   });
   }, [sportPositions]);
 
   const handleSelectBirthDate = useCallback(() => {

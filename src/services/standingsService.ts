@@ -1,5 +1,6 @@
 import { standingsApi } from "../api/standingsApi";
-import { IStandings, IResponseBase, IMatch, calculatePoints, calculateGoalDifference } from "../types/types";
+import { IResponseBase } from "../types/base/baseTypes";
+import { IStandings, IMatch, MatchType, calculatePoints, calculateGoalDifference } from "../types/types";
 
 export const standingsService = {
   async add(standingsData: IStandings): Promise<IResponseBase> {
@@ -77,11 +78,18 @@ export const standingsService = {
         won: 0,
         drawn: 0,
         lost: 0,
+        // Friendly stats
+        friendlyPlayed: 0,
+        friendlyWon: 0,
+        friendlyDrawn: 0,
+        friendlyLost: 0,
+        // Goals
         goalsScored: 0,
         goalsAgainst: 0,
         goalDifference: 0,
         assists: 0,
         points: 0,
+        // Rating
         rating: 0,
         totalRatingsReceived: 0,
         ratingTrend: 'stable' as 'up' | 'stable' | 'down',
@@ -105,6 +113,10 @@ export const standingsService = {
     }
   },
 
+  /**
+   * Update standings from match (supports both League and Friendly)
+   * UPDATED: Now handles friendly matches based on match.type
+   */
   async updateStandingsFromMatch(standingsId: string, match: IMatch): Promise<boolean> {
     try {
       const standings = await this.getById(standingsId);
@@ -128,6 +140,10 @@ export const standingsService = {
         team2Result = 'drawn';
       }
 
+      // Determine if this is a friendly match
+      const isFriendlyMatch = match.type === MatchType.FRIENDLY;
+      const affectsLeagueStandings = !isFriendlyMatch || match.affectsStandings === true;
+
       // Update player standings
       const updatedPlayerStandings = standings.playerStandings.map(ps => {
         const isInTeam1 = match.team1PlayerIds!.includes(ps.playerId);
@@ -142,33 +158,72 @@ export const standingsService = {
 
         // Update stats
         const updated = { ...ps };
-        updated.played += 1;
 
+        // Update appropriate stats based on match type
+        if (isFriendlyMatch) {
+          // Update friendly stats
+          updated.friendlyPlayed = (updated.friendlyPlayed || 0) + 1;
+          
+          if (isInTeam1) {
+            if (team1Result === 'won') updated.friendlyWon = (updated.friendlyWon || 0) + 1;
+            else if (team1Result === 'drawn') updated.friendlyDrawn = (updated.friendlyDrawn || 0) + 1;
+            else updated.friendlyLost = (updated.friendlyLost || 0) + 1;
+          } else {
+            if (team2Result === 'won') updated.friendlyWon = (updated.friendlyWon || 0) + 1;
+            else if (team2Result === 'drawn') updated.friendlyDrawn = (updated.friendlyDrawn || 0) + 1;
+            else updated.friendlyLost = (updated.friendlyLost || 0) + 1;
+          }
+
+          // If friendly match affects league standings, also update league stats
+          if (affectsLeagueStandings) {
+            updated.played += 1;
+            if (isInTeam1) {
+              if (team1Result === 'won') updated.won += 1;
+              else if (team1Result === 'drawn') updated.drawn += 1;
+              else updated.lost += 1;
+            } else {
+              if (team2Result === 'won') updated.won += 1;
+              else if (team2Result === 'drawn') updated.drawn += 1;
+              else updated.lost += 1;
+            }
+          }
+        } else {
+          // League match - update league stats
+          updated.played += 1;
+          if (isInTeam1) {
+            if (team1Result === 'won') updated.won += 1;
+            else if (team1Result === 'drawn') updated.drawn += 1;
+            else updated.lost += 1;
+          } else {
+            if (team2Result === 'won') updated.won += 1;
+            else if (team2Result === 'drawn') updated.drawn += 1;
+            else updated.lost += 1;
+          }
+        }
+
+        // Update goals/assists (always count these)
         if (isInTeam1) {
-          if (team1Result === 'won') updated.won += 1;
-          else if (team1Result === 'drawn') updated.drawn += 1;
-          else updated.lost += 1;
-
           updated.goalsScored += goals;
           updated.goalsAgainst += team2Score;
         } else {
-          if (team2Result === 'won') updated.won += 1;
-          else if (team2Result === 'drawn') updated.drawn += 1;
-          else updated.lost += 1;
-
           updated.goalsScored += goals;
           updated.goalsAgainst += team1Score;
         }
 
         updated.assists += assists;
         updated.goalDifference = calculateGoalDifference(updated.goalsScored, updated.goalsAgainst);
-        updated.points = calculatePoints(updated.won, updated.drawn);
+        
+        // Update points (only for league matches or friendly matches that affect standings)
+        if (affectsLeagueStandings) {
+          updated.points = calculatePoints(updated.won, updated.drawn);
+        }
 
         // MVP check
         if (match.playerIdOfMatchMVP === ps.playerId) {
           updated.mvpCount += 1;
-          // Calculate MVP rate
-          updated.mvpRate = updated.played > 0 ? (updated.mvpCount / updated.played) * 100 : 0;
+          // Calculate MVP rate based on total matches
+          const totalMatches = updated.played + (updated.friendlyPlayed || 0);
+          updated.mvpRate = totalMatches > 0 ? (updated.mvpCount / totalMatches) * 100 : 0;
         }
 
         return updated;
@@ -217,7 +272,6 @@ export const standingsService = {
     }
   },
 
-  // NEW: Update player rating and related stats from rating profile
   async updatePlayerRatingFromProfile(
     standingsId: string, 
     playerId: string, 
@@ -260,6 +314,10 @@ export const standingsService = {
         won: 0,
         drawn: 0,
         lost: 0,
+        friendlyPlayed: 0,
+        friendlyWon: 0,
+        friendlyDrawn: 0,
+        friendlyLost: 0,
         goalsScored: 0,
         goalsAgainst: 0,
         goalDifference: 0,
@@ -290,7 +348,6 @@ export const standingsService = {
       const standings = await this.getById(standingsId);
       if (!standings) return false;
 
-      // Check if player already exists
       if (standings.playerStandings.some(ps => ps.playerId === playerId)) {
         return false;
       }
@@ -302,6 +359,10 @@ export const standingsService = {
         won: 0,
         drawn: 0,
         lost: 0,
+        friendlyPlayed: 0,
+        friendlyWon: 0,
+        friendlyDrawn: 0,
+        friendlyLost: 0,
         goalsScored: 0,
         goalsAgainst: 0,
         goalDifference: 0,
@@ -342,7 +403,7 @@ export const standingsService = {
   },
 
   // ============================================
-  // NEW: Rating & Analysis Methods (Business Logic in Service)
+  // EXISTING ANALYSIS METHODS
   // ============================================
 
   async getTopScorers(standingsId: string, limit: number = 10) {
@@ -390,14 +451,13 @@ export const standingsService = {
     }
   },
 
-  // Get top rated players
   async getTopRatedPlayers(leagueId: string, seasonId: string, limit: number = 10) {
     try {
       const standings = await this.getStandingsByLeagueAndSeason(leagueId, seasonId);
       if (!standings) return [];
 
       return standings.playerStandings
-        .filter(p => p.totalRatingsReceived >= 3) // Minimum 3 ratings
+        .filter(p => p.totalRatingsReceived >= 3)
         .sort((a, b) => b.rating - a.rating)
         .slice(0, limit);
     } catch (err) {
@@ -406,7 +466,6 @@ export const standingsService = {
     }
   },
 
-  // Get improving players
   async getImprovingPlayers(leagueId: string, seasonId: string, limit: number = 10) {
     try {
       const standings = await this.getStandingsByLeagueAndSeason(leagueId, seasonId);
@@ -422,7 +481,6 @@ export const standingsService = {
     }
   },
 
-  // Get declining players
   async getDecliningPlayers(leagueId: string, seasonId: string) {
     try {
       const standings = await this.getStandingsByLeagueAndSeason(leagueId, seasonId);
@@ -430,14 +488,13 @@ export const standingsService = {
 
       return standings.playerStandings
         .filter(p => p.ratingTrend === 'down' && p.totalRatingsReceived >= 3)
-        .sort((a, b) => a.rating - b.rating); // Ascending
+        .sort((a, b) => a.rating - b.rating);
     } catch (err) {
       console.error("getDecliningPlayers hatası:", err);
       return [];
     }
   },
 
-  // Get qualified standings (minimum matches)
   async getQualifiedStandings(leagueId: string, seasonId: string, minMatches: number = 3) {
     try {
       const standings = await this.getStandingsByLeagueAndSeason(leagueId, seasonId);
@@ -456,7 +513,6 @@ export const standingsService = {
     }
   },
 
-  // Get player season comparison
   async getPlayerSeasonComparison(leagueId: string, playerId: string) {
     try {
       const allStandings = await this.getStandingsByLeague(leagueId);
@@ -475,6 +531,94 @@ export const standingsService = {
       return playerSeasonStats;
     } catch (err) {
       console.error("getPlayerSeasonComparison hatası:", err);
+      return [];
+    }
+  },
+
+  // ============================================
+  // NEW: FRIENDLY MATCH METHODS (Use API layer)
+  // ============================================
+
+  /**
+   * Get player's friendly match statistics
+   */
+  async getPlayerFriendlyStats(leagueId: string, seasonId: string, playerId: string) {
+    try {
+      return await standingsApi.getPlayerFriendlyStats(leagueId, seasonId, playerId);
+    } catch (err) {
+      console.error("getPlayerFriendlyStats hatası:", err);
+      return null;
+    }
+  },
+
+  /**
+   * Get top friendly match players
+   */
+  async getTopFriendlyPlayers(leagueId: string, seasonId: string, limit: number = 10) {
+    try {
+      return await standingsApi.getTopFriendlyPlayers(leagueId, seasonId, limit);
+    } catch (err) {
+      console.error("getTopFriendlyPlayers hatası:", err);
+      return [];
+    }
+  },
+
+  /**
+   * Get combined statistics (league + friendly)
+   */
+  async getPlayersCombinedStats(leagueId: string, seasonId: string) {
+    try {
+      return await standingsApi.getPlayersCombinedStats(leagueId, seasonId);
+    } catch (err) {
+      console.error("getPlayersCombinedStats hatası:", err);
+      return [];
+    }
+  },
+
+  /**
+   * Get player standing detail with calculated metrics
+   */
+  async getPlayerStandingDetail(leagueId: string, seasonId: string, playerId: string) {
+    try {
+      return await standingsApi.getPlayerStandingDetail(leagueId, seasonId, playerId);
+    } catch (err) {
+      console.error("getPlayerStandingDetail hatası:", err);
+      return null;
+    }
+  },
+
+  /**
+   * Compare two players
+   */
+  async comparePlayers(leagueId: string, seasonId: string, playerId1: string, playerId2: string) {
+    try {
+      return await standingsApi.comparePlayers(leagueId, seasonId, playerId1, playerId2);
+    } catch (err) {
+      console.error("comparePlayers hatası:", err);
+      return null;
+    }
+  },
+
+  /**
+   * Get standings summary
+   */
+  async getStandingsSummary(leagueId: string, seasonId: string) {
+    try {
+      return await standingsApi.getStandingsSummary(leagueId, seasonId);
+    } catch (err) {
+      console.error("getStandingsSummary hatası:", err);
+      return null;
+    }
+  },
+
+  /**
+   * Get MVP leaderboard
+   */
+  async getMVPLeaderboard(leagueId: string, seasonId: string, limit: number = 10) {
+    try {
+      return await standingsApi.getMVPLeaderboard(leagueId, seasonId, limit);
+    } catch (err) {
+      console.error("getMVPLeaderboard hatası:", err);
       return [];
     }
   },

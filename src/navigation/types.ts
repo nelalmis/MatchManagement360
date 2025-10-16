@@ -1,35 +1,16 @@
-// ============================================
-// NAVIGATION TYPES
-// ============================================
+// src/navigation/types.ts
 
 import { NavigatorScreenParams } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { CompositeNavigationProp, RouteProp } from '@react-navigation/native';
 
 // ============================================
 // ROOT STACK
 // ============================================
 export type RootStackParamList = {
-  Auth: NavigatorScreenParams<AuthStackParamList>;
-  Main: NavigatorScreenParams<MainTabParamList>;
-
-  // Match Screens (Modal)
-  matchDetail: { matchId: string; updated?: boolean };
-  matchRegistration: { matchId: string };
-  editMatch : { matchId: string };
-  teamBuilding: { matchId: string };
-  scoreEntry: { matchId: string };
-  goalAssistEntry: { matchId: string };
-  playerRating: { matchId: string };
-  paymentTracking: { matchId: string };
-
-  // Player Screens (Modal)
-  playerProfile: { playerId: string }; // Başka oyuncular için
-  
-  // Select Positions Modal
-  selectPositions: {
-    sport: SportType;
-    selectedPositions: string[];
-    onSave: (positions: string[]) => void;
-  };
+  auth: NavigatorScreenParams<AuthStackParamList>;
+  main: undefined;
 };
 
 // ============================================
@@ -42,160 +23,175 @@ export type AuthStackParamList = {
 };
 
 // ============================================
-// MAIN TAB (5 TABS)
+// MAIN TAB (5 TABS - ALWAYS VISIBLE)
 // ============================================
 export type MainTabParamList = {
-  HomeTab: NavigatorScreenParams<HomeStackParamList>;
-  LeaguesTab: NavigatorScreenParams<LeagueStackParamList>;
-  FixturesTab: NavigatorScreenParams<FixtureStackParamList>;
-  ProfileTab: NavigatorScreenParams<ProfileStackParamList>;
-  StandingsTab: NavigatorScreenParams<StandingsStackParamList>; // ✅ StandingsTab (Stats değil)
+  homeTab: NavigatorScreenParams<HomeStackParamList>;
+  leaguesTab: NavigatorScreenParams<LeaguesStackParamList>;
+  matchesTab: NavigatorScreenParams<MatchesStackParamList>;
+  statsTab: NavigatorScreenParams<StatsStackParamList>;
+  profileTab: NavigatorScreenParams<ProfileStackParamList>;
 };
 
 // ============================================
 // HOME STACK
 // ============================================
 export type HomeStackParamList = {
-  home: undefined;
+  homeScreen: undefined;
 };
 
 // ============================================
-// LEAGUE STACK
+// LEAGUES STACK
 // ============================================
-export type LeagueStackParamList = {
+export type LeaguesStackParamList = {
   leagueList: undefined;
-  leagueDetail: { leagueId: string; updated?: boolean };
+  leagueDetail: { leagueId: string,updated?:boolean };
   createLeague: undefined;
   editLeague: { leagueId: string };
-  standings: { leagueId: string; seasonId: string };
-  topScorers: { leagueId: string; seasonId: string };
-  topAssists: { leagueId: string; seasonId: string };
-  mvp: { leagueId: string; seasonId: string };
+  fixtureList: { leagueId: string };
+  fixtureDetail: { fixtureId: string };
+  createFixture: { leagueId: string };
+  editFixture: { fixtureId: string };
 };
 
 // ============================================
-// FIXTURE STACK
+// MATCHES STACK
 // ============================================
-export type FixtureStackParamList = {
-  fixtureList: { leagueId?: string }; // İlk ekran
-  fixtureDetail: { fixtureId: string; updated?: boolean };
-  createFixture: { leagueId: string };
-  editFixture: { fixtureId: string };
+export type MatchesStackParamList = {
   matchList: { leagueId?: string; fixtureId?: string };
-  myMatches: undefined; // MyMatchesScreen - ikinci ekran
+  myMatches: { playerId?: string };
+  matchDetail: { matchId: string };
+  createFriendlyMatch: { templateId?: string };
+  friendlyMatchInvitations: undefined;
+  manageInvitations: { matchId: string };
+  editFriendlyMatch: { matchId: string };
+  editMatch: { matchId: string };
+  friendlyMatchTemplates: undefined;
+  createFriendlyMatchTemplate: undefined;
+  editFriendlyMatchTemplate: { templateId: string };
+  matchRegistration: { matchId: string };
+  teamBuilding: { matchId: string };
+  scoreEntry: { matchId: string };
+  goalAssistEntry: { matchId: string };
+  playerRating: { matchId: string };
+  paymentTracking: { matchId: string };
+};
+
+// ============================================
+// STATS STACK
+// ============================================
+export type StatsStackParamList = {
+  standingsList: undefined;
+  standings: { leagueId: string };
+  topScorers: { leagueId: string };
+  topAssists: { leagueId: string };
+  mvp: { leagueId: string };
 };
 
 // ============================================
 // PROFILE STACK
 // ============================================
 export type ProfileStackParamList = {
-  playerProfile: { playerId?: string }; // İlk ekran - Current user
+  playerStats: { playerId?: string; leagueId?: string };
+  playerProfile: { playerId?: string };
   editProfile: undefined;
+  selectPositions: undefined;
   settings: undefined;
   notificationSettings: undefined;
 };
 
 // ============================================
-// STANDINGS STACK (İstatistikler Tab'ı)
+// NAVIGATION PROPS
 // ============================================
-export type StandingsStackParamList = {
-  playerStats: { playerId?: string }; // ✅ İLK EKRAN - Current user stats
-  standingsList: undefined; // Standings listesi
-  standings: { leagueId: string; seasonId: string };
-  topScorers: { leagueId: string; seasonId: string };
-  topAssists: { leagueId: string; seasonId: string };
-  mvp: { leagueId: string; seasonId: string };
-};
 
-
-// Navigation Props Helper Types
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { CompositeNavigationProp, RouteProp } from '@react-navigation/native';
-
-// Root Navigator Props
+// Root Navigator
 export type RootNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// Auth Stack Props
-export type AuthNavigationProp = CompositeNavigationProp<
-  NativeStackNavigationProp<AuthStackParamList>,
-  RootNavigationProp
+// Auth Stack
+export type AuthNavigationProp = NativeStackNavigationProp<AuthStackParamList>;
+
+// Main Tab
+export type MainTabNavigationProp = BottomTabNavigationProp<MainTabParamList>;
+
+// Individual Stack Props
+export type HomeStackNavigationProp = NativeStackNavigationProp<HomeStackParamList>;
+export type LeaguesStackNavigationProp = NativeStackNavigationProp<LeaguesStackParamList>;
+export type MatchesStackNavigationProp = NativeStackNavigationProp<MatchesStackParamList>;
+export type StatsStackNavigationProp = NativeStackNavigationProp<StatsStackParamList>;
+export type ProfileStackNavigationProp = NativeStackNavigationProp<ProfileStackParamList>;
+
+// ============================================
+// COMPOSITE NAVIGATION PROPS (TAB + STACK)
+// ============================================
+
+export type HomeScreenNavigationProp = CompositeNavigationProp<
+  HomeStackNavigationProp,
+  MainTabNavigationProp
 >;
 
-// Main Tab Props
-export type MainTabNavigationProp = CompositeNavigationProp<
-  BottomTabNavigationProp<MainTabParamList>,
-  RootNavigationProp
+export type LeaguesScreenNavigationProp = CompositeNavigationProp<
+  LeaguesStackNavigationProp,
+  MainTabNavigationProp
 >;
 
-// Home Tab Props
-export type HomeNavigationProp = CompositeNavigationProp<
-  BottomTabNavigationProp<MainTabParamList>,
-  RootNavigationProp
+export type MatchesScreenNavigationProp = CompositeNavigationProp<
+  MatchesStackNavigationProp,
+  MainTabNavigationProp
 >;
 
-// League Stack Props
-export type LeagueNavigationProp = CompositeNavigationProp<
-  NativeStackNavigationProp<LeagueStackParamList>,
-  CompositeNavigationProp<
-    BottomTabNavigationProp<MainTabParamList>,
-    RootNavigationProp
-  >
+export type StatsScreenNavigationProp = CompositeNavigationProp<
+  StatsStackNavigationProp,
+  MainTabNavigationProp
 >;
 
-// Fixture Stack Props
-export type FixtureNavigationProp = CompositeNavigationProp<
-  NativeStackNavigationProp<FixtureStackParamList>,
-  CompositeNavigationProp<
-    BottomTabNavigationProp<MainTabParamList>,
-    RootNavigationProp
-  >
+export type ProfileScreenNavigationProp = CompositeNavigationProp<
+  ProfileStackNavigationProp,
+  MainTabNavigationProp
 >;
 
-// Profile Stack Props
-export type ProfileNavigationProp = CompositeNavigationProp<
-  NativeStackNavigationProp<ProfileStackParamList>,
-  CompositeNavigationProp<
-    BottomTabNavigationProp<MainTabParamList>,
-    RootNavigationProp
-  >
->;
+// ============================================
+// ROUTE PROPS
+// ============================================
 
-// Settings Stack Props
-export type StandingsNavigationProp = CompositeNavigationProp<
-  NativeStackNavigationProp<StandingsStackParamList>,
-  CompositeNavigationProp<
-    BottomTabNavigationProp<MainTabParamList>,
-    RootNavigationProp
-  >
->;
+// Auth Routes
+export type PhoneVerificationRouteProp = RouteProp<AuthStackParamList, 'phoneVerification'>;
 
-// Route Props Helper
-export type LeagueDetailRouteProp = RouteProp<LeagueStackParamList, 'leagueDetail'>;
-export type MatchDetailRouteProp = RouteProp<RootStackParamList, 'matchDetail'>;
+// League Routes
+export type LeagueDetailRouteProp = RouteProp<LeaguesStackParamList, 'leagueDetail'>;
+export type EditLeagueRouteProp = RouteProp<LeaguesStackParamList, 'editLeague'>;
+export type FixtureListRouteProp = RouteProp<LeaguesStackParamList, 'fixtureList'>;
+export type FixtureDetailRouteProp = RouteProp<LeaguesStackParamList, 'fixtureDetail'>;
+export type CreateFixtureRouteProp = RouteProp<LeaguesStackParamList, 'createFixture'>;
+export type EditFixtureRouteProp = RouteProp<LeaguesStackParamList, 'editFixture'>;
+
+// Match Routes
+export type MatchListRouteProp = RouteProp<MatchesStackParamList, 'matchList'>;
+export type MyMatchesRouteProp = RouteProp<MatchesStackParamList, 'myMatches'>;
+export type MatchDetailRouteProp = RouteProp<MatchesStackParamList, 'matchDetail'>;
+export type CreateFriendlyMatchRouteProp = RouteProp<MatchesStackParamList, 'createFriendlyMatch'>;
+export type ManageInvitationsRouteProp = RouteProp<MatchesStackParamList, 'manageInvitations'>;
+export type EditFriendlyMatchRouteProp = RouteProp<MatchesStackParamList, 'editFriendlyMatch'>;
+export type EditMatchRouteProp = RouteProp<MatchesStackParamList, 'editMatch'>;
+export type EditFriendlyMatchTemplateRouteProp = RouteProp<MatchesStackParamList, 'editFriendlyMatchTemplate'>;
+export type MatchRegistrationRouteProp = RouteProp<MatchesStackParamList, 'matchRegistration'>;
+export type TeamBuildingRouteProp = RouteProp<MatchesStackParamList, 'teamBuilding'>;
+export type ScoreEntryRouteProp = RouteProp<MatchesStackParamList, 'scoreEntry'>;
+export type GoalAssistEntryRouteProp = RouteProp<MatchesStackParamList, 'goalAssistEntry'>;
+export type PlayerRatingRouteProp = RouteProp<MatchesStackParamList, 'playerRating'>;
+export type PaymentTrackingRouteProp = RouteProp<MatchesStackParamList, 'paymentTracking'>;
+
+// Stats Routes
+export type StandingsRouteProp = RouteProp<StatsStackParamList, 'standings'>;
+export type TopScorersRouteProp = RouteProp<StatsStackParamList, 'topScorers'>;
+export type TopAssistsRouteProp = RouteProp<StatsStackParamList, 'topAssists'>;
+export type MVPRouteProp = RouteProp<StatsStackParamList, 'mvp'>;
+
+// Profile Routes
+export type PlayerStatsRouteProp = RouteProp<ProfileStackParamList, 'playerStats'>;
 export type PlayerProfileRouteProp = RouteProp<ProfileStackParamList, 'playerProfile'>;
-export type HomeRouteProp = RouteProp<HomeStackParamList, 'home'>;
-export type LeagueListRouteProp = RouteProp<LeagueStackParamList, 'leagueList'>;
-export type FixtureListRouteProp = RouteProp<FixtureStackParamList, 'fixtureList'>;
-export type FixtureDetailRouteProp = RouteProp<FixtureStackParamList, 'fixtureDetail'>;
-export type MyMatchesRouteProp = RouteProp<FixtureStackParamList, 'myMatches'>;
-export type PlayerStatsRouteProp = RouteProp<StandingsStackParamList, 'playerStats'>;
-export type StandingsRouteProp = RouteProp<StandingsStackParamList, 'standings'>;
 
-// Typed Navigation Hooks
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { SportType } from '../types/types';
+// ============================================
+// TYPED HOOKS
+// ============================================
 
-export const useRootNavigation = () => useNavigation<RootNavigationProp>();
-export const useAuthNavigation = () => useNavigation<AuthNavigationProp>();
-export const useMainTabNavigation = () => useNavigation<MainTabNavigationProp>();
-export const useHomeNavigation = () => useNavigation<HomeNavigationProp>();
-export const useLeagueNavigation = () => useNavigation<LeagueNavigationProp>();
-export const useFixtureNavigation = () => useNavigation<FixtureNavigationProp>();
-export const useProfileNavigation = () => useNavigation<ProfileNavigationProp>();
-export const useStandingsNavigation = () => useNavigation<StandingsNavigationProp>();
-
-// Typed Route Hook
-export const useTypedRoute = <T extends keyof RootStackParamList>() => {
-  return useRoute<RouteProp<RootStackParamList, T>>();
-};
+export { useNavigation, useRoute } from '@react-navigation/native';

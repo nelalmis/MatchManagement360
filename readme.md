@@ -326,6 +326,12 @@ src/
 │   ├── Match/
 │   │   ├── MatchListScreen.tsx
 │   │   ├── MatchDetailScreen.tsx
+│   │   ├── CreateFriendlyMatchScreen.tsx
+│   │   ├── FriendlyMatchInvitationsScreen.tsx
+│   │   ├── ManageInvitationsScreen.tsx
+│   │   ├── EditFriendlyMatchScreen.tsx
+│   │   ├── EditMatchScreen.tsx
+│   │   ├── FriendlyMatchTemplatesScreen.tsx
 │   │   ├── MatchRegistrationScreen.tsx
 │   │   ├── TeamBuildingScreen.tsx
 │   │   ├── ScoreEntryScreen.tsx

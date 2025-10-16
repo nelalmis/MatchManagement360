@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { addBase, deleteByIdBase, getAllBase, getByIdBase, updateBase } from './firestoreApiBase';
 import { db } from './firebaseConfig';
+import { MatchType } from '../types/types';
 
 const collectionName = 'matches';
 
@@ -179,10 +180,9 @@ export const matchApi = {
     },
 
     // ============================================
-    // NEW: Rating & Comments Related Queries
+    // Rating & Comments Related Queries
     // ============================================
 
-    // Get matches where ratings are pending
     getMatchesPendingRatings: async () => {
         try {
             const q = query(
@@ -201,7 +201,6 @@ export const matchApi = {
         }
     },
 
-    // Get completed matches with MVP info
     getCompletedMatchesWithMVP: async (limitCount: number = 20) => {
         try {
             const q = query(
@@ -221,11 +220,8 @@ export const matchApi = {
         }
     },
 
-    // Get matches by league/season (for statistics)
     getMatchesByLeagueSeason: async (leagueId: string, seasonId: string) => {
         try {
-            // Note: This requires storing leagueId and seasonId in match document
-            // You might need to fetch through fixture first
             const q = query(
                 collection(db, collectionName),
                 where('leagueId', '==', leagueId),
@@ -243,7 +239,6 @@ export const matchApi = {
         }
     },
 
-    // Get matches where player was MVP
     getMatchesByMVPPlayer: async (playerId: string) => {
         try {
             const q = query(
@@ -262,7 +257,6 @@ export const matchApi = {
         }
     },
 
-    // Get matches with comments enabled
     getMatchesWithCommentsEnabled: async () => {
         try {
             const q = query(
@@ -283,7 +277,6 @@ export const matchApi = {
         }
     },
 
-    // Get recent completed matches for a fixture (for trend analysis)
     getRecentCompletedMatchesByFixture: async (fixtureId: string, limitCount: number = 5) => {
         try {
             const q = query(
@@ -304,7 +297,6 @@ export const matchApi = {
         }
     },
 
-    // Get matches where player participated (team1 or team2)
     getMatchesByPlayerParticipation: async (playerId: string) => {
         try {
             // Team 1
@@ -340,6 +332,277 @@ export const matchApi = {
             return uniqueMatches;
         } catch (error) {
             console.error('Oynadığı maçlar getirilemedi:', error);
+            return [];
+        }
+    },
+
+    // ============================================
+    // NEW: Friendly Match & Type-based Queries
+    // ============================================
+
+    /**
+     * Get matches by type (League or Friendly)
+     * UPDATED: Uses 'type' field instead of 'matchType'
+     */
+    getMatchesByType: async (type: MatchType) => {
+        try {
+            const q = query(
+                collection(db, collectionName),
+                where('type', '==', type),
+                orderBy('matchStartTime', 'desc')
+            );
+            const querySnapshot = await getDocs(q);
+            return querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error(`${type} maçları getirilemedi:`, error);
+            return [];
+        }
+    },
+
+    /**
+     * Get public friendly matches with optional filters
+     * UPDATED: Uses 'type' field
+     */
+    getPublicFriendlyMatches: async (filters?: {
+        sportType?: string;
+        location?: string;
+        minDate?: Date;
+        maxDate?: Date;
+    }) => {
+        try {
+            let q = query(
+                collection(db, collectionName),
+                where('type', '==', MatchType.FRIENDLY),
+                where('isPublic', '==', true),
+                where('status', '==', 'Kayıt Açık')
+            );
+
+            // Add sport type filter if provided
+            if (filters?.sportType) {
+                q = query(q, where('sportType', '==', filters.sportType));
+            }
+
+            // Add location filter if provided
+            if (filters?.location) {
+                q = query(q, where('location', '==', filters.location));
+            }
+
+            // Add date range if provided
+            if (filters?.minDate) {
+                q = query(q, where('matchStartTime', '>=', filters.minDate));
+            }
+
+            q = query(q, orderBy('matchStartTime', 'asc'));
+
+            const querySnapshot = await getDocs(q);
+            return querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Public friendly maçlar getirilemedi:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Get player's matches grouped by type
+     * UPDATED: Uses 'type' field
+     */
+    getPlayerMatchesGrouped: async (playerId: string) => {
+        try {
+            // Get all player matches
+            const allMatches = await matchApi.getMatchesByPlayerParticipation(playerId);
+            
+            // Group by type
+            const leagueMatches = allMatches.filter((m: any) => m.type === MatchType.LEAGUE);
+            const friendlyMatches = allMatches.filter((m: any) => m.type === MatchType.FRIENDLY);
+
+            return {
+                all: allMatches,
+                league: leagueMatches,
+                friendly: friendlyMatches
+            };
+        } catch (error) {
+            console.error('Gruplanmış maçlar getirilemedi:', error);
+            return {
+                all: [],
+                league: [],
+                friendly: []
+            };
+        }
+    },
+
+    /**
+     * Get matches for statistics calculation
+     * UPDATED: Uses 'type' field
+     */
+    getMatchesForStats: async (playerId: string, options?: {
+        includeLeague?: boolean;
+        includeFriendly?: boolean;
+        onlyCompleted?: boolean;
+    }) => {
+        try {
+            const { includeLeague = true, includeFriendly = true, onlyCompleted = true } = options || {};
+
+            let matches = await matchApi.getMatchesByPlayerParticipation(playerId);
+
+            // Filter by completion status
+            if (onlyCompleted) {
+                matches = matches.filter((m: any) => m.status === 'Tamamlandı');
+            }
+
+            // Filter by type - UPDATED to use 'type'
+            if (!includeLeague) {
+                matches = matches.filter((m: any) => m.type !== MatchType.LEAGUE);
+            }
+            if (!includeFriendly) {
+                matches = matches.filter((m: any) => m.type !== MatchType.FRIENDLY);
+            }
+
+            return matches;
+        } catch (error) {
+            console.error('İstatistik maçları getirilemedi:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Get organizer's match templates
+     */
+    getMatchTemplates: async (organizerId: string) => {
+        try {
+            const q = query(
+                collection(db, 'matchTemplates'),
+                where('organizerId', '==', organizerId),
+                orderBy('createdAt', 'desc')
+            );
+            const querySnapshot = await getDocs(q);
+            return querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Maç şablonları getirilemedi:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Get upcoming friendly matches for a player
+     * UPDATED: Uses 'type' field
+     */
+    getUpcomingFriendlyMatches: async (playerId: string) => {
+        try {
+            const now = new Date();
+            
+            const q = query(
+                collection(db, collectionName),
+                where('type', '==', MatchType.FRIENDLY),
+                where('matchStartTime', '>=', now),
+                where('registeredPlayerIds', 'array-contains', playerId),
+                orderBy('matchStartTime', 'asc')
+            );
+            
+            const querySnapshot = await getDocs(q);
+            return querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Yaklaşan friendly maçlar getirilemedi:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Get matches by sport type
+     */
+    getMatchesBySportType: async (sportType: string, limitCount: number = 50) => {
+        try {
+            const q = query(
+                collection(db, collectionName),
+                where('sportType', '==', sportType),
+                orderBy('matchStartTime', 'desc'),
+                limit(limitCount)
+            );
+            const querySnapshot = await getDocs(q);
+            return querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Spor türü maçları getirilemedi:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Get matches that affect standings
+     */
+    getStandingsAffectingMatches: async (fixtureId?: string) => {
+        try {
+            let q = query(
+                collection(db, collectionName),
+                where('affectsStandings', '==', true),
+                where('status', '==', 'Tamamlandı')
+            );
+
+            if (fixtureId) {
+                q = query(q, where('fixtureId', '==', fixtureId));
+            }
+
+            q = query(q, orderBy('matchStartTime', 'desc'));
+
+            const querySnapshot = await getDocs(q);
+            return querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Puan tablosu maçları getirilemedi:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Get matches that affect player stats
+     */
+    getStatsAffectingMatches: async (playerId: string) => {
+        try {
+            const matches = await matchApi.getMatchesByPlayerParticipation(playerId);
+
+            return matches.filter((m: any) => 
+                m.affectsStats === true && 
+                m.status === 'Tamamlandı'
+            );
+        } catch (error) {
+            console.error('İstatistik etkileyen maçlar getirilemedi:', error);
+            return [];
+        }
+    },
+
+    /**
+     * Get matches by organizerId (for Friendly matches)
+     * UPDATED: Uses 'organizerId' field
+     */
+    getMatchesByOrganizerId: async (organizerId: string) => {
+        try {
+            const q = query(
+                collection(db, collectionName),
+                where('organizerId', '==', organizerId),
+                orderBy('matchStartTime', 'desc')
+            );
+            const querySnapshot = await getDocs(q);
+            return querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+        } catch (error) {
+            console.error('Organizatör maçları (organizerId) getirilemedi:', error);
             return [];
         }
     }

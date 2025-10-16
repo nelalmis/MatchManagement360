@@ -1,103 +1,31 @@
 // src/navigation/NavigationService.ts
 
-import { createNavigationContainerRef, StackActions, CommonActions } from '@react-navigation/native';
-import { MainStackParamList, RootStackParamList } from './typesV3';
+import { createNavigationContainerRef, CommonActions } from '@react-navigation/native';
 
-export const navigationRef = createNavigationContainerRef<any>(); // 👈 any kullan (Root seviyesinde)
+export const navigationRef = createNavigationContainerRef();
+
+/**
+ * Helper function to safely navigate
+ */
+const safeNavigate = (name: string, params?: any) => {
+  if (navigationRef.isReady()) {
+    // @ts-ignore - Type-safe navigation için MainNavigator kullanın
+    navigationRef.navigate(name, params);
+  }
+};
 
 export const NavigationService = {
   // ============================================
-  // CORE NAVIGATION METHODS
+  // CORE METHODS
   // ============================================
 
   isReady(): boolean {
     return navigationRef.isReady();
   },
 
-  navigate<T extends keyof MainStackParamList>(
-    name: T,
-    params?: MainStackParamList[T]
-  ): void {
-    if (navigationRef.isReady()) {
-      // @ts-ignore
-      navigationRef.navigate(name, params);
-    }
-  },
-
   goBack(): void {
     if (navigationRef.isReady() && navigationRef.canGoBack()) {
       navigationRef.goBack();
-    }
-  },
-
-  /**
-   * Stack'i sıfırla ve belirtilen ekrana git
-   */
-  reset(routeName: 'auth' | 'main' | 'mainTabs', params?: any): void {
-    if (navigationRef.isReady()) {
-      navigationRef.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: routeName, params }],
-        })
-      );
-    }
-  },
-
-  /**
-   * Auth ekranına git (Logout için)
-   */
-  resetToAuth(): void {
-    if (navigationRef.isReady()) {
-      navigationRef.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: 'auth' }],
-        })
-      );
-    }
-  },
-
-  /**
-   * Main ekranına git (Login sonrası)
-   */
-  resetToMain(): void {
-    if (navigationRef.isReady()) {
-      navigationRef.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [
-            {
-              name: 'main',
-              state: {
-                routes: [{ name: 'mainTabs' }],
-              },
-            },
-          ],
-        })
-      );
-    }
-  },
-
-  push<T extends keyof MainStackParamList>(
-    name: T,
-    params?: MainStackParamList[T]
-  ): void {
-    if (navigationRef.isReady()) {
-      // @ts-ignore
-      navigationRef.dispatch(StackActions.push(name, params));
-    }
-  },
-
-  pop(count: number = 1): void {
-    if (navigationRef.isReady()) {
-      navigationRef.dispatch(StackActions.pop(count));
-    }
-  },
-
-  popToTop(): void {
-    if (navigationRef.isReady()) {
-      navigationRef.dispatch(StackActions.popToTop());
     }
   },
 
@@ -109,137 +37,323 @@ export const NavigationService = {
   },
 
   // ============================================
-  // MATCH SCREENS
+  // ROOT NAVIGATION
   // ============================================
 
-  navigateToMatch(matchId: string): void {
-    this.navigate('matchDetail', { matchId });
+  resetToAuth(): void {
+    if (navigationRef.isReady()) {
+      navigationRef.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'auth' }],
+        })
+      );
+    }
   },
 
-  navigateToMatchRegistration(matchId: string): void {
-    this.navigate('matchRegistration', { matchId });
-  },
-
-  navigateToTeamBuilding(matchId: string): void {
-    this.navigate('teamBuilding', { matchId });
-  },
-
-  navigateToScoreEntry(matchId: string): void {
-    this.navigate('scoreEntry', { matchId });
-  },
-
-  navigateToGoalAssistEntry(matchId: string): void {
-    this.navigate('goalAssistEntry', { matchId });
-  },
-
-  navigateToPlayerRating(matchId: string): void {
-    this.navigate('playerRating', { matchId });
-  },
-
-  navigateToPaymentTracking(matchId: string): void {
-    this.navigate('paymentTracking', { matchId });
-  },
-
-  navigateToEditMatch(matchId: string): void {
-    this.navigate('matchDetail', { matchId });
-  },
-
-  // ============================================
-  // PLAYER SCREENS
-  // ============================================
-
-  navigateToPlayer(playerId: string): void {
-    this.navigateToProfileTab();
-  },
-
-  // ============================================
-  // LEAGUE SCREENS
-  // ============================================
-
-  navigateToLeague(leagueId: string): void {
-    this.navigate('leagueDetail', { leagueId });
-  },
-
-  navigateToCreateLeague(): void {
-    this.navigate('createLeague');
-  },
-
-  navigateToEditLeague(leagueId: string): void {
-    this.navigate('editLeague', { leagueId });
-  },
-
-  // ============================================
-  // FIXTURE SCREENS
-  // ============================================
-
-  navigateToFixture(fixtureId: string): void {
-    this.navigate('fixtureDetail', { fixtureId });
-  },
-
-  navigateToCreateFixture(leagueId: string): void {
-    this.navigate('createFixture', { leagueId });
-  },
-
-  navigateToMatchList(leagueId?: string, fixtureId?: string): void {
-    // if (fixtureId) {
-      this.navigate('matchList', {});
-    // }
-  },
-
-  navigateToFixtureList(leagueId?: string): void {
-    if (leagueId) {
-      this.navigate('fixtureList', { leagueId });
+  resetToMain(): void {
+    if (navigationRef.isReady()) {
+      navigationRef.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'main' }],
+        })
+      );
     }
   },
 
   // ============================================
-  // STANDINGS SCREENS
+  // TAB NAVIGATION
   // ============================================
 
-  navigateToStandings(leagueId: string, seasonId?: string): void {
-    this.navigate('standings', { leagueId });
+  navigateToHomeTab(): void {
+    safeNavigate('homeTab');
   },
 
-  navigateToTopScorers(leagueId: string, seasonId?: string): void {
-    this.navigate('topScorers', { leagueId });
+  navigateToLeaguesTab(): void {
+    safeNavigate('leaguesTab');
   },
 
-  navigateToTopAssists(leagueId: string, seasonId?: string): void {
-    this.navigate('topAssists', { leagueId });
+  navigateToMatchesTab(): void {
+    safeNavigate('matchesTab');
   },
 
-  navigateToMVP(leagueId: string, seasonId?: string): void {
-    this.navigate('mvp', { leagueId });
+  navigateToStatsTab(): void {
+    safeNavigate('statsTab');
+  },
+
+  navigateToProfileTab(): void {
+    safeNavigate('profileTab');
   },
 
   // ============================================
-  // AUTH SCREENS
+  // HOME NAVIGATION
   // ============================================
 
-  /**
-   * Login ekranına git (Logout için)
-   */
+  navigateToHome(): void {
+    safeNavigate('homeTab', { screen: 'homeScreen' });
+  },
+
+  // ============================================
+  // LEAGUE NAVIGATION
+  // ============================================
+
+  navigateToLeagueList(): void {
+    safeNavigate('leaguesTab', { screen: 'leagueList' });
+  },
+
+  navigateToLeagueDetail(leagueId: string): void {
+    safeNavigate('leaguesTab', {
+      screen: 'leagueDetail',
+      params: { leagueId },
+    });
+  },
+
+  navigateToCreateLeague(): void {
+    safeNavigate('leaguesTab', { screen: 'createLeague' });
+  },
+
+  navigateToEditLeague(leagueId: string): void {
+    safeNavigate('leaguesTab', {
+      screen: 'editLeague',
+      params: { leagueId },
+    });
+  },
+
+  // ============================================
+  // FIXTURE NAVIGATION
+  // ============================================
+
+  navigateToFixtureList(leagueId: string): void {
+    safeNavigate('leaguesTab', {
+      screen: 'fixtureList',
+      params: { leagueId },
+    });
+  },
+
+  navigateToFixtureDetail(fixtureId: string): void {
+    safeNavigate('leaguesTab', {
+      screen: 'fixtureDetail',
+      params: { fixtureId },
+    });
+  },
+
+  navigateToCreateFixture(leagueId: string): void {
+    safeNavigate('leaguesTab', {
+      screen: 'createFixture',
+      params: { leagueId },
+    });
+  },
+
+  navigateToEditFixture(fixtureId: string): void {
+    safeNavigate('leaguesTab', {
+      screen: 'editFixture',
+      params: { fixtureId },
+    });
+  },
+
+  // ============================================
+  // MATCH NAVIGATION
+  // ============================================
+
+  navigateToMatchList(params?: { leagueId?: string; fixtureId?: string }): void {
+    safeNavigate('matchesTab', {
+      screen: 'matchList',
+      params: params || {},
+    });
+  },
+
+  navigateToMyMatches(playerId?: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'myMatches',
+      params: playerId ? { playerId } : {},
+    });
+  },
+
+  navigateToMatchDetail(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'matchDetail',
+      params: { matchId },
+    });
+  },
+
+  navigateToCreateFriendlyMatch(templateId?: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'createFriendlyMatch',
+      params: templateId ? { templateId } : {},
+    });
+  },
+
+  navigateToFriendlyMatchInvitations(): void {
+    safeNavigate('matchesTab', { screen: 'friendlyMatchInvitations' });
+  },
+
+  navigateToManageInvitations(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'manageInvitations',
+      params: { matchId },
+    });
+  },
+
+  navigateToEditFriendlyMatch(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'editFriendlyMatch',
+      params: { matchId },
+    });
+  },
+
+  navigateToEditMatch(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'editMatch',
+      params: { matchId },
+    });
+  },
+
+  navigateToFriendlyMatchTemplates(): void {
+    safeNavigate('matchesTab', { screen: 'friendlyMatchTemplates' });
+  },
+
+  navigateToCreateFriendlyMatchTemplate(): void {
+    safeNavigate('matchesTab', { screen: 'createFriendlyMatchTemplate' });
+  },
+
+  navigateToEditFriendlyMatchTemplate(templateId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'editFriendlyMatchTemplate',
+      params: { templateId },
+    });
+  },
+
+  navigateToMatchRegistration(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'matchRegistration',
+      params: { matchId },
+    });
+  },
+
+  navigateToTeamBuilding(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'teamBuilding',
+      params: { matchId },
+    });
+  },
+
+  navigateToScoreEntry(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'scoreEntry',
+      params: { matchId },
+    });
+  },
+
+  navigateToGoalAssistEntry(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'goalAssistEntry',
+      params: { matchId },
+    });
+  },
+
+  navigateToPlayerRating(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'playerRating',
+      params: { matchId },
+    });
+  },
+
+  navigateToPaymentTracking(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'paymentTracking',
+      params: { matchId },
+    });
+  },
+
+  // ============================================
+  // STANDINGS NAVIGATION
+  // ============================================
+
+  navigateToStandingsList(): void {
+    safeNavigate('statsTab', { screen: 'standingsList' });
+  },
+
+  navigateToStandings(leagueId: string): void {
+    safeNavigate('statsTab', {
+      screen: 'standings',
+      params: { leagueId },
+    });
+  },
+
+  navigateToTopScorers(leagueId: string): void {
+    safeNavigate('statsTab', {
+      screen: 'topScorers',
+      params: { leagueId },
+    });
+  },
+
+  navigateToTopAssists(leagueId: string): void {
+    safeNavigate('statsTab', {
+      screen: 'topAssists',
+      params: { leagueId },
+    });
+  },
+
+  navigateToMVP(leagueId: string): void {
+    safeNavigate('statsTab', {
+      screen: 'mvp',
+      params: { leagueId },
+    });
+  },
+
+  // ============================================
+  // PROFILE NAVIGATION
+  // ============================================
+
+  navigateToPlayerStats(playerId?: string, leagueId?: string): void {
+    safeNavigate('profileTab', {
+      screen: 'playerStats',
+      params: { playerId, leagueId },
+    });
+  },
+
+  navigateToPlayerProfile(playerId?: string): void {
+    safeNavigate('profileTab', {
+      screen: 'playerProfile',
+      params: playerId ? { playerId } : {},
+    });
+  },
+
+  navigateToEditProfile(): void {
+    safeNavigate('profileTab', { screen: 'editProfile' });
+  },
+
+  navigateToSelectPositions(): void {
+    safeNavigate('profileTab', { screen: 'selectPositions' });
+  },
+
+  navigateToSettings(): void {
+    safeNavigate('profileTab', { screen: 'settings' });
+  },
+
+  navigateToNotificationSettings(): void {
+    safeNavigate('profileTab', { screen: 'notificationSettings' });
+  },
+
+  // ============================================
+  // AUTH NAVIGATION
+  // ============================================
+
   navigateToLogin(): void {
     this.resetToAuth();
   },
 
-
-  /**
-   * Register ekranına git (Auth stack içinde)
-   */
   navigateToRegister(): void {
     if (navigationRef.isReady()) {
-      // @ts-ignore - Nested navigation
+      // @ts-ignore
       navigationRef.navigate('auth', { screen: 'register' });
     }
   },
 
-  /**
-   * Phone Verification ekranına git (Auth stack içinde)
-   */
   navigateToPhoneVerification(phoneNumber: string): void {
     if (navigationRef.isReady()) {
-      // @ts-ignore - Nested navigation
+      // @ts-ignore
       navigationRef.navigate('auth', {
         screen: 'phoneVerification',
         params: { phoneNumber }
@@ -247,94 +361,56 @@ export const NavigationService = {
     }
   },
 
-  navigateToSelectPositions(
-    sport?: any,
-    selectedPositions?: string[],
-    onSave?: (positions: string[]) => void
-  ): void {
-    this.navigate('selectPositions');
-  },
-
-  /**
-   * Ana ekrana git (Login sonrası)
-   */
-  navigateToMain(): void {
-    this.resetToMain();
-  },
-
   // ============================================
-  // TAB NAVIGATION HELPERS
+  // LEGACY ALIASES (BACKWARD COMPATIBILITY)
   // ============================================
 
-  navigateToHomeTab(): void {
-    if (navigationRef.isReady()) {
-      // @ts-ignore
-      navigationRef.navigate('mainTabs', { screen: 'homeTab' });
-    }
+  navigateToLeague(leagueId: string): void {
+    this.navigateToLeagueDetail(leagueId);
   },
 
-  navigateToLeaguesTab(): void {
-    if (navigationRef.isReady()) {
-      // @ts-ignore
-      navigationRef.navigate('mainTabs', { screen: 'leaguesTab' });
-    }
+  navigateToFixture(fixtureId: string): void {
+    this.navigateToFixtureDetail(fixtureId);
   },
 
-  navigateToFixturesTab(): void {
-    if (navigationRef.isReady()) {
-      // @ts-ignore
-      navigationRef.navigate('mainTabs', { screen: 'matchesTab' });
-    }
+  navigateToMatch(matchId: string): void {
+    this.navigateToMatchDetail(matchId);
   },
 
-  navigateToStandingsTab(): void {
-    if (navigationRef.isReady()) {
-      // @ts-ignore
-      navigationRef.navigate('mainTabs', { screen: 'statsTab' });
-    }
-  },
-
-  navigateToProfileTab(): void {
-    if (navigationRef.isReady()) {
-      // @ts-ignore
-      navigationRef.navigate('mainTabs', { screen: 'profileTab' });
-    }
+  navigateToPlayer(playerId: string): void {
+    this.navigateToPlayerProfile(playerId);
   },
 
   navigateToMyProfile(): void {
     this.navigateToProfileTab();
   },
 
-  navigateToEditProfile(): void {
-    this.navigate('editProfile');
+  navigateToMyStats(): void {
+    this.navigateToPlayerStats();
   },
 
-  navigateToMyStats(playerId?: string): void {
-    this.navigate('playerStats', { leagueId: undefined });
-  },
-
-  navigateToPlayerStats(playerId?: string): void {
-    this.navigate('playerStats', { leagueId: undefined });
-  },
-
-  navigateToMyMatches(): void {
-    this.navigateToFixturesTab();
+  navigateToMain(): void {
+    this.resetToMain();
   },
 
   // ============================================
-  // SETTINGS NAVIGATION
+  // ALIASES (BACKWARD COMPATIBILITY)
   // ============================================
+  
+  navigateToFixturesTab(): void {
+    this.navigateToMatchesTab();
+  },
+
+  navigateToStandingsTab(): void {
+    this.navigateToStatsTab();
+  },
 
   navigateToSettingsTab(): void {
     this.navigateToProfileTab();
   },
 
-  navigateToSettings(): void {
-    this.navigate('settings');
-  },
-
-  navigateToNotificationSettings(): void {
-    this.navigate('notificationSettings');
+  navigateToTemplates(): void {
+    this.navigateToFriendlyMatchTemplates();
   },
 };
 

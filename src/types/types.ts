@@ -1,5 +1,8 @@
 // types.ts
 
+// ============================================
+// 1. SPORT TYPE ENUM
+// ============================================
 export type SportType =
   | "Futbol"
   | "Basketbol"
@@ -8,6 +11,9 @@ export type SportType =
   | "Masa Tenisi"
   | "Badminton";
 
+// ============================================
+// 2. SPORT CONFIGS
+// ============================================
 export interface SportConfig {
   emoji: string;
   name: string;
@@ -17,6 +23,9 @@ export interface SportConfig {
   color: string;
 }
 
+// ============================================
+// 3. SPORT CONFIG RECORD
+// ============================================
 export const SPORT_CONFIGS: Record<SportType, SportConfig> = {
   Futbol: {
     emoji: "⚽",
@@ -69,7 +78,16 @@ export const SPORT_CONFIGS: Record<SportType, SportConfig> = {
 };
 
 // ============================================
-// 1. LIG (LEAGUE)
+// 4. MATCH TYPE ENUM (YENİ)
+// ============================================
+export enum MatchType {
+  LEAGUE = 'LEAGUE',           // Lig maçı (fikstüre bağlı)
+  FRIENDLY = 'FRIENDLY',       // Dostluk maçı (ligden bağımsız)
+  TOURNAMENT = 'TOURNAMENT'    // Turnuva (gelecek)
+}
+
+// ============================================
+// 5. LIG (LEAGUE)
 // ============================================
 export interface ILeague {
   id: any;
@@ -95,13 +113,23 @@ export interface ILeague {
   // İlişkiler
   matchFixtures: Array<IMatchFixture>;
 
+  // ============================================
+  // YENİ: FRIENDLY MATCH AYARLARI
+  // ============================================
+  settings?: {
+    allowFriendlyMatches?: boolean;        // Lig üyelerine dostluk maçı oluşturma izni
+    friendlyMatchesAffectStats?: boolean;  // Dostluk maçları istatistikleri etkiler mi
+    friendlyMatchesAffectStandings?: boolean; // Dostluk maçları puan durumunu etkiler mi
+    friendlyMatchesRequireApproval?: boolean; // Dostluk maçları admin onayı gerektirir mi
+  };
+
   // Meta
   createdAt: string;
   createdBy: string; // User ID (Lig sahibi)
 }
 
 // ============================================
-// 2. FİKSTÜR (FIXTURE)
+// 6. FİKSTÜR (FIXTURE)
 // ============================================
 export interface IMatchFixture {
   id: any;
@@ -152,20 +180,40 @@ export interface IMatchFixture {
 }
 
 // ============================================
-// 3. MAÇ (MATCH)
+// 7. MAÇ (MATCH)
 // ============================================
 export interface IMatch {
   id: any;
-  fixtureId: any;
+  // ============================================
+  // YENİ: MAÇ TİPİ VE İLİŞKİLER
+  // ============================================
+  type: MatchType;                    // 'LEAGUE' | 'FRIENDLY' | 'TOURNAMENT'
+
+  // League Match için (type === 'LEAGUE')
+  fixtureId?: any;
+  leagueId?: any;                     // Lig ID (fikstürden alınabilir ama cache için)
+  tournamentId?: any;                 // Turnuva ID (gelecek)
+  seasonId?: string;                 // Sezon ID (ligden alınabilir ama cache için)
+
+  // Friendly Match için (type === 'FRIENDLY')
+  organizerId?: string;               // Maçı organize eden oyuncu (FRIENDLY'de zorunlu)
+  isPublic?: boolean;                 // Public = herkes görebilir/kayıt olabilir
+  invitedPlayerIds?: string[];        // Sadece davetli oyuncular (isPublic=false ise)
+  linkedLeagueId?: any;               // Opsiyonel: Bir lige bağlı friendly match
+
+  // Ortak Alanlar
   eventId?: string;
   title: string; // "Salı Maçı - 15 Ekim 2025"
+
+  sportType?: SportType;              // YENİ: Friendly maçlar için zorunlu
+  sportPositions?: string[];               // O spora özel pozisyonlar TODO: yeni eklendi maç servisine entegre etilecek
 
   // Zamanlama
   registrationTime: Date; // Kayıt başlangıç
   registrationEndTime: Date; // Kayıt bitiş
   matchStartTime: Date;
   matchEndTime: Date;
-
+  matchTotalTimeInMinute?: number; //Ligden inherit edilebilir
   // ============================================
   // OYUNCU YÖNETİMİ (Öncelik Sırası)
   // ============================================
@@ -189,6 +237,14 @@ export interface IMatch {
   // 5. Yedek Oyuncular
   // Kadro dolarsa yedek listesine alınır
   reservePlayerIds: string[];
+
+  // ============================================
+  // KADRO AYARLARI (FRIENDLY için özelleştirilebilir)
+  // ============================================
+  staffPlayerCount?: number;          // Kadro sayısı (Friendly'de organizatör belirler)
+  reservePlayerCount?: number;        // Yedek sayısı
+  minPlayersToStartMatch?: number;    // Maç başlatmak için minimum oyuncu sayısı
+  maxPlayersAllowed?: number;         // Maksimum kayıtlı oyuncu sayısı
 
   // ============================================
   // TAKIMLAR (Organizatörler veya yetkili oyuncular oluşturur)
@@ -259,7 +315,7 @@ export interface IMatch {
   // ============================================
   // YETKİLER (Maç Özelinde Özelleştirilebilir)
   // ============================================
-  organizerPlayerIds: string[]; // Fikstür'den inherit
+  organizerPlayerIds: string[];              // FRIENDLY'de = [organizerId]
   teamBuildingAuthorityPlayerIds: string[]; // Bu maçta takım kurabilecek oyuncular
 
   // ============================================
@@ -285,6 +341,17 @@ export interface IMatch {
   | 'Tamamlandı' // Her şey bitti, puan durumu güncellendi
   | 'İptal Edildi'; // Maç iptal
 
+  // ============================================
+  // YENİ: FRIENDLY MATCH İSTATİSTİK AYARLARI
+  // ============================================
+  affectsStats?: boolean;              // Bu maç istatistikleri etkiler mi
+  affectsStandings?: boolean;          // Bu maç puan durumunu etkiler mi
+  requiresApproval?: boolean;          // Bu maç organizatör onayı gerektirir mi
+  isApproved?: boolean;                // Organizör onayladı mı
+  approvedBy?: string;                // Onaylayan organizatör ID
+  approvedAt?: string;                // Onaylanma zamanı
+
+
   // Meta
   matchBoardSheetId?: string;
   createdAt: string;
@@ -292,7 +359,7 @@ export interface IMatch {
 }
 
 // ============================================
-// 4. PUAN DURUMU (STANDINGS)
+// 8. PUAN DURUMU (STANDINGS)
 // ============================================
 export interface IStandings {
   id: any;
@@ -308,6 +375,15 @@ export interface IStandings {
     won: number; // Kazandığı maç
     drawn: number; // Berabere
     lost: number; // Kaybettiği maç
+
+    // ============================================
+    // YENİ: FRIENDLY MATCH İSTATİSTİKLERİ
+    // ============================================
+    friendlyPlayed?: number;           // Dostluk maçı sayısı
+    friendlyWon?: number;
+    friendlyDrawn?: number;
+    friendlyLost?: number;
+
 
     // Gol İstatistikleri
     goalsScored: number; // Attığı gol
@@ -334,12 +410,49 @@ export interface IStandings {
 }
 
 // ============================================
-// 5. OYUNCU İSTATİSTİKLERİ
+// 9. OYUNCU İSTATİSTİKLERİ
 // ============================================
 export interface IPlayerStats {
   playerId: string;
   leagueId: any;
   seasonId: string;
+
+  // ============================================
+  // YENİ: GENEL İSTATİSTİKLER (Tüm maçlar)
+  // ============================================
+  allMatches?: {
+    total: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    goals: number;
+    assists: number;
+  };
+
+  // ============================================
+  // LİG İSTATİSTİKLERİ (Sadece lig maçları)
+  // ============================================
+  leagueMatches?: {
+    total: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    goals: number;
+    assists: number;
+    points: number;                    // Puan sadece lig maçlarında
+  };
+
+  // ============================================
+  // FRIENDLY İSTATİSTİKLERİ
+  // ============================================
+  friendlyMatches?: {
+    total: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    goals: number;
+    assists: number;
+  };
 
   // Maç
   totalMatches: number;
@@ -361,6 +474,7 @@ export interface IPlayerStats {
   totalRatingsReceived: number;        // Kaç kez puanlandı
   ratingHistory: Array<{               // Rating geçmişi
     matchId: string;
+    matchType: MatchType;              // YENİ: Hangi tip maçtan geldi
     rating: number;
     date: string;
   }>;
@@ -383,7 +497,7 @@ export interface IPlayerStats {
 }
 
 // ============================================
-// PLAYER (Existing)
+// 10. PLAYER (Existing)
 // ============================================
 export interface IPlayer {
   id?: any;
@@ -405,11 +519,13 @@ export interface IPlayer {
   // }
 }
 
-
-// Maç bazlı oyuncu puanlaması
+// ============================================
+// 10. PLAYER (Existing) Maç bazlı oyuncu puanlaması
+// ============================================
 export interface IMatchRating {
   id: any;
   matchId: any;
+  matchType: MatchType;     // YENİ: Maç tipi
   raterId: string;          // Puanlayan oyuncu ID
   ratedPlayerId: string;    // Puanlanan oyuncu ID
   rating: number;           // 1-5 yıldız
@@ -433,10 +549,13 @@ export interface IMatchRating {
   updatedAt?: string;
 }
 
-// Maç yorumları (Genel yorumlar, belirli oyuncuya değil)
+// ============================================
+// 11. Maç yorumları (Genel yorumlar, belirli oyuncuya değil)
+// ============================================
 export interface IMatchComment {
   id: any;
   matchId: any;
+  matchType: MatchType;     // YENİ: Maç tipi
   playerId: string;         // Yorum yapan oyuncu
   comment: string;
 
@@ -454,12 +573,45 @@ export interface IMatchComment {
   updatedAt?: string;
 }
 
-// Oyuncunun genel rating profili (Tüm maçlardan hesaplanan)
+
+// ============================================
+// 12. Oyuncunun genel rating profili (Tüm maçlardan hesaplanan)
+// ============================================
 export interface IPlayerRatingProfile {
   id: any;
   playerId: string;
-  leagueId: any;
-  seasonId: string;
+  leagueId?: any;
+  seasonId?: string;
+
+  // ============================================
+  // YENİ: GENEL PROFIL (Tüm maç tipleri)
+  // ============================================
+  overall?: {
+    overallRating: number;
+    totalRatingsReceived: number;
+    mvpCount: number;
+    mvpRate: number;
+  };
+
+  // ============================================
+  // LİG BAZLI PROFIL
+  // ============================================
+  league?: {
+    overallRating: number;
+    totalRatingsReceived: number;
+    mvpCount: number;
+    mvpRate: number;
+  };
+
+  // ============================================
+  // FRIENDLY BAZLI PROFIL
+  // ============================================
+  friendly?: {
+    overallRating: number;
+    totalRatingsReceived: number;
+    mvpCount: number;
+    mvpRate: number;
+  };
 
   // Genel ortalamalar
   overallRating: number;           // Toplam ortalama rating (1-5)
@@ -493,7 +645,53 @@ export interface IPlayerRatingProfile {
 
   lastUpdated: string;
 }
+// ============================================
+// 13. YENİ: FRIENDLY MATCH CONFIG
+// ============================================
+export interface IFriendlyMatchConfig {
+  id: any;
+  organizerId: string;                 // Maçı organize eden
 
+  // Varsayılan ayarlar (tekrar tekrar kullanmak için)
+  defaultLocation?: string;
+  defaultStaffCount?: number;
+  defaultReserveCount?: number;
+  defaultPrice?: number;
+  defaultPeterIban?: string;
+  defaultPeterFullName?: string;
+
+  // Favori oyuncular (hızlı davet için)
+  favoritePlayerIds?: string[];
+
+  // Şablon maçlar
+  templates?: Array<{
+    id: string;
+    name: string;                      // "Hafta Sonu Maçı"
+    settings: Partial<IMatch>;
+  }>;
+
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// ============================================
+// 14. YENİ: MATCH INVITATION (Davet Sistemi)
+// ============================================
+export interface IMatchInvitation {
+  id: any;
+  matchId: any;
+  matchType: MatchType;
+  inviterId: string;                   // Davet eden
+  inviteeId: string;                   // Davet edilen
+
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+
+  message?: string;                    // Davet mesajı
+
+  sentAt: string;
+  respondedAt?: string;
+  expiresAt?: string;
+}
 export interface IDevice {
   id: any;
   playerId?: string;
@@ -505,8 +703,9 @@ export interface IDevice {
   isActive?: boolean;
 }
 // ============================================
-// HELPER FUNCTIONS
+// QUERY HELPERS
 // ============================================
+
 
 export const getSportIcon = (sportType: SportType): string => {
   return SPORT_CONFIGS[sportType]?.emoji || "⚽";
@@ -694,44 +893,3 @@ export const getRatingColor = (rating: number): string => {
   return '#DC2626'; // Red
 };
 
-export interface AppContextType {
-  user: IPlayer | null;
-  setUser: (user: IPlayer | null) => void;
-  phoneNumber: string;
-  setPhoneNumber: (phone: string) => void;
-  currentScreen: string;
-  setCurrentScreen: (screen: string) => void;
-  countdown: number;
-  setCountdown: (count: number) => void;
-  rememberDevice: boolean;
-  setRememberDevice: (remember: boolean) => void;
-  isVerified: boolean;
-  setIsVerified: (isVerified: boolean) => void;
-}
-
-export interface NavigationContextType {
-  currentPage: string;
-  params?: any;
-  navigate: (currentScreen: string, params?: any) => void;
-  goBack: (returnParams?: any) => void; // 👈 returnParams eklendi
-  setMenuOpen: (menuOpen: boolean) => void;
-  menuOpen: boolean;
-  headerTitle?: string;
-  setHeaderTitle: (title: string) => void;
-}
-
-export interface IResponseBase {
-  success: boolean;
-  id?: any;
-  error?: string;
-}
-
-export interface IInvitation {
-  id: number;
-  name: string;
-  date: string;
-  time: string;
-  location: string;
-  organizer: string;
-  status: 'pending';
-}

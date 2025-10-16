@@ -1,0 +1,2804 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ARCHITECTURE.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="%F0%9F%93%9A-spor-y%C3%B6neti%CC%87m-uygulamasi---kapsamli-dok%C3%BCmantasyon">📚 SPOR YÖNETİM UYGULAMASI - KAPSAMLI DOKÜMANTASYON</h1>
+<blockquote>
+<p><strong>React Native</strong> ile geliştirilmiş, Firebase tabanlı spor ligi ve maç yönetim platformu</p>
+</blockquote>
+<p><a href="https://reactnative.dev/"><img src="https://img.shields.io/badge/React Native-0.73+-61DAFB?style=flat&amp;logo=react" alt="React Native"></a>
+<a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&amp;logo=typescript" alt="TypeScript"></a>
+<a href="https://firebase.google.com/"><img src="https://img.shields.io/badge/Firebase-10.0+-FFCA28?style=flat&amp;logo=firebase" alt="Firebase"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a></p>
+<hr>
+<h2 id="%F0%9F%93%96-i%CC%87%C3%A7indekiler">📖 İçindekiler</h2>
+<ul>
+<li><a href="#-spor-y%C3%B6neti%CC%87m-uygulamasi---kapsamli-dok%C3%BCmantasyon">📚 SPOR YÖNETİM UYGULAMASI - KAPSAMLI DOKÜMANTASYON</a>
+<ul>
+<li><a href="#-i%CC%87%C3%A7indekiler">📖 İçindekiler</a></li>
+<li><a href="#1-proje-hakk%C4%B1nda">1. Proje Hakkında</a>
+<ul>
+<li><a href="#11-genel-bak%C4%B1%C5%9F">1.1 Genel Bakış</a></li>
+<li><a href="#12-temel-%C3%B6zellikler">1.2 Temel Özellikler</a></li>
+</ul>
+</li>
+<li><a href="#2-teknoloji-y%C4%B1%C4%9F%C4%B1n%C4%B1">2. Teknoloji Yığını</a>
+<ul>
+<li><a href="#21-frontend">2.1 Frontend</a></li>
+<li><a href="#22-backend">2.2 Backend</a></li>
+<li><a href="#23-geli%C5%9Ftirme-ara%C3%A7lar%C4%B1">2.3 Geliştirme Araçları</a></li>
+</ul>
+</li>
+<li><a href="#3-mimari-yap%C4%B1">3. Mimari Yapı</a>
+<ul>
+<li><a href="#31-proje-klas%C3%B6r-yap%C4%B1s%C4%B1">3.1 Proje Klasör Yapısı</a></li>
+<li><a href="#32-mimari-katmanlar">3.2 Mimari Katmanlar</a></li>
+</ul>
+</li>
+<li><a href="#4-veritaban%C4%B1-%C5%9Femas%C4%B1">4. Veritabanı Şeması</a>
+<ul>
+<li><a href="#41-collectionlar-24-adet">4.1 Collection'lar (24 Adet)</a>
+<ul>
+<li><a href="#-core-collections-7">🎯 CORE Collections (7)</a></li>
+<li><a href="#-interaction-collections-5">💬 INTERACTION Collections (5)</a></li>
+<li><a href="#%EF%B8%8F-configuration-collections-4">⚙️ CONFIGURATION Collections (4)</a></li>
+<li><a href="#-content-collections-3">📄 CONTENT Collections (3)</a></li>
+<li><a href="#-profiles--configs-collections-5">👤 PROFILES &amp; CONFIGS Collections (5)</a></li>
+</ul>
+</li>
+<li><a href="#42-i%CC%87li%C5%9Fki-diyagram%C4%B1">4.2 İlişki Diyagramı</a></li>
+</ul>
+</li>
+<li><a href="#5-api-dok%C3%BCmantasyonu">5. API Dokümantasyonu</a>
+<ul>
+<li><a href="#51-api-katman-yap%C4%B1s%C4%B1">5.1 API Katman Yapısı</a></li>
+<li><a href="#52-t%C3%BCm-api-classlar%C4%B1">5.2 Tüm API Class'ları</a></li>
+</ul>
+</li>
+<li><a href="#6-servis-katman%C4%B1">6. Servis Katmanı</a>
+<ul>
+<li><a href="#61-servis-yap%C4%B1s%C4%B1">6.1 Servis Yapısı</a></li>
+<li><a href="#62-t%C3%BCm-servisler">6.2 Tüm Servisler</a></li>
+</ul>
+</li>
+<li><a href="#7-ekran-ak%C4%B1%C5%9F%C4%B1--navigasyon">7. Ekran Akışı &amp; Navigasyon</a>
+<ul>
+<li><a href="#71-navigation-yap%C4%B1s%C4%B1-react-navigation">7.1 Navigation Yapısı (React Navigation)</a></li>
+<li><a href="#72-ana-ekran-listesi-60-ekran">7.2 Ana Ekran Listesi (60+ Ekran)</a>
+<ul>
+<li><a href="#-auth-screens-4">🔐 AUTH SCREENS (4)</a></li>
+<li><a href="#-homedashboard-screens-5">🏠 HOME/DASHBOARD SCREENS (5)</a></li>
+<li><a href="#-league-screens-12">🏆 LEAGUE SCREENS (12)</a></li>
+<li><a href="#-match-screens-18">⚽ MATCH SCREENS (18)</a></li>
+<li><a href="#-player-screens-10">👥 PLAYER SCREENS (10)</a></li>
+<li><a href="#-profile-screens-11">👤 PROFILE SCREENS (11)</a></li>
+<li><a href="#%E2%84%B9%EF%B8%8F-info-screens-6">ℹ️ INFO SCREENS (6)</a></li>
+</ul>
+</li>
+<li><a href="#73-tab-bar-yap%C4%B1s%C4%B1">7.3 Tab Bar Yapısı</a></li>
+</ul>
+</li>
+<li><a href="#8-kullan%C4%B1c%C4%B1-senaryolar%C4%B1">8. Kullanıcı Senaryoları</a>
+<ul>
+<li><a href="#81-senaryo-1-yeni-kullan%C4%B1c%C4%B1-i%CC%87lk-kurulum">8.1 Senaryo 1: Yeni Kullanıcı (İlk Kurulum)</a></li>
+<li><a href="#82-senaryo-2-lig-y%C3%B6neticisi-lig-olu%C5%9Fturma">8.2 Senaryo 2: Lig Yöneticisi (Lig Oluşturma)</a></li>
+<li><a href="#83-senaryo-3-ma%C3%A7-organizat%C3%B6r%C3%BC-ma%C3%A7-g%C3%BCn%C3%BC">8.3 Senaryo 3: Maç Organizatörü (Maç Günü)</a></li>
+<li><a href="#84-senaryo-4-oyuncu-ma%C3%A7a-kat%C4%B1l%C4%B1m">8.4 Senaryo 4: Oyuncu (Maça Katılım)</a></li>
+<li><a href="#85-senaryo-5-dostluk-ma%C3%A7%C4%B1-organizasyonu">8.5 Senaryo 5: Dostluk Maçı Organizasyonu</a></li>
+</ul>
+</li>
+<li><a href="#9-%C3%B6zellik-bayraklar%C4%B1-feature-flags">9. Özellik Bayrakları (Feature Flags)</a>
+<ul>
+<li><a href="#91-global-%C3%B6zellikler-app_config">9.1 Global Özellikler (app_config)</a></li>
+<li><a href="#92-lig-bazl%C4%B1-%C3%B6zellikler-league_settings">9.2 Lig Bazlı Özellikler (league_settings)</a></li>
+</ul>
+</li>
+<li><a href="#10-kurulum">10. Kurulum</a>
+<ul>
+<li><a href="#101-%C3%B6n-gereksinimler">10.1 Ön Gereksinimler</a></li>
+<li><a href="#102-projeyi-ba%C5%9Flatma">10.2 Projeyi Başlatma</a></li>
+<li><a href="#103-environment-variables-env">10.3 Environment Variables (.env)</a></li>
+</ul>
+</li>
+<li><a href="#11-geli%C5%9Ftirme-rehberi">11. Geliştirme Rehberi</a>
+<ul>
+<li><a href="#111-coding-standards">11.1 Coding Standards</a>
+<ul>
+<li><a href="#naming-conventions">Naming Conventions</a></li>
+<li><a href="#component-yap%C4%B1s%C4%B1">Component Yapısı</a></li>
+</ul>
+</li>
+<li><a href="#112-git-workflow">11.2 Git Workflow</a></li>
+</ul>
+</li>
+<li><a href="#12-testing">12. Testing</a>
+<ul>
+<li><a href="#121-unit-tests-jest">12.1 Unit Tests (Jest)</a></li>
+<li><a href="#122-component-tests">12.2 Component Tests</a></li>
+</ul>
+</li>
+<li><a href="#13-deployment">13. Deployment</a>
+<ul>
+<li><a href="#131-android-build">13.1 Android Build</a></li>
+<li><a href="#132-ios-build">13.2 iOS Build</a></li>
+<li><a href="#133-firebase-deployment">13.3 Firebase Deployment</a></li>
+</ul>
+</li>
+<li><a href="#14-push-notifications-fcm">14. Push Notifications (FCM)</a>
+<ul>
+<li><a href="#141-fcm-setup">14.1 FCM Setup</a></li>
+</ul>
+</li>
+<li><a href="#15-state-management-redux-toolkit">15. State Management (Redux Toolkit)</a>
+<ul>
+<li><a href="#151-store-setup">15.1 Store Setup</a></li>
+<li><a href="#152-slice-%C3%B6rne%C4%9Fi">15.2 Slice Örneği</a></li>
+</ul>
+</li>
+<li><a href="#16-g%C3%BCvenlik">16. Güvenlik</a>
+<ul>
+<li><a href="#161-firestore-security-rules">16.1 Firestore Security Rules</a></li>
+</ul>
+</li>
+<li><a href="#17-performans-optimizasyonu">17. Performans Optimizasyonu</a>
+<ul>
+<li><a href="#171-react-native-optimizasyon">17.1 React Native Optimizasyon</a></li>
+</ul>
+</li>
+<li><a href="#18-s%C4%B1k-kullan%C4%B1lan-komutlar">18. Sık Kullanılan Komutlar</a></li>
+<li><a href="#19-troubleshooting">19. Troubleshooting</a>
+<ul>
+<li><a href="#191-s%C4%B1k-kar%C5%9F%C4%B1la%C5%9F%C4%B1lan-hatalar">19.1 Sık Karşılaşılan Hatalar</a>
+<ul>
+<li><a href="#metro-bundler-hatas%C4%B1">Metro Bundler Hatası</a></li>
+<li><a href="#android-build-hatas%C4%B1">Android Build Hatası</a></li>
+<li><a href="#ios-build-hatas%C4%B1">iOS Build Hatası</a></li>
+<li><a href="#firebase-connection-hatas%C4%B1">Firebase Connection Hatası</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#20-lisans--katk%C4%B1">20. Lisans &amp; Katkı</a>
+<ul>
+<li><a href="#201-lisans">20.1 Lisans</a></li>
+<li><a href="#202-katk%C4%B1da-bulunma">20.2 Katkıda Bulunma</a></li>
+</ul>
+</li>
+<li><a href="#21-i%CC%87leti%C5%9Fim">21. İletişim</a></li>
+<li><a href="#-sonu%C3%A7">📝 Sonuç</a>
+<ul>
+<li><a href="#-kapsanan-konular">✅ Kapsanan Konular:</a></li>
+<li><a href="#-ba%C5%9Flang%C4%B1%C3%A7-ad%C4%B1mlar%C4%B1">🎯 Başlangıç Adımları:</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h2 id="1-proje-hakk%C4%B1nda">1. Proje Hakkında</h2>
+<h3 id="11-genel-bak%C4%B1%C5%9F">1.1 Genel Bakış</h3>
+<p><strong>Spor Yönetim Uygulaması</strong>, kullanıcıların spor ligleri ve maçları organize edip yönetmesini sağlayan kapsamlı bir <strong>React Native</strong> mobil platformudur.</p>
+<p><strong>Ana Hedefler:</strong></p>
+<ul>
+<li>🏆 Spor liglerini kolayca yönetmek</li>
+<li>⚽ Maç organizasyonunu otomatikleştirmek</li>
+<li>📊 Detaylı oyuncu istatistikleri sunmak</li>
+<li>⭐ Adil ve şeffaf değerlendirme sistemi</li>
+<li>💰 Ödeme takibini kolaylaştırmak</li>
+<li>📱 Mobil-first yaklaşım</li>
+</ul>
+<h3 id="12-temel-%C3%B6zellikler">1.2 Temel Özellikler</h3>
+<table>
+<thead>
+<tr>
+<th>Kategori</th>
+<th>Özellikler</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>🏆 Lig Yönetimi</strong></td>
+<td>Lig oluşturma, sezon yönetimi, fikstür planlama, puan durumu</td>
+</tr>
+<tr>
+<td><strong>⚽ Maç Türleri</strong></td>
+<td>Lig maçları (puan etkiler), Dostluk maçları (opsiyonel)</td>
+</tr>
+<tr>
+<td><strong>👥 Oyuncu Yönetimi</strong></td>
+<td>Premium, Direkt, Misafir, Kayıtlı, Yedek listeleri</td>
+</tr>
+<tr>
+<td><strong>⭐ Rating Sistemi</strong></td>
+<td>1-5 yıldız + kategorik değerlendirme (beceri, takım çalışması, sportmenlik)</td>
+</tr>
+<tr>
+<td><strong>🏅 MVP Sistemi</strong></td>
+<td>Otomatik MVP hesaplama (rating + performans bazlı)</td>
+</tr>
+<tr>
+<td><strong>💰 Ödeme Takibi</strong></td>
+<td>Ödeme durumu, hatırlatmalar, onaylama</td>
+</tr>
+<tr>
+<td><strong>🔄 Hibrit Oyuncu Listeleri</strong></td>
+<td>Lig/Fikstür'den otomatik al veya maça özel düzenle</td>
+</tr>
+<tr>
+<td><strong>📱 Push Bildirimler</strong></td>
+<td>Maç hatırlatmaları, davetler, skor güncellemeleri</td>
+</tr>
+<tr>
+<td><strong>📊 Detaylı İstatistikler</strong></td>
+<td>Oyuncu/takım istatistikleri, trend analizi, karşılaştırma</td>
+</tr>
+<tr>
+<td><strong>🎯 Çoklu Spor Desteği</strong></td>
+<td>Futbol, Basketbol, Voleybol, Tenis, Masa Tenisi, Badminton</td>
+</tr>
+<tr>
+<td><strong>💬 Sosyal Özellikler</strong></td>
+<td>Yorumlar, beğeniler, davetler, aktivite akışı</td>
+</tr>
+<tr>
+<td><strong>📴 Offline Destek</strong></td>
+<td>Firebase offline persistence</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="2-teknoloji-y%C4%B1%C4%9F%C4%B1n%C4%B1">2. Teknoloji Yığını</h2>
+<h3 id="21-frontend">2.1 Frontend</h3>
+<pre class="hljs"><code><div>Framework:        React Native <span class="hljs-number">0.73</span>+
+Dil:              TypeScript <span class="hljs-number">5.0</span>+
+Navigation:       React Navigation <span class="hljs-number">6</span>
+State Management: Redux Toolkit + RTK Query
+UI Library:       React Native Paper / NativeBase / Tamagui
+Icons:            React Native Vector Icons
+Charts:           Victory Native / React Native Chart Kit
+Forms:            React Hook Form + Zod
+Camera/Gallery:   React Native Image Picker
+<span class="hljs-built_in">Date</span> Picker:      React Native <span class="hljs-built_in">Date</span> Picker
+Maps:             React Native Maps
+Animations:       React Native Reanimated
+</div></code></pre>
+<h3 id="22-backend">2.2 Backend</h3>
+<pre class="hljs"><code><div>Platform:         Firebase
+Kimlik Doğrulama: Firebase Authentication (Email/Google/Apple)
+Veritabanı:       Cloud Firestore (<span class="hljs-number">24</span> Collections)
+Depolama:         Firebase Storage (Profil fotoğrafları, belgeler)
+Fonksiyonlar:     Cloud Functions (Node.js)
+Push Bildirimleri: Firebase Cloud Messaging (FCM)
+Analytics:        Firebase Analytics
+Crash Reporting:  Firebase Crashlytics
+Performance:      Firebase Performance Monitoring
+A/B Testing:      Firebase Remote Config
+</div></code></pre>
+<h3 id="23-geli%C5%9Ftirme-ara%C3%A7lar%C4%B1">2.3 Geliştirme Araçları</h3>
+<pre class="hljs"><code><div>Paket Yöneticisi:     npm / yarn
+Build Sistemi:        Metro Bundler
+Linter:               ESLint (@react-native-community)
+Formatter:            Prettier
+Type Checker:         TypeScript
+Versiyon Kontrol:     Git
+CI/CD:                GitHub Actions / Bitrise / Fastlane
+Test Framework:       Jest
+Test Library:         React Native Testing Library
+E2E Testing:          Detox / Appium
+Debugging:            Flipper / Reactotron
+API Testing:          Postman / Insomnia
+Code Coverage:        Istanbul
+Documentation:        JSDoc / TypeDoc
+</div></code></pre>
+<hr>
+<h2 id="3-mimari-yap%C4%B1">3. Mimari Yapı</h2>
+<h3 id="31-proje-klas%C3%B6r-yap%C4%B1s%C4%B1">3.1 Proje Klasör Yapısı</h3>
+<pre class="hljs"><code><div>sport-management-app/
+├── src/
+│   ├── navigation/                 # React Navigation
+│   │   ├── AppNavigator.tsx       # Root navigator
+│   │   ├── AuthNavigator.tsx      # Auth stack
+│   │   ├── MainNavigator.tsx      # Main tab navigator
+│   │   ├── LeagueNavigator.tsx    # League stack
+│   │   ├── MatchNavigator.tsx     # Match stack
+│   │   ├── PlayerNavigator.tsx    # Player stack
+│   │   ├── ProfileNavigator.tsx   # Profile stack
+│   │   └── types.ts               # Navigation types
+│   │
+│   ├── screens/                   # Ekranlar (60+)
+│   │   ├── auth/                  # Auth ekranları
+│   │   │   ├── LoginScreen.tsx
+│   │   │   ├── RegisterScreen.tsx
+│   │   │   ├── ForgotPasswordScreen.tsx
+│   │   │   └── OnboardingScreen.tsx
+│   │   │
+│   │   ├── dashboard/             # Dashboard
+│   │   │   ├── DashboardScreen.tsx
+│   │   │   ├── HomeScreen.tsx
+│   │   │   └── NotificationsScreen.tsx
+│   │   │
+│   │   ├── leagues/               # Lig ekranları (12)
+│   │   │   ├── LeaguesListScreen.tsx
+│   │   │   ├── LeagueDetailScreen.tsx
+│   │   │   ├── CreateLeagueScreen.tsx
+│   │   │   ├── EditLeagueScreen.tsx
+│   │   │   ├── StandingsScreen.tsx
+│   │   │   ├── FixturesScreen.tsx
+│   │   │   ├── CreateFixtureScreen.tsx
+│   │   │   ├── EditFixtureScreen.tsx
+│   │   │   ├── MembersScreen.tsx
+│   │   │   ├── InviteMembersScreen.tsx
+│   │   │   ├── LeagueSettingsScreen.tsx
+│   │   │   └── SeasonHistoryScreen.tsx
+│   │   │
+│   │   ├── matches/               # Maç ekranları (18)
+│   │   │   ├── MatchesListScreen.tsx
+│   │   │   ├── MatchDetailScreen.tsx
+│   │   │   ├── CreateLeagueMatchScreen.tsx
+│   │   │   ├── CreateFriendlyMatchScreen.tsx
+│   │   │   ├── MatchRegistrationScreen.tsx
+│   │   │   ├── TeamBuilderScreen.tsx
+│   │   │   ├── PlayerSelectionScreen.tsx
+│   │   │   ├── PositionAssignmentScreen.tsx
+│   │   │   ├── MatchLiveScreen.tsx
+│   │   │   ├── ScoreInputScreen.tsx
+│   │   │   ├── GoalScorersScreen.tsx
+│   │   │   ├── MatchRatingScreen.tsx
+│   │   │   ├── MVPSelectionScreen.tsx
+│   │   │   ├── MatchPaymentsScreen.tsx
+│   │   │   ├── MatchCommentsScreen.tsx
+│   │   │   ├── MatchInvitationsScreen.tsx
+│   │   │   ├── MatchHistoryScreen.tsx
+│   │   │   └── UpcomingMatchesScreen.tsx
+│   │   │
+│   │   ├── players/               # Oyuncu ekranları (10)
+│   │   │   ├── PlayersListScreen.tsx
+│   │   │   ├── PlayerDetailScreen.tsx
+│   │   │   ├── PlayerStatsScreen.tsx
+│   │   │   ├── PlayerHistoryScreen.tsx
+│   │   │   ├── PlayerAchievementsScreen.tsx
+│   │   │   ├── PlayerRatingHistoryScreen.tsx
+│   │   │   ├── PlayerCompareScreen.tsx
+│   │   │   ├── SearchPlayersScreen.tsx
+│   │   │   ├── InvitePlayerScreen.tsx
+│   │   │   └── BlockedPlayersScreen.tsx
+│   │   │
+│   │   └── profile/               # Profil ekranları (11)
+│   │       ├── ProfileScreen.tsx
+│   │       ├── EditProfileScreen.tsx
+│   │       ├── MyStatsScreen.tsx
+│   │       ├── MyMatchesScreen.tsx
+│   │       ├── MyLeaguesScreen.tsx
+│   │       ├── MyAchievementsScreen.tsx
+│   │       ├── SettingsScreen.tsx
+│   │       ├── NotificationSettingsScreen.tsx
+│   │       ├── PrivacySettingsScreen.tsx
+│   │       ├── AppearanceSettingsScreen.tsx
+│   │       └── AccountSettingsScreen.tsx
+│   │
+│   ├── components/                # React Native Bileşenleri
+│   │   ├── ui/                    # Temel UI bileşenleri
+│   │   │   ├── Button.tsx
+│   │   │   ├── Input.tsx
+│   │   │   ├── Card.tsx
+│   │   │   ├── Modal.tsx
+│   │   │   ├── Badge.tsx
+│   │   │   ├── Avatar.tsx
+│   │   │   ├── Loading.tsx
+│   │   │   ├── EmptyState.tsx
+│   │   │   ├── ErrorBoundary.tsx
+│   │   │   └── ...
+│   │   │
+│   │   ├── league/                # Lig bileşenleri
+│   │   │   ├── LeagueCard.tsx
+│   │   │   ├── LeagueForm.tsx
+│   │   │   ├── StandingsTable.tsx
+│   │   │   ├── SeasonSelector.tsx
+│   │   │   ├── FixtureCard.tsx
+│   │   │   └── ...
+│   │   │
+│   │   ├── match/                 # Maç bileşenleri
+│   │   │   ├── MatchCard.tsx
+│   │   │   ├── MatchListItem.tsx
+│   │   │   ├── TeamBuilder.tsx
+│   │   │   ├── ScoreInput.tsx
+│   │   │   ├── PlayerSelector.tsx
+│   │   │   ├── RatingStars.tsx
+│   │   │   ├── CommentItem.tsx
+│   │   │   └── ...
+│   │   │
+│   │   ├── player/                # Oyuncu bileşenleri
+│   │   │   ├── PlayerCard.tsx
+│   │   │   ├── PlayerAvatar.tsx
+│   │   │   ├── StatsWidget.tsx
+│   │   │   ├── RatingForm.tsx
+│   │   │   ├── PerformanceChart.tsx
+│   │   │   ├── AchievementBadge.tsx
+│   │   │   └── ...
+│   │   │
+│   │   └── layout/                # Layout bileşenleri
+│   │       ├── Header.tsx
+│   │       ├── TabBar.tsx
+│   │       ├── DrawerContent.tsx
+│   │       ├── BottomSheet.tsx
+│   │       └── SafeAreaView.tsx
+│   │
+│   ├── api/                       # Firebase API Katmanı
+│   │   ├── base/
+│   │   │   ├── BaseAPI.ts         # Base CRUD operations
+│   │   │   ├── ApiError.ts        # Error handling
+│   │   │   └── ApiLogger.ts       # Logging utility
+│   │   │
+│   │   ├── PlayerAPI.ts           # users collection
+│   │   ├── LeagueAPI.ts           # leagues collection
+│   │   ├── SeasonAPI.ts           # seasons collection
+│   │   ├── FixtureAPI.ts          # fixtures collection
+│   │   ├── MatchAPI.ts            # matches collection
+│   │   ├── StandingsAPI.ts        # standings collection
+│   │   ├── PlayerStatsAPI.ts      # player_stats collection
+│   │   ├── RatingAPI.ts           # ratings collection
+│   │   ├── CommentAPI.ts          # comments collection
+│   │   ├── InvitationAPI.ts       # invitations collection
+│   │   ├── NotificationAPI.ts     # notifications collection
+│   │   ├── ActivityLogAPI.ts      # activity_logs collection
+│   │   ├── AppConfigAPI.ts        # app_config collection
+│   │   ├── UserSettingsAPI.ts     # user_settings collection
+│   │   ├── LeagueSettingsAPI.ts   # league_settings collection
+│   │   ├── FAQAPI.ts              # faqs collection
+│   │   ├── AnnouncementAPI.ts     # announcements collection
+│   │   ├── FeedbackAPI.ts         # feedbacks collection
+│   │   ├── PlayerProfileAPI.ts    # player_profiles collection
+│   │   ├── RatingProfileAPI.ts    # player_rating_profiles collection
+│   │   ├── FriendlyConfigAPI.ts   # friendly_match_configs collection
+│   │   └── index.ts               # Tüm API'leri export
+│   │
+│   ├── services/                  # İş Mantığı Katmanı
+│   │   ├── AuthService.ts         # Kimlik doğrulama
+│   │   ├── LeagueService.ts       # Lig işlemleri
+│   │   ├── MatchService.ts        # Maç yaşam döngüsü
+│   │   ├── PlayerService.ts       # Oyuncu işlemleri
+│   │   ├── StandingsService.ts    # Puan durumu
+│   │   ├── RatingService.ts       # Rating hesaplama
+│   │   ├── PaymentService.ts      # Ödeme yönetimi
+│   │   ├── NotificationService.ts # FCM entegrasyonu
+│   │   ├── StorageService.ts      # Firebase Storage
+│   │   ├── AnalyticsService.ts    # Firebase Analytics
+│   │   └── index.ts
+│   │
+│   ├── store/                     # Redux Store
+│   │   ├── slices/
+│   │   │   ├── authSlice.ts
+│   │   │   ├── leagueSlice.ts
+│   │   │   ├── matchSlice.ts
+│   │   │   ├── playerSlice.ts
+│   │   │   ├── notificationSlice.ts
+│   │   │   └── uiSlice.ts
+│   │   ├── hooks.ts               # Typed hooks
+│   │   └── store.ts               # Store configuration
+│   │
+│   ├── types/                     # TypeScript Tip Tanımları
+│   │   ├── index.ts               # Tüm type'lar (24 collection)
+│   │   ├── navigation.types.ts    # Navigation types
+│   │   └── api.types.ts           # API types
+│   │
+│   ├── hooks/                     # Custom React Hooks
+│   │   ├── useAuth.ts
+│   │   ├── useLeague.ts
+│   │   ├── useMatch.ts
+│   │   ├── usePlayer.ts
+│   │   ├── useNotifications.ts
+│   │   ├── usePushNotifications.ts
+│   │   ├── useDebounce.ts
+│   │   ├── useKeyboard.ts
+│   │   └── ...
+│   │
+│   ├── utils/                     # Yardımcı Fonksiyonlar
+│   │   ├── date.ts                # Tarih formatla
+│   │   ├── format.ts              # String/number formatla
+│   │   ├── validation.ts          # Form validasyon
+│   │   ├── permissions.ts         # Permission check
+│   │   ├── storage.ts             # AsyncStorage wrapper
+│   │   ├── encryption.ts          # Şifreleme
+│   │   └── helpers.ts             # Genel yardımcılar
+│   │
+│   ├── config/                    # Konfigürasyon
+│   │   ├── firebase.config.ts     # Firebase init
+│   │   ├── constants.ts           # Sabitler
+│   │   ├── theme.ts               # Tema (renkler, fontlar)
+│   │   ├── routes.ts              # Route isimleri
+│   │   └── env.ts                 # Environment wrapper
+│   │
+│   ├── assets/                    # Statik Dosyalar
+│   │   ├── images/
+│   │   ├── icons/
+│   │   ├── fonts/
+│   │   └── animations/            # Lottie files
+│   │
+│   └── styles/                    # Global Stiller
+│       ├── colors.ts
+│       ├── typography.ts
+│       ├── spacing.ts
+│       ├── shadows.ts
+│       └── theme.ts
+│
+├── android/                       # Android Native Kod
+│   ├── app/
+│   │   ├── src/
+│   │   ├── build.gradle
+│   │   └── google-services.json
+│   └── build.gradle
+│
+├── ios/                           # iOS Native Kod
+│   ├── YourApp/
+│   │   ├── Info.plist
+│   │   └── GoogleService-Info.plist
+│   ├── YourApp.xcodeproj/
+│   └── Podfile
+│
+├── firebase/                      # Firebase Konfigürasyon
+│   ├── firestore.rules
+│   ├── firestore.indexes.json
+│   ├── firebase.json
+│   └── functions/
+│       ├── src/
+│       │   ├── index.ts
+│       │   ├── notifications.ts
+│       │   └── triggers.ts
+│       └── package.json
+│
+├── __tests__/                     # Test dosyaları
+│   ├── components/
+│   ├── services/
+│   ├── utils/
+│   └── integration/
+│
+├── e2e/                           # E2E test (Detox)
+│   ├── config.json
+│   └── firstTest.e2e.ts
+│
+├── .env                           # Environment variables
+├── .env.example
+├── .eslintrc.js
+├── .prettierrc
+├── .gitignore
+├── app.json
+├── babel.config.js
+├── metro.config.js
+├── package.json
+├── tsconfig.json
+└── README.md
+</div></code></pre>
+<h3 id="32-mimari-katmanlar">3.2 Mimari Katmanlar</h3>
+<pre class="hljs"><code><div>┌─────────────────────────────────────────────┐
+│        PRESENTATION LAYER (UI)              │
+│  React Native Screens &amp; Components          │
+│                                             │
+│  • Navigation (React Navigation)            │
+│  • Screens (60+ ekran)                     │
+│  • Components (UI/League/Match/Player)     │
+│  • Modals, BottomSheets, Animations       │
+└─────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────┐
+│        STATE MANAGEMENT LAYER               │
+│  Redux Toolkit / Zustand                    │
+│                                             │
+│  • Auth State                               │
+│  • League/Match/Player State               │
+│  • UI State (Loading, Errors, Modals)     │
+│  • Notification State                      │
+└─────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────┐
+│        BUSINESS LOGIC LAYER                 │
+│  Services &amp; Custom Hooks                    │
+│                                             │
+│  • LeagueService                            │
+│  • MatchService (Lifecycle)                │
+│  • PlayerService                            │
+│  • RatingService (MVP calc)                │
+│  • NotificationService (FCM)               │
+└─────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────┐
+│        DATA ACCESS LAYER                    │
+│  Firebase SDK &amp; API Classes                 │
+│                                             │
+│  • BaseAPI (CRUD operations)                │
+│  • 22+ Specialized API classes              │
+│  • Offline Persistence                      │
+│  • Cache Strategy                           │
+└─────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────┐
+│        FIREBASE BACKEND                     │
+│  Firestore, Auth, Storage, FCM              │
+│                                             │
+│  • 24 Collections                           │
+│  • Cloud Functions (Triggers, HTTPS)       │
+│  • Push Notifications (FCM)                │
+│  • Analytics &amp; Crashlytics                 │
+└─────────────────────────────────────────────┘
+</div></code></pre>
+<hr>
+<h2 id="4-veritaban%C4%B1-%C5%9Femas%C4%B1">4. Veritabanı Şeması</h2>
+<h3 id="41-collectionlar-24-adet">4.1 Collection'lar (24 Adet)</h3>
+<h4 id="%F0%9F%8E%AF-core-collections-7">🎯 CORE Collections (7)</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Collection</th>
+<th>Açıklama</th>
+<th>Cache Alanları</th>
+<th>İlişkiler</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>users</strong></td>
+<td>Kullanıcı/Oyuncu temel bilgileri</td>
+<td>-</td>
+<td>→ user_settings, player_profiles</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>leagues</strong></td>
+<td>Lig tanımı</td>
+<td>totalSeasons, totalMatches, totalMembers</td>
+<td>→ seasons, fixtures, matches</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>seasons</strong></td>
+<td>Sezon tanımı (örn: 2025 İlkbahar)</td>
+<td>summary (topScorer, MVP)</td>
+<td>→ league, standings</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>fixtures</strong></td>
+<td>Tekrarlayan maç şablonu</td>
+<td>totalMatches, nextMatchDate</td>
+<td>→ league, matches</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>matches</strong></td>
+<td>Maç (League/Friendly)</td>
+<td>ratingSummary, mvp, totalComments</td>
+<td>→ league, season, ratings</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>standings</strong></td>
+<td>Puan durumu (sezon bazlı)</td>
+<td>playerName, performance.*</td>
+<td>→ league, season</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>player_stats</strong></td>
+<td>Oyuncu istatistikleri</td>
+<td>hesaplanmış metrikler</td>
+<td>→ player, league, season</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%F0%9F%92%AC-interaction-collections-5">💬 INTERACTION Collections (5)</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Collection</th>
+<th>Açıklama</th>
+<th>Cache Alanları</th>
+<th>İlişkiler</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8</td>
+<td><strong>ratings</strong></td>
+<td>Maç sonrası oyuncu puanlaması</td>
+<td>-</td>
+<td>→ match, rater, rated player</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>comments</strong></td>
+<td>Maç yorumları</td>
+<td>playerName, playerPhoto</td>
+<td>→ match, player</td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>invitations</strong></td>
+<td>Maça davet sistemi</td>
+<td>inviterName, inviteeName</td>
+<td>→ match, inviter, invitee</td>
+</tr>
+<tr>
+<td>11</td>
+<td><strong>notifications</strong></td>
+<td>Kullanıcı bildirimleri</td>
+<td>-</td>
+<td>→ user, related entity</td>
+</tr>
+<tr>
+<td>12</td>
+<td><strong>activity_logs</strong></td>
+<td>Aktivite kayıtları (audit trail)</td>
+<td>userName, entityName</td>
+<td>→ user, entity</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%E2%9A%99%EF%B8%8F-configuration-collections-4">⚙️ CONFIGURATION Collections (4)</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Collection</th>
+<th>Açıklama</th>
+<th>Cache Alanları</th>
+<th>İlişkiler</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>13</td>
+<td><strong>app_config</strong></td>
+<td>Global ayarlar (singleton, id='main')</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr>
+<td>14</td>
+<td><strong>user_settings</strong></td>
+<td>Kullanıcı özel ayarları</td>
+<td>quickActions</td>
+<td>→ user</td>
+</tr>
+<tr>
+<td>15</td>
+<td><strong>league_settings</strong></td>
+<td>Lig özel ayarları ve kuralları</td>
+<td>-</td>
+<td>→ league</td>
+</tr>
+<tr>
+<td>16</td>
+<td><strong>system_logs</strong></td>
+<td>Sistem hata ve bilgi logları</td>
+<td>-</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%F0%9F%93%84-content-collections-3">📄 CONTENT Collections (3)</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Collection</th>
+<th>Açıklama</th>
+<th>Cache Alanları</th>
+<th>İlişkiler</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>17</td>
+<td><strong>faqs</strong></td>
+<td>Sıkça sorulan sorular</td>
+<td>views, helpful, notHelpful</td>
+<td>-</td>
+</tr>
+<tr>
+<td>18</td>
+<td><strong>announcements</strong></td>
+<td>Duyurular (global/lig bazlı)</td>
+<td>stats (views, clicks)</td>
+<td>→ league (optional)</td>
+</tr>
+<tr>
+<td>19</td>
+<td><strong>feedbacks</strong></td>
+<td>Kullanıcı geri bildirimleri</td>
+<td>userName, userEmail</td>
+<td>→ user</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%F0%9F%91%A4-profiles--configs-collections-5">👤 PROFILES &amp; CONFIGS Collections (5)</h4>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Collection</th>
+<th>Açıklama</th>
+<th>Cache Alanları</th>
+<th>İlişkiler</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>20</td>
+<td><strong>player_profiles</strong></td>
+<td>Oyuncu genel profil özeti (cross-league)</td>
+<td>TÜM ALAN CACHE</td>
+<td>→ player</td>
+</tr>
+<tr>
+<td>21</td>
+<td><strong>player_rating_profiles</strong></td>
+<td>Oyuncu rating profili (detaylı trend)</td>
+<td>TÜM ALAN CACHE</td>
+<td>→ player, league, season</td>
+</tr>
+<tr>
+<td>22</td>
+<td><strong>friendly_match_configs</strong></td>
+<td>Dostluk maç oluşturma tercihleri</td>
+<td>recentSettings</td>
+<td>→ organizer</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-i%CC%87li%C5%9Fki-diyagram%C4%B1">4.2 İlişki Diyagramı</h3>
+<pre class="hljs"><code><div>users (IPlayer)
+  ↓
+  ├─→ leagues (member, admin, creator)
+  ├─→ user_settings (1:1)
+  ├─→ player_profiles (1:1)
+  ├─→ player_rating_profiles (1:many - per league/season)
+  ├─→ friendly_match_configs (1:1)
+  ├─→ notifications (1:many)
+  └─→ feedbacks (1:many)
+
+leagues (ILeague)
+  ↓
+  ├─→ seasons (1:many)
+  ├─→ fixtures (1:many)
+  ├─→ matches (1:many)
+  ├─→ standings (many via seasons)
+  ├─→ player_stats (many via seasons)
+  ├─→ league_settings (1:1)
+  └─→ announcements (many)
+
+seasons (ISeason)
+  ↓
+  ├─→ standings (1:1)
+  ├─→ matches (1:many)
+  └─→ player_stats (1:many)
+
+fixtures (IFixture)
+  ↓
+  └─→ matches (1:many - only LEAGUE type)
+
+matches (IMatch)
+  ↓
+  ├─→ ratings (1:many)
+  ├─→ comments (1:many)
+  ├─→ invitations (1:many)
+  └─→ notifications (1:many)
+</div></code></pre>
+<hr>
+<h2 id="5-api-dok%C3%BCmantasyonu">5. API Dokümantasyonu</h2>
+<h3 id="51-api-katman-yap%C4%B1s%C4%B1">5.1 API Katman Yapısı</h3>
+<p><strong>BaseAPI</strong> tüm collection'lar için temel CRUD işlemlerini sağlar:</p>
+<pre class="hljs"><code><div><span class="hljs-keyword">export</span> <span class="hljs-keyword">class</span> BaseAPI&lt;T <span class="hljs-keyword">extends</span> { id?: <span class="hljs-built_in">string</span> }&gt; {
+  <span class="hljs-comment">// CRUD Operations</span>
+  <span class="hljs-keyword">async</span> create(data: Omit&lt;T, <span class="hljs-string">'id'</span>&gt;): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;T&gt;&gt;
+  <span class="hljs-keyword">async</span> createWithId(id: <span class="hljs-built_in">string</span>, data: Omit&lt;T, <span class="hljs-string">'id'</span>&gt;): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;T&gt;&gt;
+  <span class="hljs-keyword">async</span> getById(id: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;T&gt;&gt;
+  <span class="hljs-keyword">async</span> getAll(options?: QueryOptions): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;T[]&gt;&gt;
+  <span class="hljs-keyword">async</span> getPaginated(options: PaginationOptions): <span class="hljs-built_in">Promise</span>&lt;PaginatedResult&lt;T&gt;&gt;
+  <span class="hljs-keyword">async</span> update(id: <span class="hljs-built_in">string</span>, data: Partial&lt;T&gt;): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;T&gt;&gt;
+  <span class="hljs-keyword">async</span> <span class="hljs-keyword">delete</span>(id: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;<span class="hljs-built_in">void</span>&gt;&gt;
+  
+  <span class="hljs-comment">// Utility</span>
+  <span class="hljs-keyword">async</span> exists(id: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;<span class="hljs-built_in">boolean</span>&gt;&gt;
+  <span class="hljs-keyword">async</span> count(options?: QueryOptions): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;<span class="hljs-built_in">number</span>&gt;&gt;
+  
+  <span class="hljs-comment">// Batch Operations</span>
+  createBatch(): WriteBatch
+  <span class="hljs-keyword">async</span> executeBatch(batch: WriteBatch): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;<span class="hljs-built_in">void</span>&gt;&gt;
+}
+</div></code></pre>
+<h3 id="52-t%C3%BCm-api-classlar%C4%B1">5.2 Tüm API Class'ları</h3>
+<table>
+<thead>
+<tr>
+<th>API Class</th>
+<th>Collection</th>
+<th>Özel Methodlar</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>PlayerAPI</strong></td>
+<td>users</td>
+<td><code>getByEmail()</code>, <code>getByPhone()</code>, <code>searchPlayers()</code>, <code>getByIds()</code>, <code>updateLastLogin()</code></td>
+</tr>
+<tr>
+<td><strong>LeagueAPI</strong></td>
+<td>leagues</td>
+<td><code>getBySportType()</code>, <code>getByCreator()</code>, <code>getByMember()</code>, <code>addMember()</code>, <code>removeMember()</code>, <code>addAdmin()</code>, <code>removeAdmin()</code>, <code>isAdmin()</code>, <code>updateDefaultPlayers()</code></td>
+</tr>
+<tr>
+<td><strong>SeasonAPI</strong></td>
+<td>seasons</td>
+<td><code>getByLeague()</code>, <code>getActiveSeason()</code>, <code>getByStatus()</code>, <code>updateStatus()</code>, <code>updateSummary()</code>, <code>getLatestSeasonNumber()</code></td>
+</tr>
+<tr>
+<td><strong>FixtureAPI</strong></td>
+<td>fixtures</td>
+<td><code>getByLeague()</code>, <code>getActiveFixtures()</code>, <code>updatePlayerListConfig()</code>, <code>updateSchedule()</code>, <code>updateVenue()</code>, <code>toggleStatus()</code>, <code>incrementTotalMatches()</code></td>
+</tr>
+<tr>
+<td><strong>MatchAPI</strong></td>
+<td>matches</td>
+<td><code>getByLeague()</code>, <code>getBySeason()</code>, <code>getByFixture()</code>, <code>getByType()</code>, <code>getByStatus()</code>, <code>getUpcomingMatches()</code>, <code>getByOrganizer()</code>, <code>registerPlayer()</code>, <code>unregisterPlayer()</code>, <code>addGuestPlayer()</code>, <code>setTeams()</code>, <code>updateScore()</code>, <code>updateMVP()</code>, <code>updatePayment()</code>, <code>getPlayerMatches()</code></td>
+</tr>
+<tr>
+<td><strong>StandingsAPI</strong></td>
+<td>standings</td>
+<td><code>getByLeagueAndSeason()</code>, <code>updatePlayerStanding()</code>, <code>addPlayer()</code>, <code>sortStandings()</code></td>
+</tr>
+<tr>
+<td><strong>PlayerStatsAPI</strong></td>
+<td>player_stats</td>
+<td><code>getByPlayer()</code>, <code>getBySeason()</code>, <code>updateStats()</code>, <code>calculateMetrics()</code>, <code>recalculateAll()</code></td>
+</tr>
+<tr>
+<td><strong>RatingAPI</strong></td>
+<td>ratings</td>
+<td><code>getByMatch()</code>, <code>getByPlayer()</code>, <code>calculateAverage()</code>, <code>getMVPCandidate()</code>, <code>getTopRated()</code></td>
+</tr>
+<tr>
+<td><strong>CommentAPI</strong></td>
+<td>comments</td>
+<td><code>getByMatch()</code>, <code>approve()</code>, <code>toggleLike()</code>, <code>getByPlayer()</code></td>
+</tr>
+<tr>
+<td><strong>InvitationAPI</strong></td>
+<td>invitations</td>
+<td><code>getByMatch()</code>, <code>getByUser()</code>, <code>accept()</code>, <code>decline()</code>, <code>expire()</code></td>
+</tr>
+<tr>
+<td><strong>NotificationAPI</strong></td>
+<td>notifications</td>
+<td><code>getByUser()</code>, <code>getUnread()</code>, <code>markAsRead()</code>, <code>markAllAsRead()</code>, <code>sendPush()</code></td>
+</tr>
+<tr>
+<td><strong>ActivityLogAPI</strong></td>
+<td>activity_logs</td>
+<td><code>getByEntity()</code>, <code>getByUser()</code>, <code>getRecent()</code></td>
+</tr>
+<tr>
+<td><strong>AppConfigAPI</strong></td>
+<td>app_config</td>
+<td><code>get()</code> (singleton), <code>update()</code>, <code>getFeatureFlag()</code></td>
+</tr>
+<tr>
+<td><strong>UserSettingsAPI</strong></td>
+<td>user_settings</td>
+<td><code>getByUser()</code>, <code>updateNotifications()</code>, <code>updatePrivacy()</code>, <code>updatePreferences()</code></td>
+</tr>
+<tr>
+<td><strong>LeagueSettingsAPI</strong></td>
+<td>league_settings</td>
+<td><code>getByLeague()</code>, <code>updateRules()</code>, <code>updateMatchRules()</code>, <code>updateRating()</code></td>
+</tr>
+<tr>
+<td><strong>FAQAPI</strong></td>
+<td>faqs</td>
+<td><code>getByCategory()</code>, <code>getPublished()</code>, <code>incrementViews()</code>, <code>markHelpful()</code></td>
+</tr>
+<tr>
+<td><strong>AnnouncementAPI</strong></td>
+<td>announcements</td>
+<td><code>getActive()</code>, <code>getByScope()</code>, <code>incrementViews()</code></td>
+</tr>
+<tr>
+<td><strong>FeedbackAPI</strong></td>
+<td>feedbacks</td>
+<td><code>getByUser()</code>, <code>getByStatus()</code>, <code>updateStatus()</code>, <code>addResponse()</code></td>
+</tr>
+<tr>
+<td><strong>PlayerProfileAPI</strong></td>
+<td>player_profiles</td>
+<td><code>getByPlayer()</code>, <code>updateSummary()</code>, <code>addAchievement()</code></td>
+</tr>
+<tr>
+<td><strong>RatingProfileAPI</strong></td>
+<td>player_rating_profiles</td>
+<td><code>getByPlayer()</code>, <code>updateProfile()</code>, <code>calculateTrend()</code></td>
+</tr>
+<tr>
+<td><strong>FriendlyConfigAPI</strong></td>
+<td>friendly_match_configs</td>
+<td><code>getByOrganizer()</code>, <code>updateDefaults()</code>, <code>addTemplate()</code>, <code>updateRecentSettings()</code></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="6-servis-katman%C4%B1">6. Servis Katmanı</h2>
+<h3 id="61-servis-yap%C4%B1s%C4%B1">6.1 Servis Yapısı</h3>
+<p>Servis katmanı, API'leri kullanarak karmaşık iş mantığını yönetir.</p>
+<p><strong>Örnek: MatchService</strong></p>
+<pre class="hljs"><code><div><span class="hljs-keyword">export</span> <span class="hljs-keyword">class</span> MatchService {
+  <span class="hljs-comment">// ============================================</span>
+  <span class="hljs-comment">// MAÇ YAŞAM DÖNGÜSÜ</span>
+  <span class="hljs-comment">// ============================================</span>
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> createLeagueMatch(fixtureId: <span class="hljs-built_in">string</span>, date: <span class="hljs-built_in">Date</span>): <span class="hljs-built_in">Promise</span>&lt;IMatch&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> createFriendlyMatch(data: CreateFriendlyMatchDTO): <span class="hljs-built_in">Promise</span>&lt;IMatch&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> openRegistration(matchId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> closeRegistration(matchId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> buildTeams(matchId: <span class="hljs-built_in">string</span>, algorithm: <span class="hljs-string">'random'</span> | <span class="hljs-string">'rating'</span> | <span class="hljs-string">'position'</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> startMatch(matchId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> submitScore(matchId: <span class="hljs-built_in">string</span>, scoreDTO: ScoreDTO): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> completeMatch(matchId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> cancelMatch(matchId: <span class="hljs-built_in">string</span>, reason: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  
+  <span class="hljs-comment">// ============================================</span>
+  <span class="hljs-comment">// OYUNCU YÖNETİMİ</span>
+  <span class="hljs-comment">// ============================================</span>
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> registerPlayerToMatch(matchId: <span class="hljs-built_in">string</span>, playerId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> unregisterPlayer(matchId: <span class="hljs-built_in">string</span>, playerId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> moveToReserve(matchId: <span class="hljs-built_in">string</span>, playerId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> addGuestPlayer(matchId: <span class="hljs-built_in">string</span>, playerId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  
+  <span class="hljs-comment">// ============================================</span>
+  <span class="hljs-comment">// SKOR &amp; RATING</span>
+  <span class="hljs-comment">// ============================================</span>
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> calculateMVP(matchId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">string</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> requestRatings(matchId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> updateRatingSummary(matchId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">void</span>&gt;
+  
+  <span class="hljs-comment">// ============================================</span>
+  <span class="hljs-comment">// HELPER METHODS</span>
+  <span class="hljs-comment">// ============================================</span>
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> getMatchById(matchId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;IMatch&gt;&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> getMatchesByLeague(leagueId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;ApiResponse&lt;IMatch[]&gt;&gt;
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> getUpcomingMatches(userId: <span class="hljs-built_in">string</span>): <span class="hljs-built_in">Promise</span>&lt;IMatch[]&gt;
+}
+</div></code></pre>
+<h3 id="62-t%C3%BCm-servisler">6.2 Tüm Servisler</h3>
+<table>
+<thead>
+<tr>
+<th>Servis</th>
+<th>Sorumluluk</th>
+<th>Ana Metodlar</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AuthService</strong></td>
+<td>Kimlik doğrulama, token yönetimi</td>
+<td><code>login()</code>, <code>register()</code>, <code>logout()</code>, <code>resetPassword()</code>, <code>getCurrentUser()</code></td>
+</tr>
+<tr>
+<td><strong>LeagueService</strong></td>
+<td>Lig oluşturma, üye yönetimi, sezon geçişleri</td>
+<td><code>createLeague()</code>, <code>addMember()</code>, <code>startNewSeason()</code>, <code>archiveOldSeasons()</code></td>
+</tr>
+<tr>
+<td><strong>MatchService</strong></td>
+<td>Maç yaşam döngüsü, takım kurma, skor yönetimi</td>
+<td><code>createMatch()</code>, <code>buildTeams()</code>, <code>submitScore()</code>, <code>completeMatch()</code></td>
+</tr>
+<tr>
+<td><strong>PlayerService</strong></td>
+<td>Oyuncu profili, istatistik hesaplama</td>
+<td><code>updateProfile()</code>, <code>calculateStats()</code>, <code>getPlayerSummary()</code></td>
+</tr>
+<tr>
+<td><strong>StandingsService</strong></td>
+<td>Puan durumu güncelleme, sıralama</td>
+<td><code>updateAfterMatch()</code>, <code>recalculateStandings()</code>, <code>sortByPoints()</code></td>
+</tr>
+<tr>
+<td><strong>RatingService</strong></td>
+<td>Rating hesaplama, MVP seçimi, trend analizi</td>
+<td><code>calculateAverage()</code>, <code>selectMVP()</code>, <code>analyzeTrend()</code></td>
+</tr>
+<tr>
+<td><strong>PaymentService</strong></td>
+<td>Ödeme takibi, hatırlatmalar</td>
+<td><code>trackPayment()</code>, <code>confirmPayment()</code>, <code>sendReminders()</code></td>
+</tr>
+<tr>
+<td><strong>NotificationService</strong></td>
+<td>Bildirim gönderme, FCM entegrasyonu</td>
+<td><code>sendPush()</code>, <code>sendBulk()</code>, <code>scheduleNotification()</code></td>
+</tr>
+<tr>
+<td><strong>StorageService</strong></td>
+<td>Dosya yükleme (profil fotoğrafı, belgeler)</td>
+<td><code>uploadImage()</code>, <code>deleteFile()</code>, <code>getDownloadURL()</code></td>
+</tr>
+<tr>
+<td><strong>AnalyticsService</strong></td>
+<td>Firebase Analytics entegrasyonu</td>
+<td><code>logEvent()</code>, <code>setUserProperty()</code>, <code>logScreenView()</code></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="7-ekran-ak%C4%B1%C5%9F%C4%B1--navigasyon">7. Ekran Akışı &amp; Navigasyon</h2>
+<h3 id="71-navigation-yap%C4%B1s%C4%B1-react-navigation">7.1 Navigation Yapısı (React Navigation)</h3>
+<pre class="hljs"><code><div>Root Navigator (Stack)
+│
+├─→ AuthNavigator (Stack) - Giriş yapılmadıysa
+│   ├── OnboardingScreen
+│   ├── LoginScreen
+│   ├── RegisterScreen
+│   └── ForgotPasswordScreen
+│
+└─→ MainNavigator (Tab) - Giriş yapıldıysa
+    ├── HomeTab (Stack)
+    │   ├── DashboardScreen
+    │   ├── NotificationsScreen
+    │   └── AnnouncementsScreen
+    │
+    ├── LeaguesTab (Stack)
+    │   ├── LeaguesListScreen
+    │   ├── LeagueDetailScreen
+    │   │   ├── StandingsScreen
+    │   │   ├── FixturesScreen
+    │   │   ├── MembersScreen
+    │   │   └── SettingsScreen
+    │   ├── CreateLeagueScreen
+    │   └── EditLeagueScreen
+    │
+    ├── MatchesTab (Stack)
+    │   ├── MatchesListScreen
+    │   ├── MatchDetailScreen
+    │   │   ├── TeamBuilderScreen
+    │   │   ├── ScoreInputScreen
+    │   │   ├── RatingScreen
+    │   │   ├── PaymentScreen
+    │   │   └── CommentsScreen
+    │   ├── CreateMatchScreen
+    │   └── MatchHistoryScreen
+    │
+    ├── PlayersTab (Stack)
+    │   ├── PlayersListScreen
+    │   ├── PlayerDetailScreen
+    │   │   ├── StatsScreen
+    │   │   ├── HistoryScreen
+    │   │   └── AchievementsScreen
+    │   └── PlayerCompareScreen
+    │
+    └── ProfileTab (Stack)
+        ├── ProfileScreen
+        ├── EditProfileScreen
+        ├── MyStatsScreen
+        ├── MyMatchesScreen
+        ├── SettingsScreen
+        │   ├── NotificationSettingsScreen
+        │   ├── PrivacySettingsScreen
+        │   └── AppearanceSettingsScreen
+        ├── HelpScreen
+        └── AboutScreen
+</div></code></pre>
+<h3 id="72-ana-ekran-listesi-60-ekran">7.2 Ana Ekran Listesi (60+ Ekran)</h3>
+<h4 id="%F0%9F%94%90-auth-screens-4">🔐 AUTH SCREENS (4)</h4>
+<table>
+<thead>
+<tr>
+<th>Ekran</th>
+<th>Route</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Onboarding</td>
+<td><code>/onboarding</code></td>
+<td>İlk açılış rehberi (3-4 sayfa)</td>
+</tr>
+<tr>
+<td>Login</td>
+<td><code>/login</code></td>
+<td>Email/Şifre giriş</td>
+</tr>
+<tr>
+<td>Register</td>
+<td><code>/register</code></td>
+<td>Kayıt formu</td>
+</tr>
+<tr>
+<td>ForgotPassword</td>
+<td><code>/forgot-password</code></td>
+<td>Şifre sıfırlama</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%F0%9F%8F%A0-homedashboard-screens-5">🏠 HOME/DASHBOARD SCREENS (5)</h4>
+<table>
+<thead>
+<tr>
+<th>Ekran</th>
+<th>Route</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dashboard</td>
+<td><code>/dashboard</code></td>
+<td>Ana ekran - özet kartlar, yaklaşan maçlar</td>
+</tr>
+<tr>
+<td>Notifications</td>
+<td><code>/notifications</code></td>
+<td>Bildirimler listesi (okunmuş/okunmamış)</td>
+</tr>
+<tr>
+<td>Announcements</td>
+<td><code>/announcements</code></td>
+<td>Duyurular</td>
+</tr>
+<tr>
+<td>QuickActions</td>
+<td><code>/quick-actions</code></td>
+<td>Hızlı işlemler (maç oluştur, kayıt ol)</td>
+</tr>
+<tr>
+<td>Search</td>
+<td><code>/search</code></td>
+<td>Global arama (lig, maç, oyuncu)</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%F0%9F%8F%86-league-screens-12">🏆 LEAGUE SCREENS (12)</h4>
+<table>
+<thead>
+<tr>
+<th>Ekran</th>
+<th>Route</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LeaguesList</td>
+<td><code>/leagues</code></td>
+<td>Lig listesi (katıldığım/tüm ligler)</td>
+</tr>
+<tr>
+<td>LeagueDetail</td>
+<td><code>/leagues/:id</code></td>
+<td>Lig ana sayfası (overview, son maçlar)</td>
+</tr>
+<tr>
+<td>CreateLeague</td>
+<td><code>/leagues/create</code></td>
+<td>Yeni lig oluştur formu</td>
+</tr>
+<tr>
+<td>EditLeague</td>
+<td><code>/leagues/:id/edit</code></td>
+<td>Lig düzenleme</td>
+</tr>
+<tr>
+<td>Standings</td>
+<td><code>/leagues/:id/standings</code></td>
+<td>Puan durumu tablosu</td>
+</tr>
+<tr>
+<td>Fixtures</td>
+<td><code>/leagues/:id/fixtures</code></td>
+<td>Fikstür listesi</td>
+</tr>
+<tr>
+<td>CreateFixture</td>
+<td><code>/leagues/:id/fixtures/create</code></td>
+<td>Fikstür oluştur</td>
+</tr>
+<tr>
+<td>EditFixture</td>
+<td><code>/leagues/:id/fixtures/:fixtureId/edit</code></td>
+<td>Fikstür düzenle</td>
+</tr>
+<tr>
+<td>Members</td>
+<td><code>/leagues/:id/members</code></td>
+<td>Lig üyeleri listesi</td>
+</tr>
+<tr>
+<td>InviteMembers</td>
+<td><code>/leagues/:id/invite</code></td>
+<td>Üye davet et</td>
+</tr>
+<tr>
+<td>LeagueSettings</td>
+<td><code>/leagues/:id/settings</code></td>
+<td>Lig ayarları (kurallar, ödeme vb.)</td>
+</tr>
+<tr>
+<td>SeasonHistory</td>
+<td><code>/leagues/:id/seasons</code></td>
+<td>Geçmiş sezonlar</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%E2%9A%BD-match-screens-18">⚽ MATCH SCREENS (18)</h4>
+<table>
+<thead>
+<tr>
+<th>Ekran</th>
+<th>Route</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MatchesList</td>
+<td><code>/matches</code></td>
+<td>Maç listesi (yaklaşan/geçmiş)</td>
+</tr>
+<tr>
+<td>MatchDetail</td>
+<td><code>/matches/:id</code></td>
+<td>Maç detay sayfası</td>
+</tr>
+<tr>
+<td>CreateLeagueMatch</td>
+<td><code>/matches/create/league</code></td>
+<td>Lig maçı oluştur</td>
+</tr>
+<tr>
+<td>CreateFriendlyMatch</td>
+<td><code>/matches/create/friendly</code></td>
+<td>Dostluk maçı oluştur</td>
+</tr>
+<tr>
+<td>MatchRegistration</td>
+<td><code>/matches/:id/register</code></td>
+<td>Maça kayıt ol</td>
+</tr>
+<tr>
+<td>TeamBuilder</td>
+<td><code>/matches/:id/teams</code></td>
+<td>Takımları oluştur/düzenle</td>
+</tr>
+<tr>
+<td>PlayerSelection</td>
+<td><code>/matches/:id/players</code></td>
+<td>Oyuncu seçimi</td>
+</tr>
+<tr>
+<td>PositionAssignment</td>
+<td><code>/matches/:id/positions</code></td>
+<td>Pozisyon atama</td>
+</tr>
+<tr>
+<td>MatchLive</td>
+<td><code>/matches/:id/live</code></td>
+<td>Canlı maç takibi (skor, olaylar)</td>
+</tr>
+<tr>
+<td>ScoreInput</td>
+<td><code>/matches/:id/score</code></td>
+<td>Skor girişi</td>
+</tr>
+<tr>
+<td>GoalScorers</td>
+<td><code>/matches/:id/scorers</code></td>
+<td>Gol/Asist girişi</td>
+</tr>
+<tr>
+<td>MatchRating</td>
+<td><code>/matches/:id/rate</code></td>
+<td>Oyuncuları değerlendir</td>
+</tr>
+<tr>
+<td>MVPSelection</td>
+<td><code>/matches/:id/mvp</code></td>
+<td>MVP seçimi (manuel)</td>
+</tr>
+<tr>
+<td>MatchPayments</td>
+<td><code>/matches/:id/payments</code></td>
+<td>Ödeme durumu listesi</td>
+</tr>
+<tr>
+<td>MatchComments</td>
+<td><code>/matches/:id/comments</code></td>
+<td>Yorumlar</td>
+</tr>
+<tr>
+<td>MatchInvitations</td>
+<td><code>/matches/:id/invitations</code></td>
+<td>Davet edilen oyuncular</td>
+</tr>
+<tr>
+<td>MatchHistory</td>
+<td><code>/matches/history</code></td>
+<td>Geçmiş maçlar</td>
+</tr>
+<tr>
+<td>UpcomingMatches</td>
+<td><code>/matches/upcoming</code></td>
+<td>Yaklaşan maçlar</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%F0%9F%91%A5-player-screens-10">👥 PLAYER SCREENS (10)</h4>
+<table>
+<thead>
+<tr>
+<th>Ekran</th>
+<th>Route</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PlayersList</td>
+<td><code>/players</code></td>
+<td>Oyuncu listesi (lig bazlı)</td>
+</tr>
+<tr>
+<td>PlayerDetail</td>
+<td><code>/players/:id</code></td>
+<td>Oyuncu profili</td>
+</tr>
+<tr>
+<td>PlayerStats</td>
+<td><code>/players/:id/stats</code></td>
+<td>Detaylı istatistikler</td>
+</tr>
+<tr>
+<td>PlayerHistory</td>
+<td><code>/players/:id/history</code></td>
+<td>Maç geçmişi</td>
+</tr>
+<tr>
+<td>PlayerAchievements</td>
+<td><code>/players/:id/achievements</code></td>
+<td>Başarılar ve rozetler</td>
+</tr>
+<tr>
+<td>PlayerRatingHistory</td>
+<td><code>/players/:id/ratings</code></td>
+<td>Rating geçmişi (grafik)</td>
+</tr>
+<tr>
+<td>PlayerCompare</td>
+<td><code>/players/compare</code></td>
+<td>Oyuncu karşılaştırma</td>
+</tr>
+<tr>
+<td>SearchPlayers</td>
+<td><code>/players/search</code></td>
+<td>Oyuncu ara</td>
+</tr>
+<tr>
+<td>InvitePlayer</td>
+<td><code>/players/invite</code></td>
+<td>Oyuncu davet et</td>
+</tr>
+<tr>
+<td>BlockedPlayers</td>
+<td><code>/players/blocked</code></td>
+<td>Engellenen oyuncular</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%F0%9F%91%A4-profile-screens-11">👤 PROFILE SCREENS (11)</h4>
+<table>
+<thead>
+<tr>
+<th>Ekran</th>
+<th>Route</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Profile</td>
+<td><code>/profile</code></td>
+<td>Profilim</td>
+</tr>
+<tr>
+<td>EditProfile</td>
+<td><code>/profile/edit</code></td>
+<td>Profil düzenle</td>
+</tr>
+<tr>
+<td>MyStats</td>
+<td><code>/profile/stats</code></td>
+<td>İstatistiklerim</td>
+</tr>
+<tr>
+<td>MyMatches</td>
+<td><code>/profile/matches</code></td>
+<td>Maçlarım</td>
+</tr>
+<tr>
+<td>MyLeagues</td>
+<td><code>/profile/leagues</code></td>
+<td>Ligallerim</td>
+</tr>
+<tr>
+<td>MyAchievements</td>
+<td><code>/profile/achievements</code></td>
+<td>Başarılarım</td>
+</tr>
+<tr>
+<td>Settings</td>
+<td><code>/settings</code></td>
+<td>Ayarlar</td>
+</tr>
+<tr>
+<td>NotificationSettings</td>
+<td><code>/settings/notifications</code></td>
+<td>Bildirim ayarları</td>
+</tr>
+<tr>
+<td>PrivacySettings</td>
+<td><code>/settings/privacy</code></td>
+<td>Gizlilik ayarları</td>
+</tr>
+<tr>
+<td>AppearanceSettings</td>
+<td><code>/settings/appearance</code></td>
+<td>Görünüm (tema, dil)</td>
+</tr>
+<tr>
+<td>AccountSettings</td>
+<td><code>/settings/account</code></td>
+<td>Hesap (şifre değiştir, hesap sil)</td>
+</tr>
+</tbody>
+</table>
+<h4 id="%E2%84%B9%EF%B8%8F-info-screens-6">ℹ️ INFO SCREENS (6)</h4>
+<table>
+<thead>
+<tr>
+<th>Ekran</th>
+<th>Route</th>
+<th>Açıklama</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Help</td>
+<td><code>/help</code></td>
+<td>Yardım merkezi</td>
+</tr>
+<tr>
+<td>FAQ</td>
+<td><code>/faq</code></td>
+<td>Sıkça sorulan sorular</td>
+</tr>
+<tr>
+<td>Contact</td>
+<td><code>/contact</code></td>
+<td>İletişim formu</td>
+</tr>
+<tr>
+<td>Feedback</td>
+<td><code>/feedback</code></td>
+<td>Geri bildirim gönder</td>
+</tr>
+<tr>
+<td>About</td>
+<td><code>/about</code></td>
+<td>Uygulama hakkında</td>
+</tr>
+<tr>
+<td>Terms</td>
+<td><code>/terms</code></td>
+<td>Kullanım şartları</td>
+</tr>
+</tbody>
+</table>
+<p><strong>TOPLAM: 66 Ekran</strong></p>
+<h3 id="73-tab-bar-yap%C4%B1s%C4%B1">7.3 Tab Bar Yapısı</h3>
+<pre class="hljs"><code><div>&lt;Tab.Navigator
+  screenOptions={{
+    tabBarActiveTintColor: <span class="hljs-string">'#16a34a'</span>,
+    tabBarInactiveTintColor: <span class="hljs-string">'#6b7280'</span>,
+    tabBarStyle: {
+      height: <span class="hljs-number">60</span>,
+      paddingBottom: <span class="hljs-number">8</span>,
+      paddingTop: <span class="hljs-number">8</span>,
+    }
+  }}
+&gt;
+  &lt;Tab.Screen
+    name=<span class="hljs-string">"Home"</span>
+    component={HomeNavigator}
+    options={{
+      tabBarIcon: <span class="hljs-function">(<span class="hljs-params">{ color, size }</span>) =&gt;</span> &lt;Home color={color} size={size} /&gt;,
+      tabBarLabel: <span class="hljs-string">'Ana Sayfa'</span>,
+    }}
+  /&gt;
+  
+  &lt;Tab.Screen
+    name=<span class="hljs-string">"Leagues"</span>
+    component={LeagueNavigator}
+    options={{
+      tabBarIcon: <span class="hljs-function">(<span class="hljs-params">{ color, size }</span>) =&gt;</span> &lt;Trophy color={color} size={size} /&gt;,
+      tabBarLabel: <span class="hljs-string">'Ligler'</span>,
+    }}
+  /&gt;
+  
+  &lt;Tab.Screen
+    name=<span class="hljs-string">"Matches"</span>
+    component={MatchNavigator}
+    options={{
+      tabBarIcon: <span class="hljs-function">(<span class="hljs-params">{ color, size }</span>) =&gt;</span> &lt;Calendar color={color} size={size} /&gt;,
+      tabBarLabel: <span class="hljs-string">'Maçlar'</span>,
+      tabBarBadge: upcomingMatchCount &gt; <span class="hljs-number">0</span> ? upcomingMatchCount : <span class="hljs-literal">undefined</span>,
+    }}
+  /&gt;
+  
+  &lt;Tab.Screen
+    name=<span class="hljs-string">"Players"</span>
+    component={PlayersNavigator}
+    options={{
+      tabBarIcon: <span class="hljs-function">(<span class="hljs-params">{ color, size }</span>) =&gt;</span> &lt;Users color={color} size={size} /&gt;,
+      tabBarLabel: <span class="hljs-string">'Oyuncular'</span>,
+    }}
+  /&gt;
+  
+  &lt;Tab.Screen
+    name=<span class="hljs-string">"Profile"</span>
+    component={ProfileNavigator}
+    options={{
+      tabBarIcon: <span class="hljs-function">(<span class="hljs-params">{ color, size }</span>) =&gt;</span> &lt;User color={color} size={size} /&gt;,
+      tabBarLabel: <span class="hljs-string">'Profil'</span>,
+      tabBarBadge: unreadNotifications &gt; <span class="hljs-number">0</span> ? unreadNotifications : <span class="hljs-literal">undefined</span>,
+    }}
+  /&gt;
+&lt;<span class="hljs-regexp">/Tab.Navigator&gt;
+</span></div></code></pre>
+<hr>
+<h2 id="8-kullan%C4%B1c%C4%B1-senaryolar%C4%B1">8. Kullanıcı Senaryoları</h2>
+<h3 id="81-senaryo-1-yeni-kullan%C4%B1c%C4%B1-i%CC%87lk-kurulum">8.1 Senaryo 1: Yeni Kullanıcı (İlk Kurulum)</h3>
+<pre class="hljs"><code><div>📱 ADIM 1: UYGULAMAYI İNDİR VE AÇ
+   ├─→ Onboarding ekranları göster (3 sayfa)
+   │   ├─ Sayfa 1: &quot;Spor liglerinizi yönetin&quot;
+   │   ├─ Sayfa 2: &quot;Maçları organize edin&quot;
+   │   └─ Sayfa 3: &quot;İstatistiklerinizi takip edin&quot;
+   └─→ &quot;Başla&quot; butonu → Kayıt/Giriş seçimi
+
+📝 ADIM 2: KAYIT OL
+   ├─→ Email ve şifre gir
+   ├─→ Ad, soyad bilgileri
+   ├─→ Favori sporları seç (Futbol, Basketbol...)
+   ├─→ Tercih edilen pozisyonları seç
+   └─→ Profil fotoğrafı yükle (opsiyonel)
+
+🔔 ADIM 3: BİLDİRİM İZİNLERİ
+   ├─→ Push notification izni iste
+   └─→ FCM token'ı kaydet
+
+🏆 ADIM 4: İLK LİG'E KATIL
+   ├─→ Dashboard açılır
+   ├─→ &quot;Lig Ara&quot; butonu
+   ├─→ Yakındaki/popüler ligleri göster
+   ├─→ Bir lige tıkla → Detayları gör
+   ├─→ &quot;Katıl&quot; butonu
+   └─→ Admin onayı bekle → Bildirim gelir
+
+⚽ ADIM 5: İLK MAÇA KAYIT OL
+   ├─→ &quot;Maçlar&quot; sekmesine git
+   ├─→ Yaklaşan maçları gör
+   ├─→ Bir maça tıkla
+   ├─→ &quot;Kayıt Ol&quot; butonu
+   ├─→ Tercih edilen pozisyon seç (opsiyonel)
+   └─→ Onay: &quot;Kayıt başarılı! 9. sıradasınız&quot;
+
+✅ TAMAMLANDI
+</div></code></pre>
+<h3 id="82-senaryo-2-lig-y%C3%B6neticisi-lig-olu%C5%9Fturma">8.2 Senaryo 2: Lig Yöneticisi (Lig Oluşturma)</h3>
+<pre class="hljs"><code><div>🏆 ADIM 1: YENİ LİG OLUŞTUR
+   ├─→ Dashboard → &quot;+&quot; butonu → &quot;Lig Oluştur&quot;
+   ├─→ Lig bilgilerini gir
+   │   ├─ Lig adı: &quot;Architect Halı Saha Ligi&quot;
+   │   ├─ Spor türü: Futbol
+   │   ├─ Sezon süresi: 6 ay
+   │   ├─ Başlangıç tarihi: 15 Ekim 2025
+   │   └─ Varsayılan ayarlar (kadro sayısı, ücret vb.)
+   └─→ &quot;Oluştur&quot; butonu
+
+👥 ADIM 2: ÜYE DAVET ET
+   ├─→ Lig detay → &quot;Üye Davet Et&quot;
+   ├─→ Seçenekler:
+   │   ├─ Telefon rehberinden seç
+   │   ├─ Email ile davet
+   │   └─ Davet linki paylaş (WhatsApp, SMS)
+   └─→ Davetler gönderildi
+
+📅 ADIM 3: İLK FİKSTÜR OLUŞTUR
+   ├─→ Lig detay → &quot;Fikstürler&quot; sekmesi
+   ├─→ &quot;+&quot; butonu → &quot;Fikstür Ekle&quot;
+   ├─→ Fikstür bilgileri
+   │   ├─ İsim: &quot;Salı Maçı&quot;
+   │   ├─ Gün: Salı
+   │   ├─ Saat: 19:00
+   │   ├─ Periyot: Her hafta
+   │   ├─ Kadro sayısı: 10 kişi
+   │   ├─ Yedek: 2 kişi
+   │   ├─ Saha: Architect Halısaha
+   │   └─ Ücret: 100 TL/kişi
+   └─→ &quot;Oluştur&quot; butonu
+
+⚽ ADIM 4: İLK MAÇ OLUŞTUR
+   ├─→ Fikstür detay → &quot;Maç Oluştur&quot;
+   ├─→ Tarih seç: 15 Ekim 2025, 19:00
+   ├─→ Maç oluşturuldu (status: 'created')
+   ├─→ Otomatik olarak 'registration_open' durumuna geçer
+   └─→ Tüm lig üyelerine bildirim gönderilir
+
+✅ TAMAMLANDI
+</div></code></pre>
+<h3 id="83-senaryo-3-ma%C3%A7-organizat%C3%B6r%C3%BC-ma%C3%A7-g%C3%BCn%C3%BC">8.3 Senaryo 3: Maç Organizatörü (Maç Günü)</h3>
+<pre class="hljs"><code><div>🌅 MAÇ GÜNÜ SABAHI (08:00)
+   ├─→ Bildirim gelir: &quot;Bugün 19:00'da maç var!&quot;
+   ├─→ Uygulamayı aç
+   ├─→ Dashboard'da &quot;Bugünün Maçı&quot; kartı
+   └─→ 12 oyuncu kayıtlı (10 kadro + 2 yedek) ✓
+
+⏰ KAYITLARI KAPAT (17:00 - 2 saat önce)
+   ├─→ Maç detay → &quot;Kayıtları Kapat&quot; butonu
+   ├─→ Status: 'registration_closed'
+   └─→ Tüm kayıtlılara bildirim: &quot;Kayıtlar kapandı&quot;
+
+👕 TAKIMLARI KUR (18:00 - 1 saat önce)
+   ├─→ Maç detay → &quot;Takım Kur&quot; butonu
+   ├─→ Algoritma seç:
+   │   ├─ Otomatik (Rating bazlı) ← Seçildi
+   │   ├─ Rastgele
+   │   └─ Manuel
+   ├─→ Takımlar oluşturuldu:
+   │   ├─ Takım 1: 6 oyuncu (rating ortalaması: 4.3)
+   │   └─ Takım 2: 6 oyuncu (rating ortalaması: 4.2)
+   ├─→ Pozisyonları ata (opsiyonel)
+   ├─→ Status: 'teams_set'
+   └─→ Tüm oyunculara bildirim: &quot;Takımlar belirlendi&quot;
+
+⚽ MAÇ BAŞLADI (19:00)
+   ├─→ Maç detay → &quot;Maçı Başlat&quot; butonu
+   ├─→ Status: 'in_progress'
+   └─→ Canlı skor takibi (opsiyonel)
+
+🏁 MAÇ BİTTİ (20:00)
+   ├─→ &quot;Skoru Gir&quot; butonu
+   ├─→ Skor gir:
+   │   ├─ Takım 1: 5
+   │   └─ Takım 2: 3
+   ├─→ Gol atan oyuncuları seç:
+   │   ├─ Ahmet: 2 gol, 1 asist
+   │   ├─ Mehmet: 1 gol, 1 asist
+   │   └─ Ali: 2 gol
+   └─→ &quot;Skoru Kaydet&quot; butonu
+
+✅ MAÇI TAMAMLA
+   ├─→ &quot;Maçı Tamamla&quot; butonu
+   ├─→ Otomatik işlemler başlar:
+   │   ├─ Puan durumu güncellenir
+   │   ├─ Oyuncu istatistikleri güncellenir
+   │   ├─ MVP otomatik hesaplanır (Ahmet - 2 gol, 4.8 rating)
+   │   ├─ Rating istekleri gönderilir (2 saat sonra)
+   │   └─ Status: 'completed'
+   └─→ Tüm oyunculara bildirim: &quot;Maç tamamlandı&quot;
+
+✅ TAMAMLANDI
+</div></code></pre>
+<h3 id="84-senaryo-4-oyuncu-ma%C3%A7a-kat%C4%B1l%C4%B1m">8.4 Senaryo 4: Oyuncu (Maça Katılım)</h3>
+<p>🔔 BİLDİRİM GELDİ
+├─→ Push notification: &quot;Salı maçı için kayıtlar açıldı!&quot;
+├─→ Uygulamayı aç
+└─→ Bildirime tıkla → Maç detayı
+⚽ MAÇA KAYIT OL
+├─→ Maç detayını incele:
+│   ├─ Tarih: 15 Ekim, 19:00
+│   ├─ Saha: Architect Halısaha
+│   ├─ Ücret: 100 TL
+│   ├─ Kayıtlı: 8/10
+│   └─ Yedek: 0/2
+├─→ &quot;Kayıt Ol&quot; butonu
+├─→ Tercih edilen pozisyon seç: &quot;Forvet&quot;
+└─→ Onay: &quot;Kayıt başarılı! 9. sıradasınız&quot;
+📱 MAÇ GÜNÜ
+├─→ Hatırlatma bildirimi (2 saat önce): &quot;17:00'da maç!&quot;
+├─→ Takımlar açıklandı bildirimi
+├─→ Takım 2'desin, pozisyon: Forvet
+└─→ Sahaya git
+⚽ MAÇ OYNANDI
+├─→ 2 gol attın, 1 asist yaptın
+└─→ Maç bitti: 3-5 (Kaybettik)
+⭐ MAÇ SONRASI (2 saat sonra)
+├─→ Bildirim: &quot;Maç bitti! Arkadaşlarını değerlendir&quot;
+├─→ Rating ekranı açılır
+├─→ 10 oyuncuyu değerlendir (1-5 yıldız)
+│   ├─ Ahmet: 5 yıldız (MVP!)
+│   │   ├─ Beceri: 5
+│   │   ├─ Takım çalışması: 5
+│   │   └─ Sportmenlik: 5
+│   ├─ Mehmet: 4 yıldız
+│   └─ Diğer oyuncular...
+├─→ Yorum yaz (opsiyonel): &quot;Harika maç oldu!&quot;
+└─→ &quot;Gönder&quot; butonu
+📊 İSTATİSTİKLERİMİ GÖR
+├─→ Profil → &quot;İstatistiklerim&quot;
+├─→ Bu maç:
+│   ├─ 2 gol, 1 asist
+│   ├─ Rating aldın: 4.2
+│   └─ Sonuç: Kaybettik (3-5)
+└─→ Sezon toplam:
+├─ 12 maç, 8 gol, 5 asist
+├─ Ortalama rating: 4.3
+├─ Puan durumunda 3. sıradasınız
+└─ 2 kez MVP seçildiniz
+✅ TAMAMLANDI</p>
+<h3 id="85-senaryo-5-dostluk-ma%C3%A7%C4%B1-organizasyonu">8.5 Senaryo 5: Dostluk Maçı Organizasyonu</h3>
+<pre class="hljs"><code><div>⚽ DOSTLUK MAÇI OLUŞTUR
+   ├─→ &quot;Maçlar&quot; → &quot;+&quot; butonu
+   ├─→ &quot;Dostluk Maçı&quot; seç
+   ├─→ Maç bilgileri:
+   │   ├─ İsim: &quot;Cumartesi Maçı&quot;
+   │   ├─ Tarih: 18 Ekim, 10:00
+   │   ├─ Saha: Park Halısaha
+   │   ├─ Kadro: 12 kişi
+   │   ├─ Yedek: 2 kişi
+   │   ├─ Ücret: 80 TL
+   │   └─ Görünürlük: Herkes görebilir
+   ├─→ Ayarlar:
+   │   ├─ İstatistikleri etkiler: Evet
+   │   └─ Puan durumunu etkiler: Hayır
+   └─→ &quot;Oluştur&quot; butonu
+
+👥 OYUNCU DAVET ET
+   ├─→ &quot;Oyuncu Davet Et&quot; butonu
+   ├─→ Seçenekler:
+   │   ├─ Favorilerimden seç (sık oynadıklarım)
+   │   ├─ Oyuncu ara
+   │   └─ Davet linki paylaş
+   ├─→ 15 oyuncu seç
+   └─→ Davetler gönderildi
+
+📊 KAYITLARI TAKİP ET
+   ├─→ Maç detay → &quot;Davetler&quot; sekmesi
+   ├─→ Durum:
+   │   ├─ Kabul eden: 10
+   │   ├─ Reddeden: 2
+   │   └─ Bekleyen: 3
+   └─→ Yeterli oyuncu var ✓
+
+⚽ MAÇ GÜNÜ
+   ├─→ Normal maç akışı gibi devam eder
+   ├─→ Takım kur, oyna, skor gir
+   ├─→ Fark: Puan durumunu etkilemez
+   └─→ Ama istatistikler güncellenir
+
+✅ TAMAMLANDI
+</div></code></pre>
+<hr>
+<h2 id="9-%C3%B6zellik-bayraklar%C4%B1-feature-flags">9. Özellik Bayrakları (Feature Flags)</h2>
+<h3 id="91-global-%C3%B6zellikler-appconfig">9.1 Global Özellikler (app_config)</h3>
+<pre class="hljs"><code><div>features: {
+  friendlyMatches: <span class="hljs-literal">true</span>,        <span class="hljs-comment">// Dostluk maçları aktif</span>
+  ratingSystem: <span class="hljs-literal">true</span>,           <span class="hljs-comment">// Değerlendirme sistemi</span>
+  commentSystem: <span class="hljs-literal">true</span>,          <span class="hljs-comment">// Yorum sistemi</span>
+  paymentTracking: <span class="hljs-literal">true</span>,        <span class="hljs-comment">// Ödeme takibi</span>
+  mvpSystem: <span class="hljs-literal">true</span>,              <span class="hljs-comment">// MVP sistemi</span>
+  notifications: <span class="hljs-literal">true</span>,          <span class="hljs-comment">// Bildirimler</span>
+  invitations: <span class="hljs-literal">true</span>,            <span class="hljs-comment">// Davet sistemi</span>
+  multiLeague: <span class="hljs-literal">true</span>,            <span class="hljs-comment">// Çoklu lig desteği</span>
+}
+</div></code></pre>
+<h3 id="92-lig-bazl%C4%B1-%C3%B6zellikler-leaguesettings">9.2 Lig Bazlı Özellikler (league_settings)</h3>
+<pre class="hljs"><code><div>rules: {
+  lateArrivalPenalty: <span class="hljs-number">10</span>,       <span class="hljs-comment">// Geç gelme cezası (TL)</span>
+  absentWithoutNoticePenalty: <span class="hljs-number">50</span>, <span class="hljs-comment">// Haber vermeden gelmeme cezası</span>
+  yellowCardFine: <span class="hljs-number">20</span>,           <span class="hljs-comment">// Sarı kart cezası</span>
+  redCardFine: <span class="hljs-number">50</span>,              <span class="hljs-comment">// Kırmızı kart cezası</span>
+  minAttendanceRate: <span class="hljs-number">75</span>,        <span class="hljs-comment">// Min katılım oranı (%)</span>
+}
+
+matchRules: {
+  allowGuestPlayers: <span class="hljs-literal">true</span>,
+  maxGuestPlayersPerMatch: <span class="hljs-number">2</span>,
+  guestPlayerPriceMultiplier: <span class="hljs-number">1.5</span>, <span class="hljs-comment">// Misafir %50 fazla öder</span>
+  autoAssignTeams: <span class="hljs-literal">true</span>,
+  teamBalanceAlgorithm: <span class="hljs-string">'rating'</span>, <span class="hljs-comment">// 'random' | 'rating' | 'position'</span>
+}
+
+rating: {
+  enabled: <span class="hljs-literal">true</span>,
+  mandatory: <span class="hljs-literal">false</span>,             <span class="hljs-comment">// Zorunlu değil</span>
+  anonymous: <span class="hljs-literal">true</span>,              <span class="hljs-comment">// Anonim değerlendirme</span>
+  ratingDeadlineHours: <span class="hljs-number">48</span>,      <span class="hljs-comment">// 48 saat içinde</span>
+  minRatingsForMVP: <span class="hljs-number">5</span>,          <span class="hljs-comment">// MVP için min 5 rating</span>
+  allowCategoryRating: <span class="hljs-literal">true</span>,    <span class="hljs-comment">// Kategorik değerlendirme</span>
+}
+</div></code></pre>
+<hr>
+<h2 id="10-kurulum">10. Kurulum</h2>
+<h3 id="101-%C3%B6n-gereksinimler">10.1 Ön Gereksinimler</h3>
+<pre class="hljs"><code><div><span class="hljs-comment"># Node.js (v18+)</span>
+node --version
+
+<span class="hljs-comment"># npm veya yarn</span>
+npm --version
+yarn --version
+
+<span class="hljs-comment"># React Native CLI</span>
+npm install -g react-native-cli
+
+<span class="hljs-comment"># iOS için (macOS)</span>
+xcode-select --install
+sudo gem install cocoapods
+
+<span class="hljs-comment"># Android için</span>
+<span class="hljs-comment"># Android Studio ve SDK kurulu olmalı</span>
+</div></code></pre>
+<h3 id="102-projeyi-ba%C5%9Flatma">10.2 Projeyi Başlatma</h3>
+<pre class="hljs"><code><div><span class="hljs-comment"># 1. Repo'yu clone'la</span>
+git <span class="hljs-built_in">clone</span> https://github.com/your-repo/sport-management-app.git
+<span class="hljs-built_in">cd</span> sport-management-app
+
+<span class="hljs-comment"># 2. Bağımlılıkları yükle</span>
+npm install
+<span class="hljs-comment"># veya</span>
+yarn install
+
+<span class="hljs-comment"># 3. iOS için pod install (macOS)</span>
+<span class="hljs-built_in">cd</span> ios
+pod install
+<span class="hljs-built_in">cd</span> ..
+
+<span class="hljs-comment"># 4. Environment variables</span>
+cp .env.example .env
+<span class="hljs-comment"># .env dosyasını düzenle (Firebase credentials)</span>
+
+<span class="hljs-comment"># 5. Uygulamayı başlat</span>
+npm run android
+<span class="hljs-comment"># veya</span>
+npm run ios
+</div></code></pre>
+<h3 id="103-environment-variables-env">10.3 Environment Variables (.env)</h3>
+<pre class="hljs"><code><div><span class="hljs-comment"># Firebase Configuration</span>
+FIREBASE_API_KEY=your_api_key_here
+FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+FIREBASE_MESSAGING_SENDER_ID=123456789
+FIREBASE_APP_ID=1:123456789:android:abc123
+
+<span class="hljs-comment"># API Configuration</span>
+API_BASE_URL=https://your-api.com
+API_TIMEOUT=30000
+
+<span class="hljs-comment"># Environment</span>
+ENVIRONMENT=development
+
+<span class="hljs-comment"># Feature Flags (Override için)</span>
+ENABLE_ANALYTICS=<span class="hljs-literal">true</span>
+ENABLE_CRASHLYTICS=<span class="hljs-literal">false</span>
+</div></code></pre>
+<hr>
+<h2 id="11-geli%C5%9Ftirme-rehberi">11. Geliştirme Rehberi</h2>
+<h3 id="111-coding-standards">11.1 Coding Standards</h3>
+<h4 id="naming-conventions">Naming Conventions</h4>
+<pre class="hljs"><code><div><span class="hljs-comment">// Dosya isimleri</span>
+Components:    PascalCase (PlayerCard.tsx)
+Screens:       PascalCase + Screen suffix (LeagueDetailScreen.tsx)
+Services:      PascalCase + Service suffix (MatchService.ts)
+Utils:         camelCase (formatDate.ts)
+Constants:     UPPER_SNAKE_CASE (API_ENDPOINTS.ts)
+
+<span class="hljs-comment">// Değişken isimleri</span>
+<span class="hljs-keyword">const</span> playerName = <span class="hljs-string">'Ahmet'</span>;           <span class="hljs-comment">// camelCase</span>
+<span class="hljs-keyword">const</span> MAX_PLAYERS = <span class="hljs-number">10</span>;               <span class="hljs-comment">// UPPER_SNAKE_CASE (constants)</span>
+<span class="hljs-keyword">interface</span> IPlayer {...}               <span class="hljs-comment">// PascalCase + I prefix</span>
+<span class="hljs-keyword">type</span> PlayerType = ...                 <span class="hljs-comment">// PascalCase + Type suffix</span>
+<span class="hljs-keyword">enum</span> MatchStatus {...}                <span class="hljs-comment">// PascalCase</span>
+</div></code></pre>
+<h4 id="component-yap%C4%B1s%C4%B1">Component Yapısı</h4>
+<pre class="hljs"><code><div><span class="hljs-keyword">import</span> React <span class="hljs-keyword">from</span> <span class="hljs-string">'react'</span>;
+<span class="hljs-keyword">import</span> { View, Text, StyleSheet, TouchableOpacity } <span class="hljs-keyword">from</span> <span class="hljs-string">'react-native'</span>;
+
+<span class="hljs-comment">// ============================================</span>
+<span class="hljs-comment">// TYPES</span>
+<span class="hljs-comment">// ============================================</span>
+<span class="hljs-keyword">interface</span> MatchCardProps {
+  match: IMatch;
+  onPress?: <span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> <span class="hljs-built_in">void</span>;
+}
+
+<span class="hljs-comment">// ============================================</span>
+<span class="hljs-comment">// COMPONENT</span>
+<span class="hljs-comment">// ============================================</span>
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> MatchCard: React.FC&lt;MatchCardProps&gt; = <span class="hljs-function">(<span class="hljs-params">{ match, onPress }</span>) =&gt;</span> {
+  <span class="hljs-keyword">return</span> (
+    &lt;TouchableOpacity style={styles.container} onPress={onPress}&gt;
+      &lt;Text style={styles.title}&gt;{match.title}&lt;<span class="hljs-regexp">/Text&gt;
+    &lt;/</span>TouchableOpacity&gt;
+  );
+};
+
+<span class="hljs-comment">// ============================================</span>
+<span class="hljs-comment">// STYLES</span>
+<span class="hljs-comment">// ============================================</span>
+<span class="hljs-keyword">const</span> styles = StyleSheet.create({
+  container: {
+    padding: <span class="hljs-number">16</span>,
+    backgroundColor: <span class="hljs-string">'#fff'</span>,
+    borderRadius: <span class="hljs-number">8</span>,
+  },
+  title: {
+    fontSize: <span class="hljs-number">18</span>,
+    fontWeight: <span class="hljs-string">'bold'</span>,
+  },
+});
+</div></code></pre>
+<h3 id="112-git-workflow">11.2 Git Workflow</h3>
+<pre class="hljs"><code><div><span class="hljs-comment"># Branch isimleri</span>
+feature/player-rating-system
+bugfix/match-registration-error
+hotfix/payment-calculation
+release/v1.0.0
+
+<span class="hljs-comment"># Commit mesajları (Conventional Commits)</span>
+feat: Add player rating screen
+fix: Fix match registration bug
+docs: Update README
+style: Format code with prettier
+refactor: Refactor MatchService
+<span class="hljs-built_in">test</span>: Add unit tests <span class="hljs-keyword">for</span> RatingService
+chore: Update dependencies
+perf: Optimize standings calculation
+</div></code></pre>
+<hr>
+<h2 id="12-testing">12. Testing</h2>
+<h3 id="121-unit-tests-jest">12.1 Unit Tests (Jest)</h3>
+<pre class="hljs"><code><div><span class="hljs-comment"># Tüm testleri çalıştır</span>
+npm <span class="hljs-built_in">test</span>
+
+<span class="hljs-comment"># Watch modunda</span>
+npm <span class="hljs-built_in">test</span> -- --watch
+
+<span class="hljs-comment"># Coverage raporu</span>
+npm <span class="hljs-built_in">test</span> -- --coverage
+</div></code></pre>
+<p><strong>Örnek Test:</strong></p>
+<pre class="hljs"><code><div><span class="hljs-comment">// __tests__/utils/formatDate.test.ts</span>
+<span class="hljs-keyword">import</span> { formatDate } <span class="hljs-keyword">from</span> <span class="hljs-string">'@/utils/date'</span>;
+
+describe(<span class="hljs-string">'formatDate'</span>, <span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+  it(<span class="hljs-string">'should format date correctly'</span>, <span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+    <span class="hljs-keyword">const</span> date = <span class="hljs-keyword">new</span> <span class="hljs-built_in">Date</span>(<span class="hljs-string">'2025-10-15T19:00:00'</span>);
+    expect(formatDate(date)).toBe(<span class="hljs-string">'15 Ekim 2025'</span>);
+  });
+
+  it(<span class="hljs-string">'should handle invalid date'</span>, <span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+    expect(formatDate(<span class="hljs-literal">null</span>)).toBe(<span class="hljs-string">'-'</span>);
+  });
+});
+</div></code></pre>
+<h3 id="122-component-tests">12.2 Component Tests</h3>
+<pre class="hljs"><code><div><span class="hljs-comment">// __tests__/components/MatchCard.test.tsx</span>
+<span class="hljs-keyword">import</span> React <span class="hljs-keyword">from</span> <span class="hljs-string">'react'</span>;
+<span class="hljs-keyword">import</span> { render, fireEvent } <span class="hljs-keyword">from</span> <span class="hljs-string">'@testing-library/react-native'</span>;
+<span class="hljs-keyword">import</span> { MatchCard } <span class="hljs-keyword">from</span> <span class="hljs-string">'@/components/match/MatchCard'</span>;
+
+describe(<span class="hljs-string">'MatchCard'</span>, <span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+  it(<span class="hljs-string">'should render match details'</span>, <span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+    <span class="hljs-keyword">const</span> { getByText } = render(&lt;MatchCard match={mockMatch} /&gt;);
+    expect(getByText(<span class="hljs-string">'Salı Maçı'</span>)).toBeTruthy();
+  });
+
+  it(<span class="hljs-string">'should call onPress when pressed'</span>, <span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> {
+    <span class="hljs-keyword">const</span> onPress = jest.fn();
+    <span class="hljs-keyword">const</span> { getByTestId } = render(
+      &lt;MatchCard match={mockMatch} onPress={onPress} testID=<span class="hljs-string">"match-card"</span> /&gt;
+    );
+    
+    fireEvent.press(getByTestId(<span class="hljs-string">'match-card'</span>));
+    expect(onPress).toHaveBeenCalledTimes(<span class="hljs-number">1</span>);
+  });
+});
+</div></code></pre>
+<hr>
+<h2 id="13-deployment">13. Deployment</h2>
+<h3 id="131-android-build">13.1 Android Build</h3>
+<pre class="hljs"><code><div><span class="hljs-comment"># Debug APK</span>
+npm run android
+
+<span class="hljs-comment"># Release APK</span>
+<span class="hljs-built_in">cd</span> android
+./gradlew assembleRelease
+
+<span class="hljs-comment"># APK yolu:</span>
+<span class="hljs-comment"># android/app/build/outputs/apk/release/app-release.apk</span>
+
+<span class="hljs-comment"># Bundle (AAB) oluştur (Google Play için)</span>
+./gradlew bundleRelease
+
+<span class="hljs-comment"># AAB yolu:</span>
+<span class="hljs-comment"># android/app/build/outputs/bundle/release/app-release.aab</span>
+</div></code></pre>
+<h3 id="132-ios-build">13.2 iOS Build</h3>
+<pre class="hljs"><code><div><span class="hljs-comment"># Debug build</span>
+npm run ios
+
+<span class="hljs-comment"># Release build (Xcode ile)</span>
+<span class="hljs-comment"># 1. Xcode'u aç</span>
+<span class="hljs-comment"># 2. Product → Archive</span>
+<span class="hljs-comment"># 3. Distribute App → App Store Connect</span>
+</div></code></pre>
+<h3 id="133-firebase-deployment">13.3 Firebase Deployment</h3>
+<pre class="hljs"><code><div><span class="hljs-comment"># Firestore rules</span>
+firebase deploy --only firestore:rules
+
+<span class="hljs-comment"># Firestore indexes</span>
+firebase deploy --only firestore:indexes
+
+<span class="hljs-comment"># Cloud Functions</span>
+firebase deploy --only <span class="hljs-built_in">functions</span>
+
+<span class="hljs-comment"># Tümü</span>
+firebase deploy
+</div></code></pre>
+<hr>
+<h2 id="14-push-notifications-fcm">14. Push Notifications (FCM)</h2>
+<h3 id="141-fcm-setup">14.1 FCM Setup</h3>
+<pre class="hljs"><code><div><span class="hljs-comment">// src/services/NotificationService.ts</span>
+<span class="hljs-keyword">import</span> messaging <span class="hljs-keyword">from</span> <span class="hljs-string">'@react-native-firebase/messaging'</span>;
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">class</span> NotificationService {
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> requestPermission(): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">boolean</span>&gt; {
+    <span class="hljs-keyword">const</span> authStatus = <span class="hljs-keyword">await</span> messaging().requestPermission();
+    <span class="hljs-keyword">return</span> authStatus === messaging.AuthorizationStatus.AUTHORIZED;
+  }
+
+  <span class="hljs-keyword">static</span> <span class="hljs-keyword">async</span> getToken(): <span class="hljs-built_in">Promise</span>&lt;<span class="hljs-built_in">string</span>&gt; {
+    <span class="hljs-keyword">return</span> <span class="hljs-keyword">await</span> messaging().getToken();
+  }
+
+  <span class="hljs-keyword">static</span> setupListeners() {
+    <span class="hljs-comment">// Foreground</span>
+    messaging().onMessage(<span class="hljs-keyword">async</span> (remoteMessage) =&gt; {
+      <span class="hljs-built_in">console</span>.log(<span class="hljs-string">'Foreground notification:'</span>, remoteMessage);
+    });
+
+    <span class="hljs-comment">// Background</span>
+    messaging().setBackgroundMessageHandler(<span class="hljs-keyword">async</span> (remoteMessage) =&gt; {
+      <span class="hljs-built_in">console</span>.log(<span class="hljs-string">'Background notification:'</span>, remoteMessage);
+    });
+
+    <span class="hljs-comment">// Notification tıklama</span>
+    messaging().onNotificationOpenedApp(<span class="hljs-function">(<span class="hljs-params">remoteMessage</span>) =&gt;</span> {
+      <span class="hljs-built_in">console</span>.log(<span class="hljs-string">'Notification opened app:'</span>, remoteMessage);
+    });
+  }
+}
+</div></code></pre>
+<hr>
+<h2 id="15-state-management-redux-toolkit">15. State Management (Redux Toolkit)</h2>
+<h3 id="151-store-setup">15.1 Store Setup</h3>
+<pre class="hljs"><code><div><span class="hljs-comment">// src/store/store.ts</span>
+<span class="hljs-keyword">import</span> { configureStore } <span class="hljs-keyword">from</span> <span class="hljs-string">'@reduxjs/toolkit'</span>;
+<span class="hljs-keyword">import</span> authReducer <span class="hljs-keyword">from</span> <span class="hljs-string">'./slices/authSlice'</span>;
+<span class="hljs-keyword">import</span> leagueReducer <span class="hljs-keyword">from</span> <span class="hljs-string">'./slices/leagueSlice'</span>;
+<span class="hljs-keyword">import</span> matchReducer <span class="hljs-keyword">from</span> <span class="hljs-string">'./slices/matchSlice'</span>;
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> store = configureStore({
+  reducer: {
+    auth: authReducer,
+    league: leagueReducer,
+    match: matchReducer,
+  },
+});
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">type</span> RootState = ReturnType&lt;<span class="hljs-keyword">typeof</span> store.getState&gt;;
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">type</span> AppDispatch = <span class="hljs-keyword">typeof</span> store.dispatch;
+</div></code></pre>
+<h3 id="152-slice-%C3%B6rne%C4%9Fi">15.2 Slice Örneği</h3>
+<pre class="hljs"><code><div><span class="hljs-comment">// src/store/slices/authSlice.ts</span>
+<span class="hljs-keyword">import</span> { createSlice, createAsyncThunk } <span class="hljs-keyword">from</span> <span class="hljs-string">'@reduxjs/toolkit'</span>;
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> login = createAsyncThunk(
+  <span class="hljs-string">'auth/login'</span>,
+  <span class="hljs-keyword">async</span> ({ email, password }) =&gt; {
+    <span class="hljs-keyword">return</span> <span class="hljs-keyword">await</span> AuthService.login(email, password);
+  }
+);
+
+<span class="hljs-keyword">const</span> authSlice = createSlice({
+  name: <span class="hljs-string">'auth'</span>,
+  initialState: {
+    user: <span class="hljs-literal">null</span>,
+    loading: <span class="hljs-literal">false</span>,
+    error: <span class="hljs-literal">null</span>,
+  },
+  reducers: {
+    logout: <span class="hljs-function">(<span class="hljs-params">state</span>) =&gt;</span> {
+      state.user = <span class="hljs-literal">null</span>;
+    },
+  },
+  extraReducers: <span class="hljs-function">(<span class="hljs-params">builder</span>) =&gt;</span> {
+    builder
+      .addCase(login.pending, <span class="hljs-function">(<span class="hljs-params">state</span>) =&gt;</span> {
+        state.loading = <span class="hljs-literal">true</span>;
+      })
+      .addCase(login.fulfilled, <span class="hljs-function">(<span class="hljs-params">state, action</span>) =&gt;</span> {
+        state.user = action.payload;
+        state.loading = <span class="hljs-literal">false</span>;
+      })
+      .addCase(login.rejected, <span class="hljs-function">(<span class="hljs-params">state, action</span>) =&gt;</span> {
+        state.error = action.error.message;
+        state.loading = <span class="hljs-literal">false</span>;
+      });
+  },
+});
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">default</span> authSlice.reducer;
+</div></code></pre>
+<hr>
+<h2 id="16-g%C3%BCvenlik">16. Güvenlik</h2>
+<h3 id="161-firestore-security-rules">16.1 Firestore Security Rules</h3>
+<pre class="hljs"><code><div>rules_version = <span class="hljs-string">'2'</span>;
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    <span class="hljs-function"><span class="hljs-keyword">function</span> <span class="hljs-title">isAuthenticated</span>(<span class="hljs-params"></span>) </span>{
+      <span class="hljs-keyword">return</span> request.auth != <span class="hljs-literal">null</span>;
+    }
+    
+    <span class="hljs-function"><span class="hljs-keyword">function</span> <span class="hljs-title">isOwner</span>(<span class="hljs-params">userId</span>) </span>{
+      <span class="hljs-keyword">return</span> isAuthenticated() &amp;&amp; request.auth.uid == userId;
+    }
+    
+    <span class="hljs-comment">// Users</span>
+    match /users/{userId} {
+      allow read: <span class="hljs-keyword">if</span> isAuthenticated();
+      allow write: <span class="hljs-keyword">if</span> isOwner(userId);
+    }
+    
+    <span class="hljs-comment">// Leagues</span>
+    match /leagues/{leagueId} {
+      allow read: <span class="hljs-keyword">if</span> isAuthenticated();
+      allow create: <span class="hljs-keyword">if</span> isAuthenticated();
+      allow update, <span class="hljs-attr">delete</span>: <span class="hljs-keyword">if</span> isLeagueAdmin(leagueId);
+    }
+    
+    <span class="hljs-comment">// Matches</span>
+    match /matches/{matchId} {
+      allow read: <span class="hljs-keyword">if</span> isAuthenticated();
+      allow create: <span class="hljs-keyword">if</span> isAuthenticated();
+      allow update: <span class="hljs-keyword">if</span> isMatchOrganizer(matchId);
+    }
+  }
+}
+</div></code></pre>
+<hr>
+<h2 id="17-performans-optimizasyonu">17. Performans Optimizasyonu</h2>
+<h3 id="171-react-native-optimizasyon">17.1 React Native Optimizasyon</h3>
+<pre class="hljs"><code><div><span class="hljs-comment">// useMemo ve useCallback kullan</span>
+<span class="hljs-keyword">const</span> memoizedValue = useMemo(<span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> calculateExpensiveValue(data), [data]);
+<span class="hljs-keyword">const</span> memoizedCallback = useCallback(<span class="hljs-function"><span class="hljs-params">()</span> =&gt;</span> handlePress(), []);
+
+<span class="hljs-comment">// FlatList optimize et</span>
+&lt;FlatList
+  data={items}
+  renderItem={renderItem}
+  keyExtractor={<span class="hljs-function">(<span class="hljs-params">item</span>) =&gt;</span> item.id}
+  initialNumToRender={<span class="hljs-number">10</span>}
+  maxToRenderPerBatch={<span class="hljs-number">10</span>}
+  windowSize={<span class="hljs-number">5</span>}
+  removeClippedSubviews={<span class="hljs-literal">true</span>}
+/&gt;
+
+<span class="hljs-comment">// React.memo kullan</span>
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> MatchCard = React.memo(<span class="hljs-function">(<span class="hljs-params">{ match }</span>) =&gt;</span> {
+  <span class="hljs-keyword">return</span> &lt;View&gt;...&lt;<span class="hljs-regexp">/View&gt;;
+});
+</span></div></code></pre>
+<hr>
+<h2 id="18-s%C4%B1k-kullan%C4%B1lan-komutlar">18. Sık Kullanılan Komutlar</h2>
+<pre class="hljs"><code><div><span class="hljs-comment"># Development</span>
+npm run android              <span class="hljs-comment"># Android'de çalıştır</span>
+npm run ios                  <span class="hljs-comment"># iOS'ta çalıştır</span>
+npm start                    <span class="hljs-comment"># Metro bundler başlat</span>
+npm start -- --reset-cache   <span class="hljs-comment"># Cache temizle</span>
+
+<span class="hljs-comment"># Testing</span>
+npm <span class="hljs-built_in">test</span>                     <span class="hljs-comment"># Testleri çalıştır</span>
+npm <span class="hljs-built_in">test</span> -- --coverage       <span class="hljs-comment"># Coverage raporu</span>
+
+<span class="hljs-comment"># Build</span>
+<span class="hljs-built_in">cd</span> android &amp;&amp; ./gradlew assembleRelease  <span class="hljs-comment"># Android release</span>
+<span class="hljs-built_in">cd</span> ios &amp;&amp; pod install                     <span class="hljs-comment"># iOS pod install</span>
+
+<span class="hljs-comment"># Firebase</span>
+firebase deploy --only firestore:rules   <span class="hljs-comment"># Rules deploy</span>
+firebase deploy --only firestore:indexes <span class="hljs-comment"># Indexes deploy</span>
+
+<span class="hljs-comment"># Git</span>
+git checkout -b feature/new-feature      <span class="hljs-comment"># Yeni branch</span>
+git commit -m <span class="hljs-string">"feat: Add new feature"</span>    <span class="hljs-comment"># Commit</span>
+git push origin feature/new-feature      <span class="hljs-comment"># Push</span>
+
+<span class="hljs-comment"># Dependency</span>
+npm install package-name                 <span class="hljs-comment"># Paket ekle</span>
+npm update                               <span class="hljs-comment"># Paketleri güncelle</span>
+<span class="hljs-built_in">cd</span> ios &amp;&amp; pod install &amp;&amp; <span class="hljs-built_in">cd</span> ..          <span class="hljs-comment"># iOS pod güncelle</span>
+</div></code></pre>
+<hr>
+<h2 id="19-troubleshooting">19. Troubleshooting</h2>
+<h3 id="191-s%C4%B1k-kar%C5%9F%C4%B1la%C5%9F%C4%B1lan-hatalar">19.1 Sık Karşılaşılan Hatalar</h3>
+<h4 id="metro-bundler-hatas%C4%B1">Metro Bundler Hatası</h4>
+<pre class="hljs"><code><div><span class="hljs-comment"># Çözüm:</span>
+npm start -- --reset-cache
+watchman watch-del-all
+rm -rf node_modules &amp;&amp; npm install
+</div></code></pre>
+<h4 id="android-build-hatas%C4%B1">Android Build Hatası</h4>
+<pre class="hljs"><code><div><span class="hljs-comment"># Çözüm:</span>
+<span class="hljs-built_in">cd</span> android
+./gradlew clean
+<span class="hljs-built_in">cd</span> ..
+npm run android
+</div></code></pre>
+<h4 id="ios-build-hatas%C4%B1">iOS Build Hatası</h4>
+<pre class="hljs"><code><div><span class="hljs-comment"># Çözüm:</span>
+<span class="hljs-built_in">cd</span> ios
+rm -rf Pods Podfile.lock
+pod install --repo-update
+<span class="hljs-built_in">cd</span> ..
+npm run ios
+</div></code></pre>
+<h4 id="firebase-connection-hatas%C4%B1">Firebase Connection Hatası</h4>
+<pre class="hljs"><code><div><span class="hljs-comment"># Android: android/app/google-services.json kontrol et</span>
+<span class="hljs-comment"># iOS: ios/GoogleService-Info.plist kontrol et</span>
+<span class="hljs-comment"># .env dosyasındaki Firebase credentials'ı kontrol et</span>
+</div></code></pre>
+<hr>
+<h2 id="20-lisans--katk%C4%B1">20. Lisans &amp; Katkı</h2>
+<h3 id="201-lisans">20.1 Lisans</h3>
+<pre class="hljs"><code><div>MIT License
+
+Copyright (c) 2025 Sport Management App
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction...
+</div></code></pre>
+<h3 id="202-katk%C4%B1da-bulunma">20.2 Katkıda Bulunma</h3>
+<ol>
+<li>Fork the repository</li>
+<li>Create your feature branch (<code>git checkout -b feature/amazing-feature</code>)</li>
+<li>Commit your changes (<code>git commit -m 'feat: Add amazing feature'</code>)</li>
+<li>Push to the branch (<code>git push origin feature/amazing-feature</code>)</li>
+<li>Open a Pull Request</li>
+</ol>
+<hr>
+<h2 id="21-i%CC%87leti%C5%9Fim">21. İletişim</h2>
+<ul>
+<li><strong>Email</strong>: support@sportmanagement.app</li>
+<li><strong>Website</strong>: https://sportmanagement.app</li>
+<li><strong>GitHub</strong>: https://github.com/sportmanagement/app</li>
+<li><strong>Discord</strong>: https://discord.gg/sportmanagement</li>
+</ul>
+<hr>
+<h2 id="%F0%9F%93%9D-sonu%C3%A7">📝 Sonuç</h2>
+<p>Bu dokümantasyon, <strong>React Native</strong> ile geliştirilen <strong>Spor Yönetim Uygulaması</strong>'nın kapsamlı bir rehberidir.</p>
+<h3 id="%E2%9C%85-kapsanan-konular">✅ Kapsanan Konular:</h3>
+<ul>
+<li>📱 66 Ekran detaylı tanımı</li>
+<li>🏗️ Mimari yapı ve klasör organizasyonu</li>
+<li>🗄️ 24 Collection veritabanı şeması</li>
+<li>🔌 22+ API class ve metodları</li>
+<li>🛠️ 10+ Servis katmanı</li>
+<li>🎨 Navigation akışı (React Navigation)</li>
+<li>📊 State management (Redux Toolkit)</li>
+<li>🔔 Push bildirimler (FCM)</li>
+<li>🔒 Güvenlik kuralları (Firestore Rules)</li>
+<li>🧪 Test stratejisi (Jest, Detox)</li>
+<li>🚀 Deployment rehberi (Android/iOS)</li>
+<li>🎯 5 Detaylı kullanıcı senaryosu</li>
+</ul>
+<h3 id="%F0%9F%8E%AF-ba%C5%9Flang%C4%B1%C3%A7-ad%C4%B1mlar%C4%B1">🎯 Başlangıç Adımları:</h3>
+<pre class="hljs"><code><div><span class="hljs-comment"># 1. Projeyi clone'la</span>
+git <span class="hljs-built_in">clone</span> https://github.com/your-repo/sport-management-app.git
+
+<span class="hljs-comment"># 2. Bağımlılıkları yükle</span>
+<span class="hljs-built_in">cd</span> sport-management-app
+npm install
+
+<span class="hljs-comment"># 3. Firebase'i yapılandır</span>
+cp .env.example .env
+<span class="hljs-comment"># .env dosyasını düzenle</span>
+
+<span class="hljs-comment"># 4. iOS için pod install (macOS)</span>
+<span class="hljs-built_in">cd</span> ios &amp;&amp; pod install &amp;&amp; <span class="hljs-built_in">cd</span> ..
+
+<span class="hljs-comment"># 5. Uygulamayı başlat</span>
+npm run android  <span class="hljs-comment"># veya npm run ios</span>
+</div></code></pre>
+<p><strong>Başarılar! 🚀🏆⚽</strong></p>
+<hr>
+<p><strong>Dokümantasyon Versiyonu:</strong> 1.0<br>
+<strong>Son Güncelleme:</strong> Ocak 2025<br>
+<strong>Yazar:</strong> Development Team</p>
+
+</body>
+</html>

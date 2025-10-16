@@ -2,7 +2,8 @@
 
 import { matchRatingApi } from '../api/matchRatingApi';
 import { matchService } from './matchService';
-import { IMatchRating, IResponseBase } from '../types/types';
+import { IMatchRating } from '../types/types';
+import { IResponseBase } from '../types/base/baseTypes';
 
 export const matchRatingService = {
   // ============================================
@@ -225,6 +226,7 @@ export const matchRatingService = {
     return {
       id: data.id,
       matchId: data.matchId,
+      matchType: data.matchType,
       raterId: data.raterId,
       ratedPlayerId: data.ratedPlayerId,
       rating: data.rating || 0,

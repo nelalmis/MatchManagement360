@@ -7,12 +7,15 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   ActivityIndicator,
   RefreshControl,
   Alert,
-  Animated,
 } from 'react-native';
 import {
+  Search,
+  Filter,
+  X,
   Calendar,
   Trophy,
   Target,
@@ -21,21 +24,26 @@ import {
   CheckCircle2,
   XCircle,
   Minus,
-  Filter,
   ChevronRight,
   MapPin,
   Clock,
   TrendingUp,
   Award,
+  Zap,
+  BarChart3,
+  Globe,
+  Lock,
+  Mail,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation/NavigationService';
-import { eventManager, Events } from '../../utils'; // ✅ EKLE
+import { eventManager, Events } from '../../utils';
 import {
   IMatch,
   ILeague,
   SportType,
+  MatchType,
   getSportIcon,
   getSportColor,
   getMatchStatusColor,
@@ -44,6 +52,7 @@ import {
 import { matchService } from '../../services/matchService';
 import { leagueService } from '../../services/leagueService';
 import { matchFixtureService } from '../../services/matchFixtureService';
+import { matchInvitationService } from '../../services/matchInvitationService';
 
 interface MatchWithLeague {
   match: IMatch;
@@ -51,7 +60,8 @@ interface MatchWithLeague {
 }
 
 type FilterType = 'all' | 'completed' | 'upcoming' | 'cancelled';
-type SortType = 'newest' | 'oldest';
+type MatchTypeFilter = 'all' | 'league' | 'friendly';
+type ViewMode = 'list' | 'compact';
 
 export const MyMatchesScreen: React.FC = () => {
   const route: any = useRoute();
@@ -61,9 +71,15 @@ export const MyMatchesScreen: React.FC = () => {
   const [matches, setMatches] = useState<MatchWithLeague[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
+
+  // Search & Filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [filterType, setFilterType] = useState<FilterType>('all');
-  const [sortType, setSortType] = useState<SortType>('newest');
+  const [matchTypeFilter, setMatchTypeFilter] = useState<MatchTypeFilter>('all');
   const [selectedSport, setSelectedSport] = useState<SportType | 'all'>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   // ✅ Event listeners
   useEffect(() => {
@@ -80,11 +96,25 @@ export const MyMatchesScreen: React.FC = () => {
     };
   }, []);
 
-  // Get available sports from matches
+  useEffect(() => {
+    if (playerId) {
+      loadMatches();
+      loadPendingInvitations();
+    }
+  }, [playerId]);
+
+  // Available sports
   const availableSports = useMemo(() => {
     const sports = new Set<SportType>();
-    matches.forEach(({ league }) => {
-      if (league) sports.add(league.sportType);
+    matches.forEach(({ match, league }) => {
+      // Friendly maçlar kendi sportType'ına sahip
+      if (match.type === MatchType.FRIENDLY && match.sportType) {
+        sports.add(match.sportType);
+      }
+      // League maçlar ligden inherit eder
+      else if (league) {
+        sports.add(league.sportType);
+      }
     });
     return Array.from(sports);
   }, [matches]);
@@ -92,40 +122,75 @@ export const MyMatchesScreen: React.FC = () => {
   // Filter and sort matches
   const filteredMatches = useMemo(() => {
     let filtered = matches;
+    const now = new Date();
 
-    // Filter by status
+    // Search filter
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(({ match }) =>
+        match.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        match.location?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Match type filter (League/Friendly)
+    if (matchTypeFilter === 'league') {
+      filtered = filtered.filter(({ match }) => match.type === MatchType.LEAGUE);
+    } else if (matchTypeFilter === 'friendly') {
+      filtered = filtered.filter(({ match }) => match.type === MatchType.FRIENDLY);
+    }
+
+    // Sport filter
+    if (selectedSport !== 'all') {
+      filtered = filtered.filter(({ match, league }) => {
+        // Friendly maçlar kendi sportType'ına sahip
+        if (match.type === MatchType.FRIENDLY && match.sportType) {
+          return match.sportType === selectedSport;
+        }
+        // League maçlar ligden inherit eder
+        return league?.sportType === selectedSport;
+      });
+    }
+
+    // Status filter
     if (filterType === 'completed') {
       filtered = filtered.filter(({ match }) => match.status === 'Tamamlandı');
     } else if (filterType === 'upcoming') {
       filtered = filtered.filter(
         ({ match }) =>
-          match.status === 'Kayıt Açık' ||
-          match.status === 'Kayıt Kapandı' ||
-          match.status === 'Takımlar Oluşturuldu' ||
-          match.status === 'Oynanıyor'
+          new Date(match.matchStartTime) > now &&
+          match.status !== 'İptal Edildi' &&
+          match.status !== 'Tamamlandı'
       );
     } else if (filterType === 'cancelled') {
       filtered = filtered.filter(({ match }) => match.status === 'İptal Edildi');
-    }
-
-    // Filter by sport
-    if (selectedSport !== 'all') {
-      filtered = filtered.filter(({ league }) => league?.sportType === selectedSport);
     }
 
     // Sort
     const sorted = [...filtered].sort((a, b) => {
       const dateA = new Date(a.match.matchStartTime).getTime();
       const dateB = new Date(b.match.matchStartTime).getTime();
-      return sortType === 'newest' ? dateB - dateA : dateA - dateB;
+      
+      if (filterType === 'upcoming' || filterType === 'all') {
+        return dateA - dateB; // Upcoming: oldest first
+      } else {
+        return dateB - dateA; // Past: newest first
+      }
     });
 
     return sorted;
-  }, [matches, filterType, selectedSport, sortType]);
+  }, [matches, searchQuery, filterType, matchTypeFilter, selectedSport]);
 
-  // Statistics
+  // Enhanced Statistics
   const stats = useMemo(() => {
+    const now = new Date();
     const completed = matches.filter(({ match }) => match.status === 'Tamamlandı');
+    const upcoming = matches.filter(({ match }) =>
+      new Date(match.matchStartTime) > now &&
+      match.status !== 'İptal Edildi' &&
+      match.status !== 'Tamamlandı'
+    );
+    const leagueMatches = matches.filter(({ match }) => match.type === MatchType.LEAGUE);
+    const friendlyMatches = matches.filter(({ match }) => match.type === MatchType.FRIENDLY);
 
     let wins = 0;
     let losses = 0;
@@ -133,6 +198,8 @@ export const MyMatchesScreen: React.FC = () => {
     let goals = 0;
     let assists = 0;
     let mvps = 0;
+    let totalRating = 0;
+    let ratedMatches = 0;
 
     completed.forEach(({ match }) => {
       const isInTeam1 = match.team1PlayerIds?.includes(playerId);
@@ -165,26 +232,46 @@ export const MyMatchesScreen: React.FC = () => {
       if (match.playerIdOfMatchMVP === playerId) {
         mvps++;
       }
+
+      // Rating
+      const playerRating = match.ratingsSummary?.topRatedPlayers?.find(r => r.playerId === playerId);
+      if (playerRating && playerRating.averageRating) {
+        totalRating += playerRating.averageRating;
+        ratedMatches++;
+      }
     });
+
+    const winRate = completed.length > 0 ? (wins / completed.length) * 100 : 0;
+    const avgRating = ratedMatches > 0 ? totalRating / ratedMatches : 0;
+    const avgGoalsPerMatch = completed.length > 0 ? goals / completed.length : 0;
 
     return {
       total: matches.length,
       completed: completed.length,
+      upcoming: upcoming.length,
+      leagueMatches: leagueMatches.length,
+      friendlyMatches: friendlyMatches.length,
       wins,
       losses,
       draws,
       goals,
       assists,
       mvps,
-      winRate: completed.length > 0 ? (wins / completed.length) * 100 : 0,
+      winRate,
+      avgRating,
+      avgGoalsPerMatch,
     };
   }, [matches, playerId]);
 
-  useEffect(() => {
-    if (playerId) {
-      loadMatches();
+  const loadPendingInvitations = async () => {
+    if (!playerId) return;
+    try {
+      const count = await matchInvitationService.getPendingInvitationCount(playerId);
+      setPendingInvitationsCount(count);
+    } catch (error) {
+      console.error('Error loading invitations:', error);
     }
-  }, [playerId]);
+  };
 
   const loadMatches = useCallback(async () => {
     if (!playerId) {
@@ -212,26 +299,22 @@ export const MyMatchesScreen: React.FC = () => {
       const matchesWithLeagues: MatchWithLeague[] = await Promise.all(
         allMatches.map(async (match) => {
           try {
-            // Get or fetch fixture
             let fixture = fixtureCache.get(match.fixtureId);
             if (!fixture) {
               fixture = await matchFixtureService.getById(match.fixtureId);
               if (fixture) {
                 fixtureCache.set(match.fixtureId, fixture);
               } else {
-                console.warn(`Fixture not found for match ${match.id}`);
                 return { match, league: null };
               }
             }
 
-            // Get or fetch league
             let league = leagueCache.get(fixture.leagueId);
             if (!league) {
               league = await leagueService.getById(fixture.leagueId);
               if (league) {
                 leagueCache.set(fixture.leagueId, league);
               } else {
-                console.warn(`League not found for fixture ${fixture.id}`);
                 return { match, league: null };
               }
             }
@@ -243,10 +326,6 @@ export const MyMatchesScreen: React.FC = () => {
           }
         })
       );
-
-      console.log(`✅ Loaded ${matchesWithLeagues.length} matches with:`);
-      console.log(`   📦 ${fixtureCache.size} unique fixtures`);
-      console.log(`   🏆 ${leagueCache.size} unique leagues`);
 
       setMatches(matchesWithLeagues);
     } catch (error) {
@@ -260,12 +339,17 @@ export const MyMatchesScreen: React.FC = () => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadMatches();
+    await loadPendingInvitations();
     setRefreshing(false);
   }, [loadMatches]);
 
   const handleMatchPress = useCallback((matchId: string) => {
-    NavigationService.navigateToMatch(matchId); // ✅ DEĞİŞTİ
+    NavigationService.navigateToMatch(matchId);
   }, []);
+
+  const handleViewInvitations = () => {
+    NavigationService.navigateToFriendlyMatchInvitations();
+  };
 
   const formatDate = useCallback((date: Date) => {
     return new Date(date).toLocaleDateString('tr-TR', {
@@ -305,39 +389,125 @@ export const MyMatchesScreen: React.FC = () => {
     return result;
   };
 
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+  }, []);
+
   const renderMatchCard = (item: MatchWithLeague) => {
     const { match, league } = item;
     const result = match.status === 'Tamamlandı' ? getResultBadge(match) : null;
     const playerGoals = match.goalScorers?.find(g => g.playerId === playerId);
     const isMVP = match.playerIdOfMatchMVP === playerId;
+    const playerRating = match.ratingsSummary?.topRatedPlayers?.find(p => p.playerId === playerId);
+    const isPast = new Date(match.matchStartTime) < new Date() || match.status === 'Tamamlandı';
+    const isFriendly = match.type === MatchType.FRIENDLY;
+    
+    // SportType: Friendly ise kendi sportType'ı, değilse ligden al
+    const matchSportType = match.type === MatchType.FRIENDLY && match.sportType 
+      ? match.sportType 
+      : league?.sportType;
+    const matchSportColor = matchSportType ? getSportColor(matchSportType) : '#16a34a';
 
+    // Compact View
+    if (viewMode === 'compact') {
+      return (
+        <TouchableOpacity
+          key={match.id}
+          style={[
+            styles.compactCard,
+            isPast && styles.compactCardPast,
+            isFriendly && styles.compactCardFriendly,
+          ]}
+          onPress={() => handleMatchPress(match.id)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.compactLeft}>
+            {matchSportType && (
+              <View style={[
+                styles.compactSportIcon,
+                { backgroundColor: matchSportColor + '15' }
+              ]}>
+                <Text style={styles.compactSportEmoji}>{getSportIcon(matchSportType)}</Text>
+              </View>
+            )}
+            <View style={styles.compactInfo}>
+              <View style={styles.compactTitleRow}>
+                <Text style={styles.compactTitle} numberOfLines={1}>{match.title}</Text>
+                {isFriendly && (
+                  <View style={styles.compactFriendlyBadge}>
+                    <Users size={10} color="#10B981" strokeWidth={2} />
+                  </View>
+                )}
+              </View>
+              <Text style={styles.compactDate}>{formatDate(match.matchStartTime)}</Text>
+            </View>
+          </View>
+          <View style={styles.compactRight}>
+            {result && (
+              <View
+                style={[
+                  styles.compactResultBadge,
+                  result === 'win' && styles.resultBadgeWin,
+                  result === 'draw' && styles.resultBadgeDraw,
+                  result === 'loss' && styles.resultBadgeLoss,
+                ]}
+              >
+                <Text style={styles.compactResultText}>
+                  {result === 'win' ? 'G' : result === 'draw' ? 'B' : 'M'}
+                </Text>
+              </View>
+            )}
+            <ChevronRight size={16} color="#9CA3AF" strokeWidth={2} />
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    // List View
     return (
       <TouchableOpacity
         key={match.id}
-        style={styles.matchCard}
+        style={[
+          styles.matchCard,
+          isPast && styles.matchCardPast,
+          isFriendly && styles.matchCardFriendly,
+        ]}
         onPress={() => handleMatchPress(match.id)}
         activeOpacity={0.7}
       >
-        {/* Header */}
-        <View style={styles.matchHeader}>
-          <View style={styles.matchHeaderLeft}>
-            {league && (
-              <View style={[
-                styles.sportIconContainer,
-                { backgroundColor: getSportColor(league.sportType) + '15' }
-              ]}>
-                <Text style={styles.matchSportEmoji}>{getSportIcon(league.sportType)}</Text>
-              </View>
-            )}
-            <View style={styles.matchHeaderInfo}>
-              <Text style={styles.matchTitle} numberOfLines={1}>
-                {match.title}
-              </Text>
-              <Text style={styles.matchLeague} numberOfLines={1}>
-                {league?.title || 'Lig bilgisi yok'}
-              </Text>
+        {/* Match Type Badge */}
+        <View style={styles.matchTypeHeaderBadge}>
+          {isFriendly ? (
+            <View style={[styles.matchTypeBadge, { backgroundColor: '#10B981' + '20' }]}>
+              <Users size={12} color="#10B981" strokeWidth={2} />
+              <Text style={[styles.matchTypeBadgeText, { color: '#10B981' }]}>Dostluk</Text>
             </View>
-          </View>
+          ) : (
+            <View style={[styles.matchTypeBadge, { backgroundColor: '#3B82F6' + '20' }]}>
+              <Trophy size={12} color="#3B82F6" strokeWidth={2} />
+              <Text style={[styles.matchTypeBadgeText, { color: '#3B82F6' }]}>Lig</Text>
+            </View>
+          )}
+          
+          {/* Privacy Badge for Friendly */}
+          {isFriendly && (
+            <View style={[styles.privacyBadge, { 
+              backgroundColor: match.isPublic ? '#10B981' + '15' : '#F59E0B' + '15' 
+            }]}>
+              {match.isPublic ? (
+                <>
+                  <Globe size={10} color="#10B981" strokeWidth={2} />
+                  <Text style={[styles.privacyBadgeText, { color: '#10B981' }]}>Açık</Text>
+                </>
+              ) : (
+                <>
+                  <Lock size={10} color="#F59E0B" strokeWidth={2} />
+                  <Text style={[styles.privacyBadgeText, { color: '#F59E0B' }]}>Özel</Text>
+                </>
+              )}
+            </View>
+          )}
+
           {result && (
             <View
               style={[
@@ -355,6 +525,29 @@ export const MyMatchesScreen: React.FC = () => {
               </Text>
             </View>
           )}
+        </View>
+
+        {/* Header */}
+        <View style={styles.matchHeader}>
+          <View style={styles.matchHeaderLeft}>
+            {matchSportType && (
+              <View style={[
+                styles.sportIconContainer,
+                { backgroundColor: matchSportColor + '15' }
+              ]}>
+                <Text style={styles.matchSportEmoji}>{getSportIcon(matchSportType)}</Text>
+              </View>
+            )}
+            <View style={styles.matchHeaderInfo}>
+              <Text style={styles.matchTitle} numberOfLines={1}>
+                {match.title}
+              </Text>
+              <Text style={styles.matchLeague} numberOfLines={1}>
+                {league?.title || 'Lig bilgisi yok'}
+              </Text>
+            </View>
+          </View>
+          <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
         </View>
 
         {/* Date & Location */}
@@ -402,30 +595,46 @@ export const MyMatchesScreen: React.FC = () => {
         )}
 
         {/* Player Performance */}
-        {match.status === 'Tamamlandı' && (playerGoals || isMVP) && (
+        {match.status === 'Tamamlandı' && (playerGoals || isMVP || playerRating) && (
           <View style={styles.playerPerformance}>
-            {playerGoals && (playerGoals.goals > 0 || playerGoals.assists > 0) && (
-              <View style={styles.performanceStats}>
-                {playerGoals.goals > 0 && (
-                  <View style={styles.performanceBadge}>
-                    <Target size={12} color="#EF4444" strokeWidth={2} />
-                    <Text style={styles.performanceText}>{playerGoals.goals} Gol</Text>
-                  </View>
-                )}
-                {playerGoals.assists > 0 && (
-                  <View style={styles.performanceBadge}>
-                    <Users size={12} color="#10B981" strokeWidth={2} />
-                    <Text style={styles.performanceText}>{playerGoals.assists} Asist</Text>
-                  </View>
-                )}
-              </View>
-            )}
+            <View style={styles.performanceStats}>
+              {playerGoals && (playerGoals.goals > 0 || playerGoals.assists > 0) && (
+                <>
+                  {playerGoals.goals > 0 && (
+                    <View style={styles.performanceBadge}>
+                      <Target size={12} color="#EF4444" strokeWidth={2} />
+                      <Text style={styles.performanceText}>{playerGoals.goals} Gol</Text>
+                    </View>
+                  )}
+                  {playerGoals.assists > 0 && (
+                    <View style={styles.performanceBadge}>
+                      <Users size={12} color="#10B981" strokeWidth={2} />
+                      <Text style={styles.performanceText}>{playerGoals.assists} Asist</Text>
+                    </View>
+                  )}
+                </>
+              )}
+              {playerRating && playerRating.averageRating > 0 && (
+                <View style={styles.performanceBadge}>
+                  <Award size={12} color="#F59E0B" strokeWidth={2} />
+                  <Text style={styles.performanceText}>{playerRating.averageRating.toFixed(1)} ⭐</Text>
+                </View>
+              )}
+            </View>
             {isMVP && (
               <View style={styles.mvpBadge}>
                 <Crown size={14} color="#F59E0B" strokeWidth={2.5} />
                 <Text style={styles.mvpText}>MVP</Text>
               </View>
             )}
+          </View>
+        )}
+
+        {/* Friendly Info */}
+        {isFriendly && !match.affectsStandings && match.status === 'Tamamlandı' && (
+          <View style={styles.friendlyInfoBanner}>
+            <TrendingUp size={12} color="#6B7280" strokeWidth={2} />
+            <Text style={styles.friendlyInfoText}>Puan durumunu etkilemez</Text>
           </View>
         )}
 
@@ -470,24 +679,236 @@ export const MyMatchesScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header with Win Rate */}
-      <View style={styles.headerSection}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.headerTitle}>Maçlarım</Text>
-            <Text style={styles.headerSubtitle}>{stats.total} maç oynadın</Text>
-          </View>
-          {stats.completed > 0 && (
-            <View style={styles.winRateBadge}>
-              <TrendingUp size={16} color="#10B981" strokeWidth={2} />
-              <Text style={styles.winRateText}>{stats.winRate.toFixed(0)}%</Text>
-              <Text style={styles.winRateLabel}>Kazanma</Text>
-            </View>
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Search size={20} color="#9CA3AF" strokeWidth={2} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Maç veya lokasyon ara..."
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={clearSearch} activeOpacity={0.7}>
+              <X size={20} color="#9CA3AF" strokeWidth={2} />
+            </TouchableOpacity>
           )}
         </View>
+
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={() => setShowFilters(!showFilters)}
+          activeOpacity={0.7}
+        >
+          <Filter
+            size={20}
+            color={showFilters ? '#16a34a' : '#6B7280'}
+            strokeWidth={2}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.viewModeButton}
+          onPress={() => setViewMode(viewMode === 'list' ? 'compact' : 'list')}
+          activeOpacity={0.7}
+        >
+          <BarChart3 size={20} color="#6B7280" strokeWidth={2} />
+        </TouchableOpacity>
       </View>
 
-      {/* Stats Summary */}
+      {/* Filters */}
+      {showFilters && (
+        <View style={styles.filtersSection}>
+          {/* Match Type Filter */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterRow}
+            contentContainerStyle={styles.filtersContent}
+          >
+            <TouchableOpacity
+              style={[
+                styles.matchTypeChip,
+                matchTypeFilter === 'all' && styles.matchTypeChipActive,
+              ]}
+              onPress={() => setMatchTypeFilter('all')}
+              activeOpacity={0.7}
+            >
+              <Globe size={16} color={matchTypeFilter === 'all' ? '#16a34a' : '#6B7280'} />
+              <Text
+                style={[
+                  styles.matchTypeText,
+                  matchTypeFilter === 'all' && styles.matchTypeTextActive,
+                ]}
+              >
+                Tümü ({stats.total})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.matchTypeChip,
+                matchTypeFilter === 'league' && {
+                  ...styles.matchTypeChipActive,
+                  backgroundColor: '#3B82F6' + '20',
+                  borderColor: '#3B82F6',
+                },
+              ]}
+              onPress={() => setMatchTypeFilter('league')}
+              activeOpacity={0.7}
+            >
+              <Trophy size={16} color={matchTypeFilter === 'league' ? '#3B82F6' : '#6B7280'} />
+              <Text
+                style={[
+                  styles.matchTypeText,
+                  matchTypeFilter === 'league' && { ...styles.matchTypeTextActive, color: '#3B82F6' },
+                ]}
+              >
+                Lig ({stats.leagueMatches})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.matchTypeChip,
+                matchTypeFilter === 'friendly' && {
+                  ...styles.matchTypeChipActive,
+                  backgroundColor: '#10B981' + '20',
+                  borderColor: '#10B981',
+                },
+              ]}
+              onPress={() => setMatchTypeFilter('friendly')}
+              activeOpacity={0.7}
+            >
+              <Users size={16} color={matchTypeFilter === 'friendly' ? '#10B981' : '#6B7280'} />
+              <Text
+                style={[
+                  styles.matchTypeText,
+                  matchTypeFilter === 'friendly' && { ...styles.matchTypeTextActive, color: '#10B981' },
+                ]}
+              >
+                Dostluk ({stats.friendlyMatches})
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+
+          {/* Status Filter */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterRow}
+            contentContainerStyle={styles.filtersContent}
+          >
+            <TouchableOpacity
+              style={[styles.filterChip, filterType === 'all' && styles.filterChipActive]}
+              onPress={() => setFilterType('all')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>
+                🌐 Tümü
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterChip, filterType === 'completed' && styles.filterChipActive]}
+              onPress={() => setFilterType('completed')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterChipText, filterType === 'completed' && styles.filterChipTextActive]}>
+                🏁 Tamamlanan ({stats.completed})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterChip, filterType === 'upcoming' && styles.filterChipActive]}
+              onPress={() => setFilterType('upcoming')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterChipText, filterType === 'upcoming' && styles.filterChipTextActive]}>
+                📅 Yaklaşan ({stats.upcoming})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterChip, filterType === 'cancelled' && styles.filterChipActive]}
+              onPress={() => setFilterType('cancelled')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterChipText, filterType === 'cancelled' && styles.filterChipTextActive]}>
+                ❌ İptal
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+
+          {/* Sport Filter */}
+          {availableSports.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.filterRow}
+              contentContainerStyle={styles.filtersContent}
+            >
+              <TouchableOpacity
+                style={[styles.sportFilterChip, selectedSport === 'all' && styles.sportFilterChipActive]}
+                onPress={() => setSelectedSport('all')}
+                activeOpacity={0.7}
+              >
+                <Filter size={14} color={selectedSport === 'all' ? 'white' : '#6B7280'} strokeWidth={2} />
+                <Text style={[styles.sportFilterText, selectedSport === 'all' && styles.sportFilterTextActive]}>
+                  Tüm Sporlar
+                </Text>
+              </TouchableOpacity>
+
+              {availableSports.map((sport) => (
+                <TouchableOpacity
+                  key={sport}
+                  style={[
+                    styles.sportFilterChip,
+                    selectedSport === sport && {
+                      ...styles.sportFilterChipActive,
+                      backgroundColor: getSportColor(sport),
+                      borderColor: getSportColor(sport),
+                    },
+                  ]}
+                  onPress={() => setSelectedSport(sport)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.sportFilterEmoji}>{getSportIcon(sport)}</Text>
+                  <Text style={[styles.sportFilterText, selectedSport === sport && styles.sportFilterTextActive]}>
+                    {SPORT_CONFIGS[sport].name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
+      {/* Pending Invitations Banner */}
+      {pendingInvitationsCount > 0 && (
+        <TouchableOpacity
+          style={styles.invitationBanner}
+          onPress={handleViewInvitations}
+          activeOpacity={0.7}
+        >
+          <View style={styles.invitationBannerLeft}>
+            <Mail size={20} color="#10B981" strokeWidth={2} />
+            <View style={styles.invitationBannerText}>
+              <Text style={styles.invitationBannerTitle}>
+                {pendingInvitationsCount} Davet Bekliyor
+              </Text>
+              <Text style={styles.invitationBannerSubtitle}>
+                Dostluk maçı davetlerini görüntüle
+              </Text>
+            </View>
+          </View>
+          <ChevronRight size={20} color="#10B981" strokeWidth={2} />
+        </TouchableOpacity>
+      )}
+
+      {/* Enhanced Stats Summary */}
       <View style={styles.statsSection}>
         <ScrollView
           horizontal
@@ -535,90 +956,23 @@ export const MyMatchesScreen: React.FC = () => {
             <Text style={[styles.statValue, { color: '#F59E0B' }]}>{stats.mvps}</Text>
             <Text style={styles.statLabel}>MVP</Text>
           </View>
+
+          {stats.avgRating > 0 && (
+            <View style={styles.statCard}>
+              <Award size={18} color="#8B5CF6" strokeWidth={2} />
+              <Text style={[styles.statValue, { color: '#8B5CF6' }]}>{stats.avgRating.toFixed(1)}</Text>
+              <Text style={styles.statLabel}>Ort. Rating</Text>
+            </View>
+          )}
+
+          {stats.avgGoalsPerMatch > 0 && (
+            <View style={styles.statCard}>
+              <Zap size={18} color="#EC4899" strokeWidth={2} />
+              <Text style={[styles.statValue, { color: '#EC4899' }]}>{stats.avgGoalsPerMatch.toFixed(1)}</Text>
+              <Text style={styles.statLabel}>Maç/Gol</Text>
+            </View>
+          )}
         </ScrollView>
-      </View>
-
-      {/* Filters */}
-      <View style={styles.filtersSection}>
-        {/* Status Filter */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
-          <TouchableOpacity
-            style={[styles.filterChip, filterType === 'all' && styles.filterChipActive]}
-            onPress={() => setFilterType('all')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>
-              Tümü ({matches.length})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterChip, filterType === 'completed' && styles.filterChipActive]}
-            onPress={() => setFilterType('completed')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.filterChipText, filterType === 'completed' && styles.filterChipTextActive]}>
-              Tamamlanan ({stats.completed})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterChip, filterType === 'upcoming' && styles.filterChipActive]}
-            onPress={() => setFilterType('upcoming')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.filterChipText, filterType === 'upcoming' && styles.filterChipTextActive]}>
-              Yaklaşan
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterChip, filterType === 'cancelled' && styles.filterChipActive]}
-            onPress={() => setFilterType('cancelled')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.filterChipText, filterType === 'cancelled' && styles.filterChipTextActive]}>
-              İptal
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* Sport Filter */}
-        {availableSports.length > 1 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
-            <TouchableOpacity
-              style={[styles.sportFilterChip, selectedSport === 'all' && styles.sportFilterChipActive]}
-              onPress={() => setSelectedSport('all')}
-              activeOpacity={0.7}
-            >
-              <Filter size={14} color={selectedSport === 'all' ? 'white' : '#6B7280'} strokeWidth={2} />
-              <Text style={[styles.sportFilterText, selectedSport === 'all' && styles.sportFilterTextActive]}>
-                Tüm Sporlar
-              </Text>
-            </TouchableOpacity>
-
-            {availableSports.map((sport) => (
-              <TouchableOpacity
-                key={sport}
-                style={[
-                  styles.sportFilterChip,
-                  selectedSport === sport && {
-                    ...styles.sportFilterChipActive,
-                    backgroundColor: getSportColor(sport),
-                    borderColor: getSportColor(sport),
-                  },
-                ]}
-                onPress={() => setSelectedSport(sport)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.sportFilterEmoji}>{getSportIcon(sport)}</Text>
-                <Text style={[styles.sportFilterText, selectedSport === sport && styles.sportFilterTextActive]}>
-                  {SPORT_CONFIGS[sport].name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
       </View>
 
       {/* Matches List */}
@@ -634,21 +988,10 @@ export const MyMatchesScreen: React.FC = () => {
           />
         }
       >
-        {/* Sort Toggle */}
-        <View style={styles.sortSection}>
+        <View style={styles.resultCountContainer}>
           <Text style={styles.resultCount}>
             {filteredMatches.length} maç bulundu
           </Text>
-          <TouchableOpacity
-            style={styles.sortButton}
-            onPress={() => setSortType(sortType === 'newest' ? 'oldest' : 'newest')}
-            activeOpacity={0.7}
-          >
-            <Clock size={14} color="#6B7280" strokeWidth={2} />
-            <Text style={styles.sortButtonText}>
-              {sortType === 'newest' ? 'En Yeni' : 'En Eski'}
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {filteredMatches.map(renderMatchCard)}
@@ -661,9 +1004,13 @@ export const MyMatchesScreen: React.FC = () => {
             </View>
             <Text style={styles.emptyTitle}>Maç bulunamadı</Text>
             <Text style={styles.emptyText}>
-              {filterType === 'all'
-                ? 'Henüz hiç maç oynamadınız'
-                : `${filterType === 'completed' ? 'Tamamlanan' : filterType === 'upcoming' ? 'Yaklaşan' : 'İptal edilen'} maç bulunmuyor`}
+              {searchQuery
+                ? 'Arama kriterlerinize uygun maç bulunamadı'
+                : filterType === 'completed'
+                  ? 'Henüz tamamlanmış maç bulunmuyor'
+                  : filterType === 'upcoming'
+                    ? 'Yaklaşan maç bulunmuyor'
+                    : 'Henüz hiç maç oynamadınız'}
             </Text>
           </View>
         )}
@@ -691,46 +1038,161 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
-  headerSection: {
-    backgroundColor: 'white',
-    paddingVertical: 20,
+  searchContainer: {
+    flexDirection: 'row',
     paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    gap: 12,
+    backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
-  headerTop: {
+  searchBar: {
+    flex: 1,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1F2937',
+    paddingVertical: 0,
+  },
+  filterButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
+  viewModeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
+  filtersSection: {
+    backgroundColor: 'white',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
-  winRateBadge: {
+  filterRow: {
+    marginBottom: 8,
+  },
+  filtersContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  matchTypeChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  matchTypeChipActive: {
     backgroundColor: '#DCFCE7',
+    borderColor: '#16a34a',
+  },
+  matchTypeText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  matchTypeTextActive: {
+    color: '#16a34a',
+    fontWeight: '700',
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  filterChipActive: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#16a34a',
+  },
+  filterChipText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#16a34a',
+    fontWeight: '700',
+  },
+  sportFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
-  winRateText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#10B981',
+  sportFilterChipActive: {
+    borderWidth: 1.5,
   },
-  winRateLabel: {
-    fontSize: 11,
+  sportFilterEmoji: {
+    fontSize: 14,
+  },
+  sportFilterText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#10B981',
+    color: '#6B7280',
+  },
+  sportFilterTextActive: {
+    color: 'white',
+  },
+  invitationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#DCFCE7',
+    padding: 14,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#10B981',
+  },
+  invitationBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  invitationBannerText: {
+    flex: 1,
+  },
+  invitationBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#15803d',
+    marginBottom: 2,
+  },
+  invitationBannerSubtitle: {
+    fontSize: 12,
+    color: '#15803d',
   },
   statsSection: {
     backgroundColor: 'white',
@@ -767,71 +1229,10 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '600',
   },
-  filtersSection: {
-    backgroundColor: 'white',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  filterRow: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F9FAFB',
-    marginRight: 8,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-  },
-  filterChipActive: {
-    backgroundColor: '#16a34a',
-    borderColor: '#16a34a',
-  },
-  filterChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  filterChipTextActive: {
-    color: 'white',
-  },
-  sportFilterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F9FAFB',
-    marginRight: 8,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-  },
-  sportFilterChipActive: {
-    backgroundColor: '#16a34a',
-    borderColor: '#16a34a',
-  },
-  sportFilterEmoji: {
-    fontSize: 14,
-  },
-  sportFilterText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  sportFilterTextActive: {
-    color: 'white',
-  },
   content: {
     flex: 1,
   },
-  sortSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  resultCountContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -840,22 +1241,8 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
-  sortButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  sortButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
+
+  // List View Cards
   matchCard: {
     backgroundColor: 'white',
     borderRadius: 16,
@@ -869,6 +1256,43 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  matchCardPast: {
+    opacity: 0.75,
+  },
+  matchCardFriendly: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#10B981',
+  },
+  matchTypeHeaderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  matchTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  matchTypeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  privacyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  privacyBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   matchHeader: {
     flexDirection: 'row',
@@ -914,6 +1338,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
+    marginLeft: 'auto',
   },
   resultBadgeWin: {
     backgroundColor: '#10B981',
@@ -1037,6 +1462,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#F59E0B',
   },
+  friendlyInfoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  friendlyInfoText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
   matchStatus: {
     marginBottom: 12,
   },
@@ -1072,6 +1513,89 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#16a34a',
   },
+
+  // Compact View Cards
+  compactCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  compactCardPast: {
+    opacity: 0.75,
+  },
+  compactCardFriendly: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#10B981',
+  },
+  compactLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  compactSportIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  compactSportEmoji: {
+    fontSize: 18,
+  },
+  compactInfo: {
+    flex: 1,
+  },
+  compactTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  compactTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+    flex: 1,
+  },
+  compactFriendlyBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  compactDate: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  compactRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compactResultBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  compactResultText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'white',
+  },
+
   emptyState: {
     alignItems: 'center',
     paddingVertical: 80,
