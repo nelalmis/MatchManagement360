@@ -1,8 +1,8 @@
 // ============================================
-// api/PlayerAPI.ts
+// api/PlayerAPI.ts - FIXED IMPORTS
 // ============================================
 import { BaseAPI, ApiResponse, QueryOptions } from '../base/BaseAPI';
-import { IPlayer } from '../../types/types';
+import { IPlayer, SportType } from '../../types/entity/types';
 import { ApiLogger } from '../base/ApiLogger';
 
 export class PlayerAPI extends BaseAPI<IPlayer> {
@@ -11,142 +11,83 @@ export class PlayerAPI extends BaseAPI<IPlayer> {
   }
 
   // ============================================
-  // GET BY EMAIL
+  // SPECIALIZED QUERIES
   // ============================================
+
   async getByEmail(email: string): Promise<ApiResponse<IPlayer>> {
-    try {
-      ApiLogger.log('PlayerAPI', 'getByEmail', { email });
+    const result = await this.getAll({
+      where: [{ field: 'email', operator: '==', value: email }],
+      limit: 1,
+    });
 
-      const result = await this.getAll({
-        where: [{ field: 'email', operator: '==', value: email }],
-        limit: 1,
-      });
-
-      if (!result.success || !result.data || result.data.length === 0) {
-        return {
-          success: false,
-          error: {
-            code: 'NOT_FOUND',
-            message: 'Player not found',
-          },
-        };
-      }
-
-      ApiLogger.success('PlayerAPI', 'getByEmail', result.data[0]);
-      return {
-        success: true,
-        data: result.data[0],
-      };
-    } catch (error: any) {
-      ApiLogger.error('PlayerAPI', 'getByEmail', error);
+    if (!result.success || !result.data || result.data.length === 0) {
       return {
         success: false,
         error: {
-          code: error.code || 'GET_BY_EMAIL_ERROR',
-          message: error.message,
-          details: error,
+          code: 'NOT_FOUND',
+          message: `Player not found with email: ${email}`,
+          statusCode: 404,
         },
       };
     }
+
+    return {
+      success: true,
+      data: result.data[0],
+    };
   }
 
-  // ============================================
-  // GET BY PHONE
-  // ============================================
   async getByPhone(phone: string): Promise<ApiResponse<IPlayer>> {
-    try {
-      ApiLogger.log('PlayerAPI', 'getByPhone', { phone });
+    const result = await this.getAll({
+      where: [{ field: 'phone', operator: '==', value: phone }],
+      limit: 1,
+    });
 
-      const result = await this.getAll({
-        where: [{ field: 'phone', operator: '==', value: phone }],
-        limit: 1,
-      });
-
-      if (!result.success || !result.data || result.data.length === 0) {
-        return {
-          success: false,
-          error: {
-            code: 'NOT_FOUND',
-            message: 'Player not found',
-          },
-        };
-      }
-
-      return {
-        success: true,
-        data: result.data[0],
-      };
-    } catch (error: any) {
-      ApiLogger.error('PlayerAPI', 'getByPhone', error);
+    if (!result.success || !result.data || result.data.length === 0) {
       return {
         success: false,
         error: {
-          code: error.code || 'GET_BY_PHONE_ERROR',
-          message: error.message,
-          details: error,
+          code: 'NOT_FOUND',
+          message: `Player not found with phone: ${phone}`,
+          statusCode: 404,
         },
       };
     }
+
+    return {
+      success: true,
+      data: result.data[0],
+    };
   }
 
-  // ============================================
-  // SEARCH PLAYERS
-  // ============================================
-  async searchPlayers(searchTerm: string, limit: number = 10): Promise<ApiResponse<IPlayer[]>> {
-    try {
-      ApiLogger.log('PlayerAPI', 'searchPlayers', { searchTerm, limit });
-
-      // Firestore doesn't support full-text search, so we get all and filter
-      // In production, use Algolia or similar service
-      const result = await this.getAll();
-
-      if (!result.success || !result.data) {
-        return result as ApiResponse<IPlayer[]>;
-      }
-
-      const searchLower = searchTerm.toLowerCase();
-      const filtered = result.data.filter((player) => {
-        const fullName = `${player.name} ${player.surname}`.toLowerCase();
-        const email = player.email?.toLowerCase() || '';
-        return fullName.includes(searchLower) || email.includes(searchLower);
-      }).slice(0, limit);
-
-      return {
-        success: true,
-        data: filtered,
-      };
-    } catch (error: any) {
-      ApiLogger.error('PlayerAPI', 'searchPlayers', error);
-      return {
-        success: false,
-        error: {
-          code: error.code || 'SEARCH_ERROR',
-          message: error.message,
-          details: error,
-        },
-      };
+  async searchPlayers(searchTerm: string): Promise<ApiResponse<IPlayer[]>> {
+    if (!searchTerm || searchTerm.trim().length === 0) {
+      return { success: true, data: [] };
     }
+
+    const normalized = searchTerm.trim().toLowerCase();
+
+    return this.getAll({
+      where: [
+        { field: 'name', operator: '>=', value: normalized },
+        { field: 'name', operator: '<=', value: normalized + '\uf8ff' },
+      ],
+      orderBy: [{ field: 'name', direction: 'asc' }],
+      limit: 20,
+    });
   }
 
-  // ============================================
-  // GET BY IDS (Bulk)
-  // ============================================
   async getByIds(ids: string[]): Promise<ApiResponse<IPlayer[]>> {
     try {
-      ApiLogger.log('PlayerAPI', 'getByIds', { ids });
-
       if (ids.length === 0) {
-        return {
-          success: true,
-          data: [],
-        };
+        return { success: true, data: [] };
       }
 
-      // Firestore 'in' query supports max 10 items
-      // Split into chunks if needed
+      const uniqueIds = [...new Set(ids)];
       const chunks: string[][] = [];
-      for (let i = 0; i < ids.length; i += 10) {
-        chunks.push(ids.slice(i, i + 10));
+      
+      for (let i = 0; i < uniqueIds.length; i += 10) {
+        chunks.push(uniqueIds.slice(i, i + 10));
       }
 
       const allPlayers: IPlayer[] = [];
@@ -158,6 +99,8 @@ export class PlayerAPI extends BaseAPI<IPlayer> {
 
         if (result.success && result.data) {
           allPlayers.push(...result.data);
+        } else if (!result.success) {
+          return result;
         }
       }
 
@@ -166,59 +109,248 @@ export class PlayerAPI extends BaseAPI<IPlayer> {
         data: allPlayers,
       };
     } catch (error: any) {
-      ApiLogger.error('PlayerAPI', 'getByIds', error);
+      ApiLogger.error('users', 'getByIds', error);
       return {
         success: false,
         error: {
-          code: error.code || 'GET_BY_IDS_ERROR',
-          message: error.message,
+          code: 'GET_BY_IDS_ERROR',
+          message: error.message || 'Failed to get players by IDs',
           details: error,
+          statusCode: 500,
         },
       };
     }
   }
 
-  // ============================================
-  // UPDATE LAST LOGIN
-  // ============================================
   async updateLastLogin(id: string): Promise<ApiResponse<IPlayer>> {
-    try {
-      ApiLogger.log('PlayerAPI', 'updateLastLogin', { id });
+    return this.update(id, {
+      lastLogin: new Date(),
+    } as Partial<Omit<IPlayer, 'id'>>);
+  }
 
-      return await this.update(id, {
-        lastLogin: new Date(),
-      } as Partial<IPlayer>);
+  async getByFavoriteSport(sport: SportType): Promise<ApiResponse<IPlayer[]>> {
+    return this.getAll({
+      where: [{ field: 'favoriteSports', operator: 'array-contains', value: sport }],
+      orderBy: [{ field: 'createdAt', direction: 'desc' }],
+      limit: 50,
+    });
+  }
+
+  async getRecentPlayers(limitCount: number = 10): Promise<ApiResponse<IPlayer[]>> {
+    return this.getAll({
+      orderBy: [{ field: 'createdAt', direction: 'desc' }],
+      limit: limitCount,
+    });
+  }
+
+  async emailExists(email: string): Promise<ApiResponse<boolean>> {
+    const result = await this.getByEmail(email);
+    return {
+      success: true,
+      data: result.success && !!result.data,
+    };
+  }
+
+  async phoneExists(phone: string): Promise<ApiResponse<boolean>> {
+    const result = await this.getByPhone(phone);
+    return {
+      success: true,
+      data: result.success && !!result.data,
+    };
+  }
+
+  async updateProfile(
+    id: string,
+    profileData: Partial<Pick<IPlayer, 'name' | 'surname' | 'profilePhoto' | 'jerseyNumber' | 'birthDate'>>
+  ): Promise<ApiResponse<IPlayer>> {
+    return this.update(id, profileData);
+  }
+
+  async updateSportPreferences(
+    id: string,
+    preferences: {
+      favoriteSports?: SportType[];
+      sportPositions?: Partial<Record<SportType, string[]>>;
+    }
+  ): Promise<ApiResponse<IPlayer>> {
+    return this.update(id, preferences as Partial<Omit<IPlayer, 'id'>>);
+  }
+
+  async batchUpdatePlayers(
+    updates: Array<{ id: string; data: Partial<IPlayer> }>
+  ): Promise<ApiResponse<void>> {
+    return this.updateBatch(updates);
+  }
+
+  // ============================================
+  // ADDITIONAL HELPER METHODS
+  // ============================================
+
+  async getPlayersFiltered(filters: {
+    favoriteSport?: SportType;
+    limit?: number;
+  }): Promise<ApiResponse<IPlayer[]>> {
+    const queryOptions: QueryOptions = {
+      limit: filters.limit || 50,
+      orderBy: [{ field: 'createdAt', direction: 'desc' }],
+    };
+
+    if (filters.favoriteSport) {
+      queryOptions.where = [
+        {
+          field: 'favoriteSports',
+          operator: 'array-contains',
+          value: filters.favoriteSport,
+        },
+      ];
+    }
+
+    return this.getAll(queryOptions);
+  }
+
+  async hasFavoriteSport(id: string, sport: SportType): Promise<ApiResponse<boolean>> {
+    try {
+      const result = await this.getById(id);
+      
+      if (!result.success || !result.data) {
+        return {
+          success: false,
+          error: result.error || {
+            code: 'NOT_FOUND',
+            message: 'Player not found',
+            statusCode: 404,
+          },
+        };
+      }
+
+      const hasSport = result.data.favoriteSports?.includes(sport) || false;
+
+      return {
+        success: true,
+        data: hasSport,
+      };
     } catch (error: any) {
-      ApiLogger.error('PlayerAPI', 'updateLastLogin', error);
       return {
         success: false,
         error: {
-          code: error.code || 'UPDATE_LAST_LOGIN_ERROR',
-          message: error.message,
+          code: 'CHECK_ERROR',
+          message: error.message || 'Failed to check favorite sport',
           details: error,
+          statusCode: 500,
         },
       };
     }
   }
 
-  // ============================================
-  // GET BY FAVORITE SPORT
-  // ============================================
-  async getByFavoriteSport(sportType: string): Promise<ApiResponse<IPlayer[]>> {
+  async addFavoriteSport(id: string, sport: SportType): Promise<ApiResponse<IPlayer>> {
     try {
-      ApiLogger.log('PlayerAPI', 'getByFavoriteSport', { sportType });
+      const playerResult = await this.getById(id);
+      
+      if (!playerResult.success || !playerResult.data) {
+        return {
+          success: false,
+          error: playerResult.error || {
+            code: 'NOT_FOUND',
+            message: 'Player not found',
+            statusCode: 404,
+          },
+        };
+      }
 
-      return await this.getAll({
-        where: [{ field: 'favoriteSports', operator: 'array-contains', value: sportType }],
-      });
+      const currentSports = playerResult.data.favoriteSports || [];
+      
+      if (currentSports.includes(sport)) {
+        return {
+          success: true,
+          data: playerResult.data,
+        };
+      }
+
+      return this.update(id, {
+        favoriteSports: [...currentSports, sport],
+      } as Partial<Omit<IPlayer, 'id'>>);
     } catch (error: any) {
-      ApiLogger.error('PlayerAPI', 'getByFavoriteSport', error);
       return {
         success: false,
         error: {
-          code: error.code || 'GET_BY_SPORT_ERROR',
-          message: error.message,
+          code: 'UPDATE_ERROR',
+          message: error.message || 'Failed to add favorite sport',
           details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  async removeFavoriteSport(id: string, sport: SportType): Promise<ApiResponse<IPlayer>> {
+    try {
+      const playerResult = await this.getById(id);
+      
+      if (!playerResult.success || !playerResult.data) {
+        return {
+          success: false,
+          error: playerResult.error || {
+            code: 'NOT_FOUND',
+            message: 'Player not found',
+            statusCode: 404,
+          },
+        };
+      }
+
+      const currentSports = playerResult.data.favoriteSports || [];
+      const updatedSports = currentSports.filter((s) => s !== sport);
+
+      return this.update(id, {
+        favoriteSports: updatedSports,
+      } as Partial<Omit<IPlayer, 'id'>>);
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_ERROR',
+          message: error.message || 'Failed to remove favorite sport',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  async setSportPositions(
+    id: string,
+    sport: SportType,
+    positions: string[]
+  ): Promise<ApiResponse<IPlayer>> {
+    try {
+      const playerResult = await this.getById(id);
+      
+      if (!playerResult.success || !playerResult.data) {
+        return {
+          success: false,
+          error: playerResult.error || {
+            code: 'NOT_FOUND',
+            message: 'Player not found',
+            statusCode: 404,
+          },
+        };
+      }
+
+      const currentPositions = playerResult.data.sportPositions || {};
+      
+      return this.update(id, {
+        sportPositions: {
+          ...currentPositions,
+          [sport]: positions,
+        },
+      } as Partial<Omit<IPlayer, 'id'>>);
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_ERROR',
+          message: error.message || 'Failed to set sport positions',
+          details: error,
+          statusCode: 500,
         },
       };
     }

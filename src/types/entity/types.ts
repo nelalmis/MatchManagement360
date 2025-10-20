@@ -5,7 +5,22 @@
 // ============================================
 // 1. ENUMS & CONSTANTS
 // ============================================
+import { 
+  Timestamp, 
+  FieldValue,
+  serverTimestamp,
+  increment,
+  arrayUnion,
+  arrayRemove,
+  deleteField,
+  WhereFilterOp,
+  OrderByDirection
+} from 'firebase/firestore';
 
+export type FirestoreTimestamp = Timestamp;
+export type FirestoreFieldValue = FieldValue;
+export type FirestoreWhereOperator = WhereFilterOp;
+export type FirestoreOrderDirection = OrderByDirection;
 /**
  * Desteklenen spor türleri
  * Her spor için config bilgisi SPORT_CONFIGS'te tanımlı
@@ -1513,7 +1528,7 @@ export interface IFAQ {
  * CACHE: stats (views, clicks, dismissed)
  */
 export interface IAnnouncement {
-  id: string;
+  id?: string;
   
   // ============================================
   // İÇERİK
@@ -1890,5 +1905,56 @@ export interface IFriendlyMatchConfig {
   updatedAt?: string;
 }
 
+export const TimestampHelpers = {
+  toDate: (timestamp: FirestoreTimestamp | Date | any): Date => {
+    if (!timestamp) return new Date();
+    if (timestamp instanceof Date) return timestamp;
+    if (timestamp.toDate) return timestamp.toDate();
+    if (timestamp.seconds) return new Date(timestamp.seconds * 1000);
+    return new Date(timestamp);
+  },
+  
+  toTimestamp: (date: Date): FirestoreTimestamp => {
+    return Timestamp.fromDate(date);
+  },
+  
+  now: (): FirestoreTimestamp => {
+    return Timestamp.now();
+  },
+  
+  serverTimestamp: () => serverTimestamp(),
+  
+  increment: (n: number) => increment(n),
+  
+  arrayUnion: (...elements: any[]) => arrayUnion(...elements),
+  
+  arrayRemove: (...elements: any[]) => arrayRemove(...elements),
+  
+  delete: () => deleteField()
+};
 
+// ============================================
+// ADDITIONAL ENUMS
+// ============================================
 
+export enum PaymentStatus {
+  PENDING = 'pending',
+  PAID = 'paid',
+  PARTIAL = 'partial',
+  OVERDUE = 'overdue',
+  WAIVED = 'waived'
+}
+
+export enum InvitationStatus {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  DECLINED = 'declined',
+  EXPIRED = 'expired',
+  CANCELLED = 'cancelled'
+}
+
+export enum NotificationStatus {
+  UNREAD = 'unread',
+  READ = 'read',
+  ARCHIVED = 'archived'
+}

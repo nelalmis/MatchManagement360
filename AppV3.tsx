@@ -11,12 +11,22 @@ import { SideMenuProvider } from './src/context/SideMenuContext';
 
 // Navigation
 import { RootNavigator } from './src/navigation';
+import { appConfig } from './src/config/app.config';
 
 // ============================================
 // APP COMPONENT
 // ============================================
 
 export default function App() {
+
+  // Config'i kontrol et
+  console.log('App Config:', {
+    environment: appConfig.environment,
+    useEmulator: appConfig.firebase.useEmulator,
+    projectId: appConfig.firebase.projectId,
+  });
+  
+
   useEffect(() => {
     // ============================================
     // LOG BOX WARNINGS (Development Only)
