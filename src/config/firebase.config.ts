@@ -1,57 +1,13 @@
 // ============================================
-// src/config/firebase.config.ts - Firebase Web SDK
+// src/config/firebase.config.ts - SIMPLIFIED
 // ============================================
-import { initializeApp, getApps } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { 
-  getAuth, 
-  initializeAuth,
-  connectAuthEmulator
-} from 'firebase/auth';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { appConfig } from './app.config';
 import { Platform } from 'react-native';
-
-// ============================================
-// CUSTOM PERSISTENCE FOR REACT NATIVE
-// ============================================
-const reactNativeLocalPersistence = {
-  type: 'LOCAL' as const,
-  
-  async _isAvailable(): Promise<boolean> {
-    try {
-      const testKey = '__firebase_test__';
-      await AsyncStorage.setItem(testKey, 'test');
-      await AsyncStorage.removeItem(testKey);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-  
-  async _set(key: string, value: string): Promise<void> {
-    await AsyncStorage.setItem(key, value);
-  },
-  
-  async _get<T>(key: string): Promise<T | null> {
-    const value = await AsyncStorage.getItem(key);
-    return value ? JSON.parse(value) : null;
-  },
-  
-  async _remove(key: string): Promise<void> {
-    await AsyncStorage.removeItem(key);
-  },
-  
-  _addListener(_key: string, _listener: () => void): void {
-    // Not implemented
-  },
-  
-  _removeListener(_key: string, _listener: () => void): void {
-    // Not implemented
-  },
-};
 
 // ============================================
 // FIREBASE CONFIG
@@ -66,14 +22,22 @@ const firebaseConfig = {
   measurementId: appConfig.firebase.measurementId,
 };
 
+// Validate Firebase config
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  console.error('❌ Firebase configuration is missing!');
+  console.error('Please check your .env file and app.config.js');
+}
+
 // ============================================
-// INITIALIZE FIREBASE
+// INITIALIZE FIREBASE APP
 // ============================================
 let app;
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
+  console.log('🔥 Firebase App Initialized');
 } else {
-  app = getApps()[0];
+  app = getApp();
+  console.log('🔥 Firebase App Already Initialized');
 }
 
 // ============================================
@@ -83,10 +47,9 @@ if (getApps().length === 0) {
 // Firestore
 export const db = getFirestore(app);
 
-// Auth with custom persistence
-export const auth = initializeAuth(app, {
-  persistence: [reactNativeLocalPersistence as any],
-});
+// Auth - Basit yaklaşım, persistence yok
+export const auth = getAuth(app);
+console.log('✅ Firebase Auth initialized');
 
 // Storage
 export const storage = getStorage(app);
@@ -99,14 +62,15 @@ export const functions = getFunctions(app, appConfig.firebase.region || 'europe-
 // ============================================
 const getEmulatorHost = (): string => {
   if (Platform.OS === 'android') {
-    // Android emulator için 10.0.2.2 kullan
     return appConfig.firebase.emulatorConfig.host || '10.0.2.2';
   }
-  // iOS için localhost
   return 'localhost';
 };
 
-if (appConfig.isDevelopment && appConfig.firebase.useEmulator) {
+// Emulator bağlantısı için flag
+let emulatorsConnected = false;
+
+if (appConfig.isDevelopment && appConfig.firebase.useEmulator && !emulatorsConnected) {
   try {
     const host = getEmulatorHost();
     const config = appConfig.firebase.emulatorConfig;
@@ -116,10 +80,11 @@ if (appConfig.isDevelopment && appConfig.firebase.useEmulator) {
     console.log(`✅ Firestore Emulator: ${host}:${config.firestorePort}`);
     
     // Auth Emulator
-    connectAuthEmulator(auth, `http://${host}:${config.authPort}`, { 
+    const authUrl = `http://${host}:${config.authPort}`;
+    connectAuthEmulator(auth, authUrl, { 
       disableWarnings: true 
     });
-    console.log(`✅ Auth Emulator: http://${host}:${config.authPort}`);
+    console.log(`✅ Auth Emulator: ${authUrl}`);
     
     // Storage Emulator
     connectStorageEmulator(storage, host, config.storagePort);
@@ -129,9 +94,10 @@ if (appConfig.isDevelopment && appConfig.firebase.useEmulator) {
     connectFunctionsEmulator(functions, host, config.functionsPort);
     console.log(`✅ Functions Emulator: ${host}:${config.functionsPort}`);
     
-    console.log('🔥 Firebase Emulators connected');
-  } catch (error) {
-    console.warn('⚠️ Firebase Emulator connection failed:', error);
+    emulatorsConnected = true;
+    console.log('🔥 All Firebase Emulators Connected Successfully');
+  } catch (error: any) {
+    console.warn('⚠️ Firebase Emulator connection failed:', error.message);
   }
 }
 
@@ -139,11 +105,12 @@ if (appConfig.isDevelopment && appConfig.firebase.useEmulator) {
 // LOG INITIALIZATION
 // ============================================
 if (appConfig.isDevelopment) {
-  console.log('🔥 Firebase initialized:', {
+  console.log('🔥 Firebase Configuration:', {
     environment: appConfig.environment,
     projectId: firebaseConfig.projectId,
     platform: Platform.OS,
     useEmulator: appConfig.firebase.useEmulator,
+    emulatorHost: appConfig.firebase.useEmulator ? getEmulatorHost() : 'N/A',
   });
 }
 

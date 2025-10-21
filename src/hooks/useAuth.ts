@@ -1,25 +1,33 @@
-// src/hooks/useAuth.ts
+// src/hooks/useAuth.ts - Expo Firebase JS SDK + PlayerService Version
 import { useCallback } from 'react';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useDispatch, useSelector } from 'react-redux';
 import { 
-  setUser, 
-  setLoading, 
-  setError, 
-  clearAuth 
+  loginUser,
+  signUpUser,
+  logoutUser,
+  resetPassword,
+  updateUserProfile,
+  sendEmailVerification,
+  checkEmailVerification,
+  reloadUserData,
+  addFavoriteSport,
+  updateSportPositions,
+  clearError,
+  clearMessage,
 } from '../store/slices/authSlice';
-import { 
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  sendPasswordResetEmail,
-  updateProfile as firebaseUpdateProfile,
-} from 'firebase/auth';
-import { auth } from '../config/firebase.config';
+import type { IPlayer, SportType } from '../types/entity/types';
+import type { AppDispatch } from '../store';
 
+/**
+ * useAuth Hook - Firebase Authentication + PlayerService
+ * 
+ * Tüm auth işlemlerini kolaylaştıran custom hook
+ */
 export const useAuth = () => {
-  const dispatch = useAppDispatch();
-  const { user, isAuthenticated, loading, error } = useAppSelector(
-    (state) => state.auth
+  const dispatch = useDispatch<AppDispatch>();
+  
+  const { user, isAuthenticated, loading, error, message } = useSelector(
+    (state: any) => state.auth
   );
 
   /**
@@ -28,29 +36,21 @@ export const useAuth = () => {
   const signIn = useCallback(
     async (email: string, password: string) => {
       try {
-        dispatch(setLoading(true));
-        dispatch(setError(null));
+        const result = await dispatch(loginUser({ email, password }));
 
-        const userCredential = await signInWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-
-        dispatch(setUser({
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          displayName: userCredential.user.displayName,
-          photoURL: userCredential.user.photoURL,
-        }));
-
-        return { success: true };
+        if (loginUser.fulfilled.match(result)) {
+          return { success: true, data: result.payload };
+        } else {
+          return { 
+            success: false, 
+            error: result.payload as string || 'Giriş başarısız' 
+          };
+        }
       } catch (error: any) {
-        const errorMessage = getAuthErrorMessage(error.code);
-        dispatch(setError(errorMessage));
-        return { success: false, error: errorMessage };
-      } finally {
-        dispatch(setLoading(false));
+        return { 
+          success: false, 
+          error: error.message || 'Bir hata oluştu' 
+        };
       }
     },
     [dispatch]
@@ -60,34 +60,29 @@ export const useAuth = () => {
    * Sign up with email and password
    */
   const signUp = useCallback(
-    async (email: string, password: string, displayName: string) => {
+    async (data: {
+      email: string;
+      password: string;
+      name: string;
+      surname: string;
+      phone?: string;
+    }) => {
       try {
-        dispatch(setLoading(true));
-        dispatch(setError(null));
+        const result = await dispatch(signUpUser(data));
 
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-
-        // Update profile with display name
-        await firebaseUpdateProfile(userCredential.user, { displayName });
-
-        dispatch(setUser({
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          displayName,
-          photoURL: null,
-        }));
-
-        return { success: true };
+        if (signUpUser.fulfilled.match(result)) {
+          return { success: true, data: result.payload };
+        } else {
+          return { 
+            success: false, 
+            error: result.payload as string || 'Kayıt başarısız' 
+          };
+        }
       } catch (error: any) {
-        const errorMessage = getAuthErrorMessage(error.code);
-        dispatch(setError(errorMessage));
-        return { success: false, error: errorMessage };
-      } finally {
-        dispatch(setLoading(false));
+        return { 
+          success: false, 
+          error: error.message || 'Bir hata oluştu' 
+        };
       }
     },
     [dispatch]
@@ -98,157 +93,542 @@ export const useAuth = () => {
    */
   const logout = useCallback(async () => {
     try {
-      dispatch(setLoading(true));
-      await signOut(auth);
-      dispatch(clearAuth());
-      return { success: true };
+      const result = await dispatch(logoutUser());
+
+      if (logoutUser.fulfilled.match(result)) {
+        return { success: true };
+      } else {
+        return { 
+          success: false, 
+          error: result.payload as string || 'Çıkış yapılamadı' 
+        };
+      }
     } catch (error: any) {
-      const errorMessage = 'Çıkış yapılırken hata oluştu';
-      dispatch(setError(errorMessage));
-      return { success: false, error: errorMessage };
-    } finally {
-      dispatch(setLoading(false));
+      return { 
+        success: false, 
+        error: error.message || 'Bir hata oluştu' 
+      };
     }
   }, [dispatch]);
 
   /**
-   * Reset password
+   * Reset password - Send reset email
    */
-  const resetPassword = useCallback(
+  const sendPasswordResetEmail = useCallback(
     async (email: string) => {
       try {
-        dispatch(setLoading(true));
-        dispatch(setError(null));
+        const result = await dispatch(resetPassword(email));
 
-        await sendPasswordResetEmail(auth, email);
-
-        return { success: true };
+        if (resetPassword.fulfilled.match(result)) {
+          return { success: true, message: result.payload };
+        } else {
+          return { 
+            success: false, 
+            error: result.payload as string || 'E-posta gönderilemedi' 
+          };
+        }
       } catch (error: any) {
-        const errorMessage = getAuthErrorMessage(error.code);
-        dispatch(setError(errorMessage));
-        return { success: false, error: errorMessage };
-      } finally {
-        dispatch(setLoading(false));
+        return { 
+          success: false, 
+          error: error.message || 'Bir hata oluştu' 
+        };
       }
     },
     [dispatch]
   );
 
   /**
-   * Update profile
+   * Update user profile
    */
   const updateProfile = useCallback(
-    async (displayName?: string, photoURL?: string) => {
+    async (updates: Partial<IPlayer>) => {
       try {
-        if (!user) {
-          throw new Error('Kullanıcı bulunamadı');
+        const result = await dispatch(updateUserProfile(updates));
+
+        if (updateUserProfile.fulfilled.match(result)) {
+          return { success: true, data: result.payload };
+        } else {
+          return { 
+            success: false, 
+            error: result.payload as string || 'Profil güncellenemedi' 
+          };
         }
-
-        dispatch(setLoading(true));
-
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-          throw new Error('Oturum bulunamadı');
-        }
-
-        const updates: any = {};
-        if (displayName) updates.displayName = displayName;
-        if (photoURL !== undefined) updates.photoURL = photoURL;
-
-        await firebaseUpdateProfile(currentUser, updates);
-
-        dispatch(setUser({
-          ...user,
-          ...updates,
-        }));
-
-        return { success: true };
       } catch (error: any) {
-        const errorMessage = 'Profil güncellenirken hata oluştu';
-        dispatch(setError(errorMessage));
-        return { success: false, error: errorMessage };
-      } finally {
-        dispatch(setLoading(false));
+        return { 
+          success: false, 
+          error: error.message || 'Bir hata oluştu' 
+        };
       }
     },
-    [dispatch, user]
+    [dispatch]
   );
 
   /**
-   * Clear error
+   * Send email verification
    */
-  const clearAuthError = useCallback(() => {
-    dispatch(setError(null));
+  const sendVerificationEmail = useCallback(async () => {
+    try {
+      const result = await dispatch(sendEmailVerification());
+
+      if (sendEmailVerification.fulfilled.match(result)) {
+        return { success: true, message: result.payload };
+      } else {
+        return { 
+          success: false, 
+          error: result.payload as string || 'E-posta gönderilemedi' 
+        };
+      }
+    } catch (error: any) {
+      return { 
+        success: false, 
+        error: error.message || 'Bir hata oluştu' 
+      };
+    }
   }, [dispatch]);
 
+  /**
+   * Check if email is verified
+   */
+  const checkVerification = useCallback(async () => {
+    try {
+      const result = await dispatch(checkEmailVerification());
+
+      if (checkEmailVerification.fulfilled.match(result)) {
+        return { success: true, verified: result.payload };
+      } else {
+        return { 
+          success: false, 
+          error: result.payload as string || 'Kontrol edilemedi' 
+        };
+      }
+    } catch (error: any) {
+      return { 
+        success: false, 
+        error: error.message || 'Bir hata oluştu' 
+      };
+    }
+  }, [dispatch]);
+
+  /**
+   * Reload user data from database
+   */
+  const reloadUser = useCallback(async () => {
+    try {
+      const result = await dispatch(reloadUserData());
+
+      if (reloadUserData.fulfilled.match(result)) {
+        return { success: true, data: result.payload };
+      } else {
+        return { 
+          success: false, 
+          error: result.payload as string || 'Veriler yüklenemedi' 
+        };
+      }
+    } catch (error: any) {
+      return { 
+        success: false, 
+        error: error.message || 'Bir hata oluştu' 
+      };
+    }
+  }, [dispatch]);
+
+  /**
+   * Add favorite sport
+   */
+  const addSport = useCallback(
+    async (sportType: SportType) => {
+      try {
+        const result = await dispatch(addFavoriteSport({ sportType }));
+
+        if (addFavoriteSport.fulfilled.match(result)) {
+          return { success: true, data: result.payload };
+        } else {
+          return { 
+            success: false, 
+            error: result.payload as string || 'Spor eklenemedi' 
+          };
+        }
+      } catch (error: any) {
+        return { 
+          success: false, 
+          error: error.message || 'Bir hata oluştu' 
+        };
+      }
+    },
+    [dispatch]
+  );
+
+  /**
+   * Update sport positions
+   */
+  const setSportPositions = useCallback(
+    async (sportType: SportType, positions: string[]) => {
+      try {
+        const result = await dispatch(
+          updateSportPositions({ sportType, positions })
+        );
+
+        if (updateSportPositions.fulfilled.match(result)) {
+          return { success: true, data: result.payload };
+        } else {
+          return { 
+            success: false, 
+            error: result.payload as string || 'Pozisyonlar güncellenemedi' 
+          };
+        }
+      } catch (error: any) {
+        return { 
+          success: false, 
+          error: error.message || 'Bir hata oluştu' 
+        };
+      }
+    },
+    [dispatch]
+  );
+
+  /**
+   * Clear error message
+   */
+  const clearAuthError = useCallback(() => {
+    dispatch(clearError());
+  }, [dispatch]);
+
+  /**
+   * Clear success message
+   */
+  const clearAuthMessage = useCallback(() => {
+    dispatch(clearMessage());
+  }, [dispatch]);
+
+  /**
+   * Check if user has specific sport
+   */
+  const hasSport = useCallback(
+    (sportType: SportType): boolean => {
+      return user?.favoriteSports?.includes(sportType) || false;
+    },
+    [user]
+  );
+
+  /**
+   * Get user's positions for a sport
+   */
+  const getPositions = useCallback(
+    (sportType: SportType): string[] => {
+      return user?.sportPositions?.[sportType] || [];
+    },
+    [user]
+  );
+
+  /**
+   * Check if profile is complete
+   */
+  const isProfileComplete = useCallback((): boolean => {
+    if (!user) return false;
+    
+    return !!(
+      user.name &&
+      user.surname &&
+      user.email &&
+      user.emailVerified &&
+      user.favoriteSports &&
+      user.favoriteSports.length > 0
+    );
+  }, [user]);
+
+  /**
+   * Check if user is active
+   */
+  const isUserActive = useCallback((): boolean => {
+    if (!user) return false;
+    return (user.isActive || false) && !(user.isBanned || false);
+  }, [user]);
+
   return {
-    // State
+    // ============================================
+    // STATE
+    // ============================================
     user,
     isAuthenticated,
     loading,
     error,
+    message,
 
-    // Actions
+    // ============================================
+    // AUTH ACTIONS
+    // ============================================
     signIn,
     signUp,
     logout,
-    resetPassword,
+    sendPasswordResetEmail,
+
+    // ============================================
+    // PROFILE ACTIONS
+    // ============================================
     updateProfile,
+    reloadUser,
+
+    // ============================================
+    // EMAIL VERIFICATION
+    // ============================================
+    sendVerificationEmail,
+    checkVerification,
+
+    // ============================================
+    // SPORT PREFERENCES
+    // ============================================
+    addSport,
+    setSportPositions,
+    hasSport,
+    getPositions,
+
+    // ============================================
+    // UTILITIES
+    // ============================================
     clearError: clearAuthError,
+    clearMessage: clearAuthMessage,
+    isProfileComplete,
+    isUserActive,
   };
 };
 
-/**
- * Get user-friendly error message
- */
-function getAuthErrorMessage(errorCode: string): string {
-  switch (errorCode) {
-    case 'auth/user-not-found':
-      return 'Kullanıcı bulunamadı';
-    case 'auth/wrong-password':
-      return 'Hatalı şifre';
-    case 'auth/email-already-in-use':
-      return 'Bu email adresi zaten kullanılıyor';
-    case 'auth/weak-password':
-      return 'Şifre çok zayıf (en az 6 karakter)';
-    case 'auth/invalid-email':
-      return 'Geçersiz email adresi';
-    case 'auth/network-request-failed':
-      return 'İnternet bağlantısı hatası';
-    case 'auth/too-many-requests':
-      return 'Çok fazla deneme. Lütfen daha sonra tekrar deneyin';
-    default:
-      return 'Bir hata oluştu. Lütfen tekrar deneyin';
-  }
-}
-
 export default useAuth;
 
-
 /* 
-// Component'te kullanım
-import { useAuth, useLeague, useMatch, useDebounce } from '../hooks';
+================================================================================
+KULLANIM ÖRNEKLERİ
+================================================================================
 
-function HomeScreen() {
-  const { user, isAuthenticated } = useAuth();
-  const { myLeagues, loadMyLeagues } = useLeague();
-  const { upcomingMatches, loadUpcomingMatches } = useMatch();
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearch = useDebounce(searchQuery, 300);
+1. LOGIN
+--------------------------------------------------------------------------------
+import { useAuth } from '../hooks';
 
-  useEffect(() => {
-    if (debouncedSearch) {
-      // Search çalışır
+function LoginScreen() {
+  const { signIn, loading, error } = useAuth();
+
+  const handleLogin = async () => {
+    const result = await signIn('user@example.com', 'password123');
+    
+    if (result.success) {
+      console.log('Giriş başarılı!');
+    } else {
+      Alert.alert('Hata', result.error);
     }
-  }, [debouncedSearch]);
+  };
 
   return (
     <View>
-      <Text>{user?.displayName}</Text>
-      <FlatList data={myLeagues} />
+      <Button title="Giriş Yap" onPress={handleLogin} disabled={loading} />
+      {error && <Text>{error}</Text>}
     </View>
   );
 }
 
+2. REGISTER
+--------------------------------------------------------------------------------
+function RegisterScreen() {
+  const { signUp, loading } = useAuth();
+
+  const handleRegister = async () => {
+    const result = await signUp({
+      email: 'newuser@example.com',
+      password: 'password123',
+      name: 'Ahmet',
+      surname: 'Yılmaz',
+      phone: '+905551234567'
+    });
+
+    if (result.success) {
+      Alert.alert('Başarılı', 'Kayıt tamamlandı!');
+    }
+  };
+
+  return <Button title="Kayıt Ol" onPress={handleRegister} />;
+}
+
+3. PROFILE UPDATE
+--------------------------------------------------------------------------------
+function EditProfileScreen() {
+  const { user, updateProfile, loading } = useAuth();
+
+  const handleUpdate = async () => {
+    const result = await updateProfile({
+      name: 'Yeni İsim',
+      jerseyNumber: '10',
+      birthDate: '1990-01-01'
+    });
+
+    if (result.success) {
+      Alert.alert('Başarılı', 'Profil güncellendi');
+    }
+  };
+
+  return (
+    <View>
+      <TextInput defaultValue={user?.name} />
+      <Button title="Güncelle" onPress={handleUpdate} />
+    </View>
+  );
+}
+
+4. EMAIL VERIFICATION
+--------------------------------------------------------------------------------
+function EmailVerificationScreen() {
+  const { user, sendVerificationEmail, checkVerification } = useAuth();
+
+  const handleSendEmail = async () => {
+    const result = await sendVerificationEmail();
+    
+    if (result.success) {
+      Alert.alert('Başarılı', result.message);
+    }
+  };
+
+  const handleCheck = async () => {
+    const result = await checkVerification();
+    
+    if (result.success && result.verified) {
+      Alert.alert('Tebrikler', 'E-posta doğrulandı!');
+    }
+  };
+
+  if (user?.emailVerified) {
+    return <Text>✅ E-posta doğrulandı</Text>;
+  }
+
+  return (
+    <View>
+      <Button title="Doğrulama E-postası Gönder" onPress={handleSendEmail} />
+      <Button title="Kontrol Et" onPress={handleCheck} />
+    </View>
+  );
+}
+
+5. SPORT PREFERENCES
+--------------------------------------------------------------------------------
+function SportsScreen() {
+  const { user, addSport, setSportPositions, hasSport, getPositions } = useAuth();
+
+  const handleAddFootball = async () => {
+    const result = await addSport('Futbol');
+    
+    if (result.success) {
+      Alert.alert('Başarılı', 'Futbol eklendi');
+    }
+  };
+
+  const handleSetPositions = async () => {
+    const result = await setSportPositions('Futbol', ['Forvet', 'Kanat']);
+    
+    if (result.success) {
+      Alert.alert('Başarılı', 'Pozisyonlar kaydedildi');
+    }
+  };
+
+  const hasFootball = hasSport('Futbol');
+  const footballPositions = getPositions('Futbol');
+
+  return (
+    <View>
+      <Text>Futbol: {hasFootball ? '✓' : '✗'}</Text>
+      <Text>Pozisyonlar: {footballPositions.join(', ')}</Text>
+      <Button title="Futbol Ekle" onPress={handleAddFootball} />
+      <Button title="Pozisyon Ayarla" onPress={handleSetPositions} />
+    </View>
+  );
+}
+
+6. PROFILE STATUS
+--------------------------------------------------------------------------------
+function ProfileScreen() {
+  const { user, isProfileComplete, isUserActive, logout } = useAuth();
+
+  const profileComplete = isProfileComplete();
+  const userActive = isUserActive();
+
+  return (
+    <View>
+      <Text>Profil: {profileComplete ? 'Tamamlandı' : 'Eksik'}</Text>
+      <Text>Durum: {userActive ? 'Aktif' : 'Pasif/Banlı'}</Text>
+      
+      {!profileComplete && (
+        <Button title="Profili Tamamla" onPress={() => {}} />
+      )}
+      
+      {!userActive && (
+        <Text>Hesabınız aktif değil</Text>
+      )}
+      
+      <Button title="Çıkış Yap" onPress={logout} />
+    </View>
+  );
+}
+
+7. COMPLETE EXAMPLE - Home Screen
+--------------------------------------------------------------------------------
+function HomeScreen() {
+  const { 
+    user, 
+    isAuthenticated, 
+    loading,
+    error,
+    reloadUser,
+    isProfileComplete,
+    hasSport,
+    logout 
+  } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadUserData();
+    }
+  }, [isAuthenticated]);
+
+  const loadUserData = async () => {
+    await reloadUser();
+  };
+
+  if (loading) {
+    return <ActivityIndicator />;
+  }
+
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
+
+  return (
+    <ScrollView>
+      <Text>Hoş geldin, {user?.displayName || user?.name}</Text>
+      
+      {!user?.emailVerified && (
+        <Text style={styles.warning}>⚠️ E-postanızı doğrulayın</Text>
+      )}
+      
+      {!isProfileComplete() && (
+        <Text style={styles.warning}>⚠️ Profilinizi tamamlayın</Text>
+      )}
+      
+      <Text>Favori Sporlar:</Text>
+      {user?.favoriteSports?.map(sport => (
+        <Text key={sport}>✓ {sport}</Text>
+      ))}
+      
+      <Button title="Çıkış Yap" onPress={logout} />
+    </ScrollView>
+  );
+}
+
+8. WITH NAVIGATION
+--------------------------------------------------------------------------------
+function AppNavigator() {
+  const { isAuthenticated } = useAuth();
+
+  return (
+    <NavigationContainer>
+      {isAuthenticated ? <AppStack /> : <AuthStack />}
+    </NavigationContainer>
+  );
+}
+
+================================================================================
 */

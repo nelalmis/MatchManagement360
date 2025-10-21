@@ -588,7 +588,7 @@ async function cleanDatabase() {
 export async function seedFirebase(cleanFirst: boolean = false) {
   console.log('🌱 Starting Firebase Seed...\n');
   console.log('================================');
-
+ return;
   try {
     const startTime = Date.now();
 

@@ -11,6 +11,7 @@ import { AuthStack } from './AuthStack';
 import { isProfileComplete } from '../helper/helper';
 import { SideMenu } from '../components/SideMenu';
 import { MainNavigator } from './MainNavigator';
+import AuthNavigator from './AuthNavigator';
 
 const Stack = createNativeStackNavigator();
 
@@ -30,7 +31,7 @@ export function RootNavigator() {
       >
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!isAuthenticated ? (
-            <Stack.Screen name="auth" component={AuthStack} />
+            <Stack.Screen name="auth" component={AuthNavigator} />
           ) : (
             <Stack.Screen name="main" component={MainNavigator} />
           )}

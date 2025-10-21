@@ -5,8 +5,8 @@
 // ============================================
 // 1. ENUMS & CONSTANTS
 // ============================================
-import { 
-  Timestamp, 
+import {
+  Timestamp,
   FieldValue,
   serverTimestamp,
   increment,
@@ -154,8 +154,8 @@ export interface PlayerListConfig {
  * Custom modda overrides, auto modda inherited kullanılır
  */
 export const getEffectivePlayers = (config: PlayerListConfig): string[] => {
-  return config.mode === 'custom' && config.overrides 
-    ? config.overrides 
+  return config.mode === 'custom' && config.overrides
+    ? config.overrides
     : config.inherited;
 };
 
@@ -171,39 +171,61 @@ export const getEffectivePlayers = (config: PlayerListConfig): string[] => {
  */
 export interface IPlayer {
   id: string;                   // User ID (Firebase Auth UID ile aynı)
-  
+
   // ============================================
   // KİŞİSEL BİLGİLER
   // ============================================
   name: string;                 // Ad
   surname: string;              // Soyad
-  email: string;                // E-posta (unique)
-  phone?: string;               // Telefon (optional)
-  
+  displayName?: string;             // "John Doe"
+
+  // ============================================
+  // AUTH (Global)
+  // ============================================
+  email: string;                    // PRIMARY identifier
+  emailVerified: boolean;           // Email doğrulandı mı
+
+  // Auth providers
+  authProviders: Array<'email' | 'google' | 'apple' | 'facebook'>;
+
+  // Optional phone (2FA için)
+  phone?: string;
+  phoneVerified?: boolean;
+
   // ============================================
   // PROFİL BİLGİLERİ
   // ============================================
   jerseyNumber?: string;        // Forma numarası
   birthDate?: string;           // Doğum tarihi (ISO format)
   profilePhoto?: string;        // Profil fotoğrafı URL
-  
+
   // ============================================
   // SPOR TERCİHLERİ
   // ============================================
   favoriteSports: SportType[];  // Favori sporlar
   sportPositions?: Partial<Record<SportType, string[]>>; // Spor bazlı pozisyonlar
   // Örnek: { "Futbol": ["Kaleci", "Defans"], "Basketbol": ["Guard"] }
-  
+
+
   // ============================================
-  // AUTH
+  // SETTINGS
   // ============================================
-  lastLogin?: Date;             // Son giriş zamanı
-  
+  language?: 'en' | 'tr' | 'es' | 'de' | 'fr';  // Multi-language support
+  timezone?: string;                 // User timezone
+
+  // ============================================
+  // SECURITY
+  // ============================================
+  twoFactorEnabled?: boolean;
+  lastLogin?: Date;
+
   // ============================================
   // META
   // ============================================
   createdAt: string;            // Kayıt tarihi
   updatedAt?: string;           // Son güncelleme
+  isActive?: boolean;
+  isBanned?: boolean;
 }
 
 // ============================================
@@ -218,7 +240,7 @@ export interface IPlayer {
  */
 export interface ILeague {
   id: string;
-  
+
   // ============================================
   // TEMEL BİLGİLER
   // ============================================
@@ -226,12 +248,12 @@ export interface ILeague {
   sportType: SportType;         // Hangi spor
   description?: string;         // Açıklama
   logo?: string;                // Lig logosu URL
-  
+
   // ============================================
   // AKTİF SEZON
   // ============================================
   currentSeasonId?: string;     // Şu anki aktif sezon ID'si (→ seasons)
-  
+
   // ============================================
   // SEZON AYARLARI
   // ============================================
@@ -241,7 +263,7 @@ export interface ILeague {
     autoArchiveOldSeasons: boolean;    // Eski sezonları otomatik arşivle
     archiveAfterMonths: number;        // Kaç ay sonra arşivlensin (12)
   };
-  
+
   // ============================================
   // ÜYELER
   // ============================================
@@ -249,7 +271,7 @@ export interface ILeague {
     all: string[];              // Tüm lig üyeleri (Player ID'leri)
     admins: string[];           // Lig yöneticileri (Player ID'leri)
   };
-  
+
   // ============================================
   // VARSAYILAN OYUNCU LİSTELERİ
   // Yeni fixture/match oluşturulduğunda base olarak kullanılır
@@ -258,7 +280,7 @@ export interface ILeague {
     premium: string[];          // Öncelikli oyuncular (kayıt olursa başa geçer)
     direct: string[];           // Direkt oyuncular (otomatik kadroda)
   };
-  
+
   // ============================================
   // GENEL AYARLAR
   // ============================================
@@ -267,14 +289,14 @@ export interface ILeague {
     friendlyAffectsStats: boolean;        // Friendly istatistikleri etkiler mi
     friendlyAffectsStandings: boolean;    // Friendly puan durumunu etkiler mi
   };
-  
+
   // ============================================
   // CACHE (Performans için hesaplanıp saklanır)
   // ============================================
   totalSeasons: number;         // CACHE: Toplam sezon sayısı
   totalMatches: number;         // CACHE: Toplam maç sayısı
   totalMembers: number;         // CACHE: Toplam üye sayısı
-  
+
   // ============================================
   // META
   // ============================================
@@ -296,24 +318,24 @@ export interface ILeague {
 export interface ISeason {
   id: string;
   leagueId: string;             // Hangi lige ait (→ leagues)
-  
+
   // ============================================
   // TEMEL BİLGİLER
   // ============================================
   name: string;                 // Sezon adı
   seasonNumber: number;         // Sezon sırası (1, 2, 3...)
-  
+
   // ============================================
   // TARİH
   // ============================================
   startDate: string;            // Başlangıç tarihi (ISO format)
   endDate: string;              // Bitiş tarihi (ISO format)
-  
+
   // ============================================
   // DURUM
   // ============================================
   status: SeasonStatus;         // upcoming/active/completed/archived
-  
+
   // ============================================
   // AYARLAR (Sezon özelinde)
   // ============================================
@@ -322,20 +344,20 @@ export interface ISeason {
     pointsForDraw: number;      // Beraberlik puanı (varsayılan: 1)
     pointsForLoss: number;      // Mağlubiyet puanı (varsayılan: 0)
   };
-  
+
   // ============================================
   // ÖZET (CACHE - Sezon tamamlandığında hesaplanır)
   // ============================================
   summary?: {
     totalMatches: number;       // CACHE: Toplam maç sayısı
     totalGoals: number;         // CACHE: Toplam gol sayısı
-    
+
     topScorer?: {               // CACHE: En çok gol atan
       playerId: string;
       playerName: string;       // CACHE: İsim
       goals: number;
     };
-    
+
     mvp?: {                     // CACHE: Sezon MVP
       playerId: string;
       playerName: string;       // CACHE: İsim
@@ -343,12 +365,12 @@ export interface ISeason {
       mvpCount: number;         // Kaç kez MVP seçildi
     };
   };
-  
+
   // ============================================
   // İLİŞKİLER
   // ============================================
   standingsId?: string;         // Puan durumu ID'si (→ standings)
-  
+
   // ============================================
   // META
   // ============================================
@@ -372,13 +394,13 @@ export interface ISeason {
 export interface IFixture {
   id: string;
   leagueId: string;             // Hangi lige ait (→ leagues)
-  
+
   // ============================================
   // TEMEL BİLGİLER
   // ============================================
   title: string;                // Fixture adı (örn: "Salı Maçı")
   description?: string;         // Açıklama
-  
+
   // ============================================
   // ZAMANLAMA
   // ============================================
@@ -386,7 +408,7 @@ export interface IFixture {
     registrationStartTime: string;  // Kayıt başlangıç saati ("18:00")
     matchStartTime: string;         // Maç başlangıç saati ("19:00")
     matchDuration: number;          // Maç süresi (dakika)
-    
+
     // Periyodik ayarlar
     isRecurring: boolean;           // Tekrarlayan mı, tek seferlik mi
     pattern?: {
@@ -397,7 +419,7 @@ export interface IFixture {
       endsAt?: string;              // Tekrarın bitiş tarihi (optional)
     };
   };
-  
+
   // ============================================
   // KADRO AYARLARI
   // ============================================
@@ -406,7 +428,7 @@ export interface IFixture {
     reservePlayers: number;         // Yedek oyuncu sayısı (2)
     minPlayersToStart: number;      // Maç başlamak için min. oyuncu (8)
   };
-  
+
   // ============================================
   // LOKASYON VE ÖDEME
   // ============================================
@@ -418,7 +440,7 @@ export interface IFixture {
       accountName: string;          // Hesap sahibi
     };
   };
-  
+
   // ============================================
   // OYUNCU LİSTELERİ (Hybrid sistem)
   // League'den inherit edilir, özelleştirilebilir
@@ -427,7 +449,7 @@ export interface IFixture {
     premium: PlayerListConfig;      // Öncelikli oyuncular
     direct: PlayerListConfig;       // Direkt oyuncular
   };
-  
+
   // ============================================
   // YETKİLER
   // ============================================
@@ -435,18 +457,18 @@ export interface IFixture {
     organizers: string[];           // Fixture organizatörleri
     teamBuilders?: string[];        // Takım kurma yetkisi olanlar
   };
-  
+
   // ============================================
   // CACHE
   // ============================================
   totalMatches: number;         // CACHE: Bu fixture'dan oluşturulan toplam maç
   nextMatchDate?: string;       // CACHE: Bir sonraki maç tarihi
-  
+
   // ============================================
   // DURUM
   // ============================================
   status: 'active' | 'inactive'; // Aktif/Pasif
-  
+
   // ============================================
   // META
   // ============================================
@@ -467,7 +489,7 @@ export interface IFixture {
 export interface IMatch {
   id: string;
   type: MatchType;              // LEAGUE veya FRIENDLY
-  
+
   // ============================================
   // İLİŞKİLER
   // ============================================
@@ -475,18 +497,18 @@ export interface IMatch {
   leagueId?: string;            // Lig ID (→ leagues) - LEAGUE için zorunlu
   fixtureId?: string;           // Fixture ID (→ fixtures) - LEAGUE için zorunlu
   seasonId?: string;            // Sezon ID (→ seasons) - LEAGUE için zorunlu
-  
+
   // Friendly Match için:
   organizerId?: string;         // Organize eden oyuncu ID - FRIENDLY için zorunlu
   linkedLeagueId?: string;      // Bağlı lig (opsiyonel - friendly + lig entegrasyonu)
-  
+
   // ============================================
   // TEMEL BİLGİLER
   // ============================================
   title: string;                // Maç başlığı
   sportType: SportType;         // Hangi spor
   description?: string;         // Açıklama
-  
+
   // ============================================
   // ZAMANLAMA
   // ============================================
@@ -496,7 +518,7 @@ export interface IMatch {
     matchStart: Date;           // Maç başlangıç
     matchEnd: Date;             // Maç bitiş
   };
-  
+
   // ============================================
   // KADRO AYARLARI
   // Fixture'dan inherit edilir, özelleştirilebilir
@@ -506,30 +528,30 @@ export interface IMatch {
     reservePlayers: number;
     minPlayersToStart: number;
   };
-  
+
   // ============================================
   // OYUNCU YÖNETİMİ (ÖNCELİK SİSTEMİ)
   // ============================================
   players: {
     // 1️⃣ Premium (Kayıt olursa kadronun başına geçer)
     premium: PlayerListConfig;  // Fixture'dan inherit + özelleştirme
-    
+
     // 2️⃣ Direct (Otomatik kadroda, kayıt beklenmez)
     direct: PlayerListConfig;   // Fixture'dan inherit + özelleştirme
-    
+
     // 3️⃣ Misafir (Sadece bu maç için)
     guests: string[];           // Kadronun sonuna eklenir
-    
+
     // 4️⃣ Kayıtlı (Normal kayıt olanlar, sıraya göre)
     registered: Array<{
       playerId: string;
       registeredAt: Date;
       preferredPosition?: string;
     }>;
-    
+
     // 5️⃣ Yedekler (Kadro dolarsa buraya alınır)
     reserves: string[];
-    
+
     // Takımlar (Organizatör oluşturur)
     teams?: {
       team1: Array<{
@@ -542,7 +564,7 @@ export interface IMatch {
       }>;
     };
   };
-  
+
   // ============================================
   // YETKİLER
   // ============================================
@@ -550,7 +572,7 @@ export interface IMatch {
     organizers: string[];       // Maç organizatörleri
     teamBuilders: string[];     // Takım kurma yetkisi olanlar
   };
-  
+
   // ============================================
   // LOKASYON VE ÖDEME
   // Fixture'dan farklı olabilir (maça özel özelleştirme)
@@ -563,7 +585,7 @@ export interface IMatch {
       accountName: string;
     };
   };
-  
+
   // ============================================
   // SKOR
   // ============================================
@@ -577,7 +599,7 @@ export interface IMatch {
       confirmed: boolean;       // Organizatör onayı
     }>;
   };
-  
+
   // ============================================
   // ÖDEME
   // ============================================
@@ -588,7 +610,7 @@ export interface IMatch {
     paidAt?: Date;
     confirmedBy?: string;       // Onaylayan organizatör ID
   }>;
-  
+
   // ============================================
   // MVP (Hybrid - Basit)
   // ============================================
@@ -597,12 +619,12 @@ export interface IMatch {
     calculatedAt: string;       // Hesaplama zamanı
     autoCalculated: boolean;    // Otomatik mi hesaplandı
   };
-  
+
   // ============================================
   // DURUM
   // ============================================
   status: MatchStatus;
-  
+
   // ============================================
   // FRIENDLY AYARLARI
   // ============================================
@@ -612,20 +634,20 @@ export interface IMatch {
     affectsStats: boolean;      // İstatistikleri etkiler mi
     affectsStandings: boolean;  // Puan durumunu etkiler mi
   };
-  
+
   // ============================================
   // CACHE
   // ============================================
   totalComments?: number;       // CACHE: Toplam yorum sayısı
   totalRatings?: number;        // CACHE: Toplam rating sayısı
-  
+
   // Rating özeti (CACHE - Performans için)
   ratingSummary?: {
     enabled: boolean;           // Rating sistemi aktif mi
     totalRatings: number;       // Toplam rating sayısı
     averageRating: number;      // Genel ortalama
     participationRate: number;  // Kaç oyuncu rating verdi (%)
-    
+
     // Detaylar (Opsiyonel - admin panel için)
     details?: {
       bySource: {
@@ -639,10 +661,10 @@ export interface IMatch {
         isTeam1: boolean;
       }>;
     };
-    
+
     lastCalculated: string;     // Son hesaplama zamanı
   };
-  
+
   // ============================================
   // META
   // ============================================
@@ -664,14 +686,14 @@ export interface IStandings {
   id: string;
   leagueId: string;             // Hangi lig (→ leagues)
   seasonId: string;             // Hangi sezon (→ seasons)
-  
+
   // ============================================
   // PUAN DURUMU
   // ============================================
   standings: Array<{
     playerId: string;
     playerName: string;         // CACHE: Oyuncu adı
-    
+
     // Lig İstatistikleri (Puan durumunu etkiler)
     league: {
       played: number;           // Oynadığı maç
@@ -684,7 +706,7 @@ export interface IStandings {
       assists: number;          // Asist
       points: number;           // Puan (won*3 + drawn*1)
     };
-    
+
     // Friendly İstatistikleri (Sadece bilgi amaçlı)
     friendly?: {
       played: number;
@@ -694,7 +716,7 @@ export interface IStandings {
       goals: number;
       assists: number;
     };
-    
+
     // Performans Metrikleri (CACHE)
     performance: {
       rating: number;           // CACHE: Ortalama rating
@@ -706,7 +728,7 @@ export interface IStandings {
       ratingTrend: 'up' | 'stable' | 'down'; // CACHE: Rating trendi
     };
   }>;
-  
+
   // ============================================
   // META
   // ============================================
@@ -728,7 +750,7 @@ export interface IPlayerStats {
   playerId: string;             // Hangi oyuncu (→ users)
   leagueId: string;             // Hangi lig (→ leagues)
   seasonId: string;             // Hangi sezon (→ seasons)
-  
+
   // ============================================
   // LİG İSTATİSTİKLERİ
   // ============================================
@@ -740,14 +762,14 @@ export interface IPlayerStats {
     goals: number;
     assists: number;
     points: number;
-    
+
     // Hesaplanmış metrikler (CACHE)
     goalsPerMatch: number;      // CACHE: goals / matches
     assistsPerMatch: number;    // CACHE: assists / matches
     winRate: number;            // CACHE: (wins / matches) * 100
     cleanSheets?: number;       // Gol yemeden kazanılan maçlar
   };
-  
+
   // ============================================
   // FRIENDLY İSTATİSTİKLERİ
   // ============================================
@@ -758,13 +780,13 @@ export interface IPlayerStats {
     losses: number;
     goals: number;
     assists: number;
-    
+
     // Hesaplanmış metrikler (CACHE)
     goalsPerMatch: number;      // CACHE
     assistsPerMatch: number;    // CACHE
     winRate: number;            // CACHE
   };
-  
+
   // ============================================
   // TOPLAM (League + Friendly)
   // ============================================
@@ -774,14 +796,14 @@ export interface IPlayerStats {
     assists: number;            // CACHE
     points: number;             // Sadece league puanı
   };
-  
+
   // ============================================
   // RATING & PERFORMANS
   // ============================================
   rating: {
     average: number;            // Ortalama rating (1-5)
     totalReceived: number;      // Kaç kez puanlandı
-    
+
     // Kategorik (varsa)
     categories?: {
       skill: number;
@@ -789,11 +811,11 @@ export interface IPlayerStats {
       sportsmanship: number;
       effort: number;
     };
-    
+
     // Son performans (CACHE)
     lastFiveRatings: number[];  // Son 5 maçın rating'leri
     trend: 'improving' | 'stable' | 'declining'; // CACHE: Trend
-    
+
     // Kaynak bazlı (CACHE)
     fromTeammates: {
       average: number;
@@ -804,7 +826,7 @@ export interface IPlayerStats {
       count: number;
     };
   };
-  
+
   // ============================================
   // MVP İSTATİSTİKLERİ
   // ============================================
@@ -813,7 +835,7 @@ export interface IPlayerStats {
     rate: number;               // CACHE: MVP oranı (count/matches * 100)
     lastMvpDate?: string;       // Son MVP tarihi
   };
-  
+
   // ============================================
   // KATILIM
   // ============================================
@@ -822,7 +844,7 @@ export interface IPlayerStats {
     played: number;             // Kaç maça katıldı
     rate: number;               // CACHE: (played / invited) * 100
   };
-  
+
   // ============================================
   // POZİSYON ANALİZİ (Opsiyonel)
   // ============================================
@@ -832,7 +854,7 @@ export interface IPlayerStats {
     assists: number;
     rating: number;
   }>;
-  
+
   // ============================================
   // META
   // ============================================
@@ -855,15 +877,15 @@ export interface IMatchRating {
   matchType: MatchType;         // League veya Friendly
   leagueId?: string;            // Query için (→ leagues)
   seasonId?: string;            // Query için (→ seasons)
-  
+
   // ============================================
   // PUANLAMA
   // ============================================
   raterId: string;              // Puanlayan oyuncu (→ users)
   ratedPlayerId: string;        // Puanlanan oyuncu (→ users)
-  
+
   rating: number;               // 1-5 yıldız
-  
+
   // Kategorik puanlama (opsiyonel)
   categories?: {
     skill?: number;             // Beceri (1-5)
@@ -871,10 +893,10 @@ export interface IMatchRating {
     sportsmanship?: number;     // Sportmenlik (1-5)
     effort?: number;            // Çaba (1-5)
   };
-  
+
   comment?: string;             // Opsiyonel yorum
   isAnonymous: boolean;         // Anonim mi
-  
+
   // ============================================
   // META
   // ============================================
@@ -896,29 +918,29 @@ export interface IMatchComment {
   id: string;
   matchId: string;              // Hangi maç (→ matches)
   matchType: MatchType;
-  
+
   // ============================================
   // YORUM
   // ============================================
   playerId: string;             // Yorum yapan (→ users)
   playerName: string;           // CACHE: Oyuncu adı
   playerPhoto?: string;         // CACHE: Profil fotoğrafı
-  
+
   comment: string;              // Yorum içeriği
   type: 'general' | 'highlight' | 'improvement'; // Yorum türü
-  
+
   // ============================================
   // MODERASYON
   // ============================================
   isApproved: boolean;          // Organizatör onayı
   approvedBy?: string;          // Onaylayan organizatör ID
   approvedAt?: string;
-  
+
   // ============================================
   // REAKSİYON
   // ============================================
   likes: string[];              // Like atan oyuncu ID'leri
-  
+
   // ============================================
   // META
   // ============================================
@@ -940,23 +962,23 @@ export interface IMatchInvitation {
   id: string;
   matchId: string;              // Hangi maç (→ matches)
   matchType: MatchType;
-  
+
   // ============================================
   // DAVET
   // ============================================
   inviterId: string;            // Davet eden (→ users)
   inviterName: string;          // CACHE: Davet eden adı
-  
+
   inviteeId: string;            // Davet edilen (→ users)
   inviteeName: string;          // CACHE: Davet edilen adı
-  
+
   // ============================================
   // DURUM
   // ============================================
   status: 'pending' | 'accepted' | 'declined' | 'expired';
-  
+
   message?: string;             // Davet mesajı
-  
+
   // ============================================
   // META
   // ============================================
@@ -978,42 +1000,42 @@ export interface IMatchInvitation {
 export interface INotification {
   id: string;
   userId: string;               // Bildirim alacak kullanıcı (→ users)
-  
+
   // ============================================
   // BİLDİRİM TİPİ
   // ============================================
-  type: 
-    | 'match_invitation'        // Maça davet
-    | 'match_reminder'          // Maç hatırlatması
-    | 'team_assignment'         // Takıma atandı
-    | 'payment_reminder'        // Ödeme hatırlatması
-    | 'rating_request'          // Rating talebi
-    | 'mvp_announcement'        // MVP seçildi
-    | 'season_start'            // Sezon başladı
-    | 'season_end';             // Sezon bitti
-  
+  type:
+  | 'match_invitation'        // Maça davet
+  | 'match_reminder'          // Maç hatırlatması
+  | 'team_assignment'         // Takıma atandı
+  | 'payment_reminder'        // Ödeme hatırlatması
+  | 'rating_request'          // Rating talebi
+  | 'mvp_announcement'        // MVP seçildi
+  | 'season_start'            // Sezon başladı
+  | 'season_end';             // Sezon bitti
+
   // ============================================
   // İÇERİK
   // ============================================
   title: string;
   message: string;
-  
+
   // İlişkili veri
   relatedId?: string;           // matchId, leagueId, seasonId vb.
   relatedType?: 'match' | 'league' | 'season' | 'player';
-  
+
   // ============================================
   // DURUM
   // ============================================
   read: boolean;
   readAt?: string;
-  
+
   // ============================================
   // AKSİYON
   // ============================================
   actionUrl?: string;           // Tıklanınca gidilecek URL
   actionLabel?: string;         // Buton etiketi
-  
+
   // ============================================
   // META
   // ============================================
@@ -1032,39 +1054,39 @@ export interface INotification {
  */
 export interface IActivityLog {
   id: string;
-  
+
   // ============================================
   // KİM
   // ============================================
   userId: string;               // İşlemi yapan (→ users)
   userName: string;             // CACHE: Kullanıcı adı
-  
+
   // ============================================
   // NE
   // ============================================
-  action: 
-    | 'league_created'
-    | 'match_created'
-    | 'match_registered'
-    | 'team_assigned'
-    | 'score_submitted'
-    | 'payment_confirmed'
-    | 'rating_given'
-    | 'comment_posted'
-    | 'mvp_awarded';
-  
+  action:
+  | 'league_created'
+  | 'match_created'
+  | 'match_registered'
+  | 'team_assigned'
+  | 'score_submitted'
+  | 'payment_confirmed'
+  | 'rating_given'
+  | 'comment_posted'
+  | 'mvp_awarded';
+
   // ============================================
   // NEREDE
   // ============================================
   entityType: 'league' | 'season' | 'fixture' | 'match' | 'player';
   entityId: string;
   entityName?: string;          // CACHE: Entity adı
-  
+
   // ============================================
   // DETAY
   // ============================================
   details?: Record<string, any>; // Ek bilgiler (JSON)
-  
+
   // ============================================
   // META
   // ============================================
@@ -1084,7 +1106,7 @@ export interface IActivityLog {
  */
 export interface IAppConfig {
   id: string;                   // 'main' (sabit)
-  
+
   // ============================================
   // UYGULAMA BİLGİLERİ
   // ============================================
@@ -1095,7 +1117,7 @@ export interface IAppConfig {
     maintenanceMode: boolean;
     maintenanceMessage?: string;
   };
-  
+
   // ============================================
   // ÖZELLİK FLAGLER (Feature Flags)
   // ============================================
@@ -1109,7 +1131,7 @@ export interface IAppConfig {
     invitations: boolean;
     multiLeague: boolean;       // Kullanıcı birden fazla lige katılabilir mi
   };
-  
+
   // ============================================
   // VARSAYILAN DEĞERLER
   // ============================================
@@ -1122,7 +1144,7 @@ export interface IAppConfig {
     registrationDeadlineHours: number;  // Maç başlamadan kaç saat önce kayıt kapanır
     autoArchiveMonths: number;          // 12 ay
   };
-  
+
   // ============================================
   // LİMİTLER
   // ============================================
@@ -1133,7 +1155,7 @@ export interface IAppConfig {
     maxCommentsPerMatch: number;        // 50
     maxInvitationsPerMatch: number;     // 20
   };
-  
+
   // ============================================
   // BİLDİRİM AYARLARI
   // ============================================
@@ -1150,7 +1172,7 @@ export interface IAppConfig {
       ratingRequest: number;            // Maç bitiminden kaç saat sonra (2)
     };
   };
-  
+
   // ============================================
   // E-POSTA ŞABLONLARI
   // ============================================
@@ -1172,7 +1194,7 @@ export interface IAppConfig {
       enabled: boolean;
     };
   };
-  
+
   // ============================================
   // SOSYAL MEDYA
   // ============================================
@@ -1182,7 +1204,7 @@ export interface IAppConfig {
     instagram?: string;
     website?: string;
   };
-  
+
   // ============================================
   // İLETİŞİM
   // ============================================
@@ -1191,7 +1213,7 @@ export interface IAppConfig {
     phone?: string;
     supportEmail: string;
   };
-  
+
   // ============================================
   // META
   // ============================================
@@ -1212,7 +1234,7 @@ export interface IAppConfig {
 export interface IUserSettings {
   id: string;                   // userId ile aynı
   userId: string;
-  
+
   // ============================================
   // PROFİL TERCİHLERİ
   // ============================================
@@ -1222,7 +1244,7 @@ export interface IUserSettings {
     showPhone: boolean;
     showBirthDate: boolean;
   };
-  
+
   // ============================================
   // BİLDİRİM TERCİHLERİ
   // ============================================
@@ -1250,7 +1272,7 @@ export interface IUserSettings {
       urgentUpdates: boolean;
     };
   };
-  
+
   // ============================================
   // GİZLİLİK
   // ============================================
@@ -1261,7 +1283,7 @@ export interface IUserSettings {
     allowInvitations: boolean;
     allowFriendRequests: boolean;
   };
-  
+
   // ============================================
   // OYUN TERCİHLERİ
   // ============================================
@@ -1275,7 +1297,7 @@ export interface IUserSettings {
     };
     maxDistanceKm?: number;             // Maks. saha mesafesi
   };
-  
+
   // ============================================
   // GÖRÜNÜM AYARLARI
   // ============================================
@@ -1285,7 +1307,7 @@ export interface IUserSettings {
     dateFormat: 'DD/MM/YYYY' | 'MM/DD/YYYY';
     timeFormat: '24h' | '12h';
   };
-  
+
   // ============================================
   // QUICK ACTIONS (Sık Kullanılan - CACHE)
   // ============================================
@@ -1294,7 +1316,7 @@ export interface IUserSettings {
     recentMatches: string[];            // CACHE: Son 5 maç ID'si
     frequentPlayers: string[];          // CACHE: Sık oynadığı oyuncular
   };
-  
+
   // ============================================
   // META
   // ============================================
@@ -1315,7 +1337,7 @@ export interface IUserSettings {
 export interface ILeagueSettings {
   id: string;                   // leagueId ile aynı
   leagueId: string;
-  
+
   // ============================================
   // GENEL KURALLAR
   // ============================================
@@ -1326,7 +1348,7 @@ export interface ILeagueSettings {
     redCardFine?: number;
     minAttendanceRate?: number;         // Min katılım oranı (%)
   };
-  
+
   // ============================================
   // MAÇ KURALLARI
   // ============================================
@@ -1337,7 +1359,7 @@ export interface ILeagueSettings {
     autoAssignTeams: boolean;           // Algoritma ile otomatik takım kur
     teamBalanceAlgorithm: 'random' | 'rating' | 'position';
   };
-  
+
   // ============================================
   // KAYIT KURALLARI
   // ============================================
@@ -1348,7 +1370,7 @@ export interface ILeagueSettings {
     autoConfirmPayment: boolean;        // Manuel onay gerektirme
     cancellationDeadlineHours: number;
   };
-  
+
   // ============================================
   // SKOR & İSTATİSTİK KURALLARI
   // ============================================
@@ -1357,7 +1379,7 @@ export interface ILeagueSettings {
     scoreConfirmationTimeoutHours: number;
     allowPlayerSelfReporting: boolean;  // Oyuncular kendi gollerini girebilir mi
   };
-  
+
   // ============================================
   // RATING KURALLARI
   // ============================================
@@ -1369,7 +1391,7 @@ export interface ILeagueSettings {
     minRatingsForMVP: number;           // MVP için min rating sayısı
     allowCategoryRating: boolean;       // Kategorik puanlama
   };
-  
+
   // ============================================
   // YORUM KURALLARI
   // ============================================
@@ -1379,7 +1401,7 @@ export interface ILeagueSettings {
     allowLikes: boolean;
     maxLength: number;
   };
-  
+
   // ============================================
   // ÖDEME AYARLARI
   // ============================================
@@ -1391,7 +1413,7 @@ export interface ILeagueSettings {
     allowInstallment: boolean;
     paymentMethods: ('cash' | 'bank_transfer' | 'credit_card')[];
   };
-  
+
   // ============================================
   // WEBHOOK & INTEGRATIONS
   // ============================================
@@ -1401,7 +1423,7 @@ export interface ILeagueSettings {
     whatsapp: boolean;
     slack: boolean;
   };
-  
+
   // ============================================
   // META
   // ============================================
@@ -1421,29 +1443,29 @@ export interface ILeagueSettings {
  */
 export interface ISystemLog {
   id: string;
-  
+
   // ============================================
   // LOG SEVİYESİ
   // ============================================
   level: 'info' | 'warning' | 'error' | 'critical';
-  
+
   // ============================================
   // KATEGORİ
   // ============================================
-  category: 
-    | 'auth'
-    | 'match'
-    | 'payment'
-    | 'notification'
-    | 'calculation'
-    | 'integration'
-    | 'security';
-  
+  category:
+  | 'auth'
+  | 'match'
+  | 'payment'
+  | 'notification'
+  | 'calculation'
+  | 'integration'
+  | 'security';
+
   // ============================================
   // MESAJ
   // ============================================
   message: string;
-  
+
   // ============================================
   // DETAY
   // ============================================
@@ -1456,7 +1478,7 @@ export interface ISystemLog {
     request?: any;
     response?: any;
   };
-  
+
   // ============================================
   // META
   // ============================================
@@ -1478,37 +1500,37 @@ export interface ISystemLog {
  */
 export interface IFAQ {
   id: string;
-  
+
   // ============================================
   // İÇERİK
   // ============================================
   question: string;
   answer: string;
-  
+
   // ============================================
   // KATEGORİ
   // ============================================
-  category: 
-    | 'general'
-    | 'league'
-    | 'match'
-    | 'payment'
-    | 'rating'
-    | 'account';
-  
+  category:
+  | 'general'
+  | 'league'
+  | 'match'
+  | 'payment'
+  | 'rating'
+  | 'account';
+
   // ============================================
   // ÖNCELİK & GÖRÜNÜRLÜK
   // ============================================
   priority: number;             // Sıralama için (1-100)
   isPublished: boolean;
-  
+
   // ============================================
   // İSTATİSTİK (CACHE)
   // ============================================
   views: number;                // CACHE: Görüntülenme sayısı
   helpful: number;              // CACHE: Faydalı bulanlar
   notHelpful: number;           // CACHE: Faydalı bulmayanlar
-  
+
   // ============================================
   // META
   // ============================================
@@ -1529,14 +1551,14 @@ export interface IFAQ {
  */
 export interface IAnnouncement {
   id?: string;
-  
+
   // ============================================
   // İÇERİK
   // ============================================
   title: string;
   message: string;
   type: 'info' | 'warning' | 'success' | 'error';
-  
+
   // ============================================
   // HEDEF KİTLE
   // ============================================
@@ -1545,7 +1567,7 @@ export interface IAnnouncement {
     leagueIds?: string[];       // Sadece bu liglere göster
     userIds?: string[];         // Sadece bu kullanıcılara göster
   };
-  
+
   // ============================================
   // GÖRÜNÜM
   // ============================================
@@ -1555,7 +1577,7 @@ export interface IAnnouncement {
     showInLeague: boolean;
     dismissable: boolean;
   };
-  
+
   // ============================================
   // ZAMANLAMA
   // ============================================
@@ -1564,7 +1586,7 @@ export interface IAnnouncement {
     endDate: string;
     isActive: boolean;
   };
-  
+
   // ============================================
   // AKSİYON
   // ============================================
@@ -1572,7 +1594,7 @@ export interface IAnnouncement {
     label: string;
     url: string;
   };
-  
+
   // ============================================
   // İSTATİSTİK (CACHE)
   // ============================================
@@ -1581,7 +1603,7 @@ export interface IAnnouncement {
     clicks: number;             // CACHE
     dismissed: number;          // CACHE
   };
-  
+
   // ============================================
   // META
   // ============================================
@@ -1602,41 +1624,41 @@ export interface IAnnouncement {
  */
 export interface IFeedback {
   id: string;
-  
+
   // ============================================
   // KULLANICI
   // ============================================
   userId: string;
   userName: string;             // CACHE
   userEmail: string;            // CACHE
-  
+
   // ============================================
   // FEEDBACK TİPİ
   // ============================================
   type: 'bug' | 'feature' | 'improvement' | 'complaint' | 'other';
-  
+
   // ============================================
   // İÇERİK
   // ============================================
   title: string;
   description: string;
-  
+
   // İlgili Sayfa/Özellik
   page?: string;
   feature?: string;
-  
+
   // ============================================
   // EKLER
   // ============================================
   attachments?: string[];       // URL'ler
   screenshots?: string[];
-  
+
   // ============================================
   // DURUM
   // ============================================
   status: 'new' | 'in_progress' | 'resolved' | 'closed';
   priority: 'low' | 'medium' | 'high' | 'critical';
-  
+
   // ============================================
   // YANIT
   // ============================================
@@ -1645,13 +1667,13 @@ export interface IFeedback {
     respondedBy: string;
     respondedAt: string;
   };
-  
+
   // ============================================
   // META
   // ============================================
   createdAt: string;
   resolvedAt?: string;
-  
+
   // ============================================
   // SİSTEM BİLGİSİ (Debug için)
   // ============================================
@@ -1676,7 +1698,7 @@ export interface IFeedback {
 export interface IPlayerProfile {
   id: string;                   // playerId ile aynı
   playerId: string;
-  
+
   // ============================================
   // GENEL İSTATİSTİKLER (CACHE - Tüm ligler)
   // ============================================
@@ -1688,7 +1710,7 @@ export interface IPlayerProfile {
     totalMVPs: number;          // CACHE: Toplam MVP
     averageRating: number;      // CACHE: Genel ortalama rating
   };
-  
+
   // ============================================
   // LİG BAZLI ÖZET (CACHE)
   // ============================================
@@ -1696,7 +1718,7 @@ export interface IPlayerProfile {
     leagueId: string;
     leagueName: string;         // CACHE: Lig adı
     sportType: string;
-    
+
     stats: {
       matches: number;          // CACHE
       wins: number;             // CACHE
@@ -1705,12 +1727,12 @@ export interface IPlayerProfile {
       mvps: number;             // CACHE
       rating: number;           // CACHE
     };
-    
+
     isActive: boolean;
     joinedAt: string;
     lastPlayedAt?: string;
   }>;
-  
+
   // ============================================
   // BAŞARILAR / ROZETLER (CACHE)
   // ============================================
@@ -1723,7 +1745,7 @@ export interface IPlayerProfile {
     leagueId?: string;
     seasonId?: string;
   }>;
-  
+
   // ============================================
   // TERCİHLER VE ANALİZ
   // ============================================
@@ -1733,7 +1755,7 @@ export interface IPlayerProfile {
     availableDays: number[];
     preferredTimes: string[];
   };
-  
+
   // ============================================
   // OYUN TARZI ANALİZİ (CACHE - ML ile hesaplanabilir)
   // ============================================
@@ -1743,7 +1765,7 @@ export interface IPlayerProfile {
     teamPlayer: number;         // CACHE: 0-100 (Takım oyuncusu)
     consistent: number;         // CACHE: 0-100 (Tutarlılık)
   };
-  
+
   // ============================================
   // SOSYAL
   // ============================================
@@ -1753,7 +1775,7 @@ export interface IPlayerProfile {
     followersCount: number;     // CACHE
     followingCount: number;     // CACHE
   };
-  
+
   // ============================================
   // META
   // ============================================
@@ -1775,7 +1797,7 @@ export interface IPlayerRatingProfile {
   playerId: string;
   leagueId?: string;            // Optional: Lig bazlı profil
   seasonId?: string;            // Optional: Sezon bazlı profil
-  
+
   // ============================================
   // GENEL PROFIL (CACHE - Tüm maç tipleri)
   // ============================================
@@ -1785,7 +1807,7 @@ export interface IPlayerRatingProfile {
     mvpCount: number;           // CACHE
     mvpRate: number;            // CACHE: %
   };
-  
+
   // ============================================
   // LİG BAZLI PROFIL (CACHE)
   // ============================================
@@ -1795,7 +1817,7 @@ export interface IPlayerRatingProfile {
     mvpCount: number;           // CACHE
     mvpRate: number;            // CACHE
   };
-  
+
   // ============================================
   // FRIENDLY BAZLI PROFIL (CACHE)
   // ============================================
@@ -1815,13 +1837,13 @@ export interface IPlayerRatingProfile {
     sportsmanship: number;      // CACHE: Sportmenlik ortalaması
     effort: number;             // CACHE: Çaba ortalaması
   };
-  
+
   // ============================================
   // TREND ANALİZİ (CACHE)
   // ============================================
   ratingTrend: 'improving' | 'stable' | 'declining'; // CACHE: Son 5 maçın trendi
   lastFiveRatings: number[];    // CACHE: Son 5 maçın rating'leri
-  
+
   // ============================================
   // KAYNAK BAZLI (CACHE)
   // ============================================
@@ -1833,7 +1855,7 @@ export interface IPlayerRatingProfile {
     average: number;            // CACHE: Rakiplerden ortalama
     count: number;              // CACHE
   };
-  
+
   // ============================================
   // META
   // ============================================
@@ -1853,7 +1875,7 @@ export interface IPlayerRatingProfile {
 export interface IFriendlyMatchConfig {
   id: string;                   // organizerId ile aynı
   organizerId: string;          // Kullanıcı ID (→ users)
-  
+
   // ============================================
   // VARSAYILAN AYARLAR (Tekrar kullanım için)
   // ============================================
@@ -1867,12 +1889,12 @@ export interface IFriendlyMatchConfig {
       accountName?: string;
     };
   };
-  
+
   // ============================================
   // FAVORİ OYUNCULAR (Hızlı davet için)
   // ============================================
   favoritePlayerIds: string[];  // Sık oynadığı oyuncular
-  
+
   // ============================================
   // ŞABLON MAÇLAR
   // ============================================
@@ -1888,7 +1910,7 @@ export interface IFriendlyMatchConfig {
       matchDuration: number;
     };
   }>;
-  
+
   // ============================================
   // SON KULLANILANLAR (CACHE - Quick access)
   // ============================================
@@ -1897,7 +1919,7 @@ export interface IFriendlyMatchConfig {
     lastPrice?: number;         // CACHE: Son kullanılan ücret
     lastStaffCount?: number;    // CACHE: Son kullanılan kadro sayısı
   };
-  
+
   // ============================================
   // META
   // ============================================
@@ -1913,23 +1935,23 @@ export const TimestampHelpers = {
     if (timestamp.seconds) return new Date(timestamp.seconds * 1000);
     return new Date(timestamp);
   },
-  
+
   toTimestamp: (date: Date): FirestoreTimestamp => {
     return Timestamp.fromDate(date);
   },
-  
+
   now: (): FirestoreTimestamp => {
     return Timestamp.now();
   },
-  
+
   serverTimestamp: () => serverTimestamp(),
-  
+
   increment: (n: number) => increment(n),
-  
+
   arrayUnion: (...elements: any[]) => arrayUnion(...elements),
-  
+
   arrayRemove: (...elements: any[]) => arrayRemove(...elements),
-  
+
   delete: () => deleteField()
 };
 

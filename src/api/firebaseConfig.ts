@@ -1,36 +1,36 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth } from "firebase/auth";
-import { enableIndexedDbPersistence, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// // Import the functions you need from the SDKs you need
+// import { initializeApp } from "firebase/app";
+// import { getAnalytics } from "firebase/analytics";
+// import { getAuth } from "firebase/auth";
+// import { enableIndexedDbPersistence, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
+// // TODO: Add SDKs for Firebase products that you want to use
+// // https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-export const firebaseConfig = {
-  apiKey: "AIzaSyCYGeOzB8nZPnWBLs_lEu1136XTngFe86g",
-  authDomain: "matchmanagement360.firebaseapp.com",
-  projectId: "matchmanagement360",
-  storageBucket: "matchmanagement360.firebasestorage.app",
-  messagingSenderId: "1085707335219",
-  appId: "1:1085707335219:web:54694271b8969278b95546",
-  measurementId: "G-S9MJ2BRXK8"
-};
+// // Your web app's Firebase configuration
+// // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// export const firebaseConfig = {
+//   apiKey: "AIzaSyCYGeOzB8nZPnWBLs_lEu1136XTngFe86g",
+//   authDomain: "matchmanagement360.firebaseapp.com",
+//   projectId: "matchmanagement360",
+//   storageBucket: "matchmanagement360.firebasestorage.app",
+//   messagingSenderId: "1085707335219",
+//   appId: "1:1085707335219:web:54694271b8969278b95546",
+//   measurementId: "G-S9MJ2BRXK8"
+// };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-// const analytics = getAnalytics(app);
+// // Initialize Firebase
+// const app = initializeApp(firebaseConfig);
+// // const analytics = getAnalytics(app);
 
-// Auth ve Firestore'u export et
-const auth = getAuth(app);
-// export const db = getFirestore(app);
+// // Auth ve Firestore'u export et
+// const auth = getAuth(app);
+// // export const db = getFirestore(app);
 
-  // 🔥 YENİ YÖNTEM: Firestore'u cache ayarlarıyla başlat
-const db = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-    })
-});
+//   // 🔥 YENİ YÖNTEM: Firestore'u cache ayarlarıyla başlat
+// const db = initializeFirestore(app, {
+//     localCache: persistentLocalCache({
+//         tabManager: persistentMultipleTabManager()
+//     })
+// });
 
-export  {auth, app, db};
+// export  {auth, app, db};

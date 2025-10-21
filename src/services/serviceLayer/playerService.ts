@@ -1,5 +1,5 @@
 // ============================================
-// services/PlayerService.ts
+// services/PlayerService.ts - Updated for IPlayer Interface
 // ============================================
 import { playerAPI } from '../../api/apiLayer/playerAPI';
 import { ApiResponse } from '../../api/base/BaseAPI';
@@ -12,15 +12,20 @@ export class PlayerService {
   // ============================================
 
   /**
-   * Register new player
+   * Register new player (Firebase Auth ile birlikte kullanılır)
    */
   static async registerPlayer(data: {
+    id: string; // Firebase Auth UID
     email: string;
     name: string;
     surname: string;
+    displayName?: string;
     phone?: string;
     favoriteSports?: SportType[];
     profilePhoto?: string;
+    emailVerified?: boolean;
+    authProviders?: Array<'email' | 'google' | 'apple' | 'facebook'>;
+    language?: 'en' | 'tr' | 'es' | 'de' | 'fr';
   }): Promise<ApiResponse<IPlayer>> {
     try {
       ApiLogger.log('PlayerService', 'registerPlayer', { email: data.email });
@@ -55,17 +60,24 @@ export class PlayerService {
         }
       }
 
-      // Create player
+      // Create player with IPlayer interface
       const playerData: Omit<IPlayer, 'id'> = {
         email: data.email.toLowerCase().trim(),
         name: data.name.trim(),
         surname: data.surname.trim(),
+        displayName: data.displayName || `${data.name} ${data.surname}`.trim(),
+        emailVerified: data.emailVerified || false,
+        authProviders: data.authProviders || ['email'],
         phone: data.phone?.trim(),
+        phoneVerified: false,
         profilePhoto: data.profilePhoto,
         favoriteSports: data.favoriteSports || [],
         sportPositions: {},
+        language: data.language || 'tr',
         lastLogin: new Date(),
         createdAt: new Date().toISOString(),
+        isActive: true,
+        isBanned: false,
       };
 
       const result = await playerAPI.create(playerData);
@@ -106,6 +118,13 @@ export class PlayerService {
   }
 
   /**
+   * Get player by phone
+   */
+  static async getPlayerByPhone(phone: string): Promise<ApiResponse<IPlayer>> {
+    return playerAPI.getByPhone(phone);
+  }
+
+  /**
    * Update player profile
    */
   static async updateProfile(
@@ -113,9 +132,13 @@ export class PlayerService {
     profileData: {
       name?: string;
       surname?: string;
+      displayName?: string;
       profilePhoto?: string;
       jerseyNumber?: string;
       birthDate?: string;
+      phone?: string;
+      language?: 'en' | 'tr' | 'es' | 'de' | 'fr';
+      timezone?: string;
     }
   ): Promise<ApiResponse<IPlayer>> {
     try {
@@ -130,6 +153,9 @@ export class PlayerService {
       if (profileData.surname) {
         sanitizedData.surname = profileData.surname.trim();
       }
+      if (profileData.displayName) {
+        sanitizedData.displayName = profileData.displayName.trim();
+      }
       if (profileData.profilePhoto !== undefined) {
         sanitizedData.profilePhoto = profileData.profilePhoto;
       }
@@ -138,6 +164,15 @@ export class PlayerService {
       }
       if (profileData.birthDate !== undefined) {
         sanitizedData.birthDate = profileData.birthDate;
+      }
+      if (profileData.phone !== undefined) {
+        sanitizedData.phone = profileData.phone.trim();
+      }
+      if (profileData.language) {
+        sanitizedData.language = profileData.language;
+      }
+      if (profileData.timezone) {
+        sanitizedData.timezone = profileData.timezone;
       }
 
       const result = await playerAPI.updateProfile(playerId, sanitizedData);
@@ -166,6 +201,78 @@ export class PlayerService {
    */
   static async recordLogin(playerId: string): Promise<ApiResponse<IPlayer>> {
     return playerAPI.updateLastLogin(playerId);
+  }
+
+  // ============================================
+  // AUTH & VERIFICATION
+  // ============================================
+
+  /**
+   * Update email verification status
+   */
+  static async updateEmailVerification(
+    playerId: string,
+    verified: boolean
+  ): Promise<ApiResponse<IPlayer>> {
+    return playerAPI.updateEmailVerification(playerId, verified);
+  }
+
+  /**
+   * Update phone verification status
+   */
+  static async updatePhoneVerification(
+    playerId: string,
+    verified: boolean
+  ): Promise<ApiResponse<IPlayer>> {
+    return playerAPI.updatePhoneVerification(playerId, verified);
+  }
+
+  /**
+   * Add authentication provider
+   */
+  static async addAuthProvider(
+    playerId: string,
+    provider: 'email' | 'google' | 'apple' | 'facebook'
+  ): Promise<ApiResponse<IPlayer>> {
+    return playerAPI.addAuthProvider(playerId, provider);
+  }
+
+  /**
+   * Enable two-factor authentication
+   */
+  static async enable2FA(playerId: string): Promise<ApiResponse<IPlayer>> {
+    return playerAPI.enable2FA(playerId);
+  }
+
+  /**
+   * Disable two-factor authentication
+   */
+  static async disable2FA(playerId: string): Promise<ApiResponse<IPlayer>> {
+    return playerAPI.disable2FA(playerId);
+  }
+
+  // ============================================
+  // ACCOUNT STATUS
+  // ============================================
+
+  /**
+   * Set player active status
+   */
+  static async setActiveStatus(
+    playerId: string,
+    isActive: boolean
+  ): Promise<ApiResponse<IPlayer>> {
+    return playerAPI.setActiveStatus(playerId, isActive);
+  }
+
+  /**
+   * Set player banned status
+   */
+  static async setBannedStatus(
+    playerId: string,
+    isBanned: boolean
+  ): Promise<ApiResponse<IPlayer>> {
+    return playerAPI.setBannedStatus(playerId, isBanned);
   }
 
   // ============================================
@@ -370,6 +477,34 @@ export class PlayerService {
   }
 
   /**
+   * Get active players
+   */
+  static async getActivePlayers(limit?: number): Promise<ApiResponse<IPlayer[]>> {
+    return playerAPI.getActivePlayers(limit);
+  }
+
+  /**
+   * Get banned players
+   */
+  static async getBannedPlayers(): Promise<ApiResponse<IPlayer[]>> {
+    return playerAPI.getBannedPlayers();
+  }
+
+  /**
+   * Get unverified email players
+   */
+  static async getUnverifiedEmailPlayers(): Promise<ApiResponse<IPlayer[]>> {
+    return playerAPI.getUnverifiedEmails();
+  }
+
+  /**
+   * Get players by language
+   */
+  static async getPlayersByLanguage(language: string): Promise<ApiResponse<IPlayer[]>> {
+    return playerAPI.getPlayersByLanguage(language);
+  }
+
+  /**
    * Get multiple players by IDs
    */
   static async getPlayersByIds(playerIds: string[]): Promise<ApiResponse<IPlayer[]>> {
@@ -391,6 +526,19 @@ export class PlayerService {
         },
       };
     }
+  }
+
+  /**
+   * Get filtered players
+   */
+  static async getPlayersFiltered(filters: {
+    favoriteSport?: SportType;
+    isActive?: boolean;
+    emailVerified?: boolean;
+    language?: string;
+    limit?: number;
+  }): Promise<ApiResponse<IPlayer[]>> {
+    return playerAPI.getPlayersFiltered(filters);
   }
 
   // ============================================
@@ -504,6 +652,9 @@ export class PlayerService {
     totalSports: number;
     hasProfilePhoto: boolean;
     isProfileComplete: boolean;
+    isEmailVerified: boolean;
+    isPhoneVerified: boolean;
+    accountStatus: 'active' | 'inactive' | 'banned';
   }>> {
     try {
       const playerResult = await playerAPI.getById(playerId);
@@ -521,14 +672,26 @@ export class PlayerService {
 
       const player = playerResult.data;
       
+      // Determine account status
+      let accountStatus: 'active' | 'inactive' | 'banned' = 'inactive';
+      if (player.isBanned) {
+        accountStatus = 'banned';
+      } else if (player.isActive) {
+        accountStatus = 'active';
+      }
+
       const summary = {
         player,
         totalSports: player.favoriteSports?.length || 0,
         hasProfilePhoto: !!player.profilePhoto,
+        isEmailVerified: player.emailVerified || false,
+        isPhoneVerified: player.phoneVerified || false,
+        accountStatus,
         isProfileComplete: !!(
           player.name &&
           player.surname &&
           player.email &&
+          player.emailVerified &&
           player.favoriteSports &&
           player.favoriteSports.length > 0
         ),
@@ -550,6 +713,19 @@ export class PlayerService {
         },
       };
     }
+  }
+
+  /**
+   * Get platform statistics
+   */
+  static async getPlatformStats(): Promise<ApiResponse<{
+    total: number;
+    active: number;
+    banned: number;
+    emailVerified: number;
+    bySport: Record<SportType, number>;
+  }>> {
+    return playerAPI.getPlayerStats();
   }
 
   // ============================================
@@ -598,6 +774,9 @@ export class PlayerService {
    * Format player full name
    */
   static formatFullName(player: IPlayer): string {
+    if (player.displayName) {
+      return player.displayName;
+    }
     return `${player.name} ${player.surname}`.trim();
   }
 
@@ -651,6 +830,71 @@ export class PlayerService {
     }
 
     return phone;
+  }
+
+  /**
+   * Check if player has favorite sport
+   */
+  static hasFavoriteSport(player: IPlayer, sport: SportType): boolean {
+    return player.favoriteSports?.includes(sport) || false;
+  }
+
+  /**
+   * Get player's positions for a sport
+   */
+  static getSportPositions(player: IPlayer, sport: SportType): string[] {
+    return player.sportPositions?.[sport] || [];
+  }
+
+  /**
+   * Check if player is active and not banned
+   */
+  static isPlayerActive(player: IPlayer): boolean {
+    return (player.isActive || false) && !(player.isBanned || false);
+  }
+
+  /**
+   * Get account status text
+   */
+  static getAccountStatusText(player: IPlayer): string {
+    if (player.isBanned) return 'Banlı';
+    if (player.isActive) return 'Aktif';
+    return 'Pasif';
+  }
+
+  /**
+   * Get verification status text
+   */
+  static getVerificationStatusText(player: IPlayer): string {
+    if (player.emailVerified && player.phoneVerified) {
+      return 'Tam Doğrulanmış';
+    }
+    if (player.emailVerified) {
+      return 'Email Doğrulanmış';
+    }
+    if (player.phoneVerified) {
+      return 'Telefon Doğrulanmış';
+    }
+    return 'Doğrulanmamış';
+  }
+
+  /**
+   * Get time since last login
+   */
+  static getTimeSinceLastLogin(player: IPlayer): string | null {
+    if (!player.lastLogin) return null;
+
+    const lastLogin = new Date(player.lastLogin);
+    const now = new Date();
+    const diffMs = now.getTime() - lastLogin.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 60) return `${diffMins} dakika önce`;
+    if (diffHours < 24) return `${diffHours} saat önce`;
+    if (diffDays < 30) return `${diffDays} gün önce`;
+    return lastLogin.toLocaleDateString('tr-TR');
   }
 }
 

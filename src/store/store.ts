@@ -19,7 +19,7 @@ const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
   whitelist: ['auth', 'ui'], // Only persist these reducers
-  blacklist: ['league', 'match', 'player', 'notification'], // Don't persist these
+  blacklist: ['notification'], // Don't persist these
 };
 
 // ============================================

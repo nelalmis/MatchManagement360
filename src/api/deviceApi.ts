@@ -6,7 +6,7 @@ import {
     onSnapshot
 } from 'firebase/firestore';
 import { addBase, deleteByIdBase, getAllBase, getByIdBase, updateBase } from './firestoreApiBase';
-import { db } from './firebaseConfig';
+import { db } from '../config/firebase.config';
 
 const collectionName = 'devices';
 
@@ -72,11 +72,11 @@ export const deviceApi = {
                 where('deviceId', '==', deviceId)
             );
             const querySnapshot = await getDocs(q);
-            
+
             if (querySnapshot.empty) {
                 return null;
             }
-            
+
             const doc = querySnapshot.docs[0];
             return {
                 id: doc.id,
@@ -94,7 +94,7 @@ export const deviceApi = {
             collection(db, collectionName),
             where('playerId', '==', playerId)
         );
-        
+
         return onSnapshot(q, (querySnapshot) => {
             const devices = querySnapshot.docs.map(doc => ({
                 id: doc.id,

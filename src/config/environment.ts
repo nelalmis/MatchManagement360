@@ -1,6 +1,7 @@
 // ============================================
-// config/environment.ts
+// src/config/environment.ts - UPDATED for Expo
 // ============================================
+import Constants from 'expo-constants';
 
 export type Environment = 'development' | 'staging' | 'production' | 'test';
 
@@ -16,11 +17,12 @@ export interface EnvironmentConfig {
  * Get current environment configuration
  */
 export const getEnvironment = (): EnvironmentConfig => {
-  const nodeEnv = process.env.NODE_ENV || 'development';
-  const customEnv = process.env.REACT_APP_ENV || process.env.VITE_ENV;
-  console.log('Current Environment:', customEnv || nodeEnv);
-  // Custom env varsa onu kullan, yoksa NODE_ENV'i kullan
-  const current = (customEnv || nodeEnv) as Environment;
+  const extra = Constants.expoConfig?.extra;
+  const current = (extra?.env || 'development') as Environment;
+  
+  if (__DEV__) {
+    console.log('🌍 Current Environment:', current);
+  }
   
   return {
     isDevelopment: current === 'development',

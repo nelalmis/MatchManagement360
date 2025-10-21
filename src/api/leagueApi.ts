@@ -6,7 +6,7 @@ import {
     orderBy
 } from 'firebase/firestore';
 import { addBase, deleteByIdBase, getAllBase, getByIdBase, updateBase } from './firestoreApiBase';
-import { db } from './firebaseConfig';
+import { db } from '../config/firebase.config';
 import { SportType } from '../types/types';
 
 const collectionName = 'leagues';

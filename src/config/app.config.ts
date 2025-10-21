@@ -1,24 +1,67 @@
 // ============================================
-// src/config/app.config.ts - UPDATED
+// src/config/app.config.ts - UPDATED for Expo with ENV
 // ============================================
-import {Config} from 'react-native-config';
+import Constants from 'expo-constants';
 import { getEnvironment } from './environment';
 import { Platform } from 'react-native';
 
 const env = getEnvironment();
+const extra = Constants.expoConfig?.extra || {};
 
 /**
  * Get emulator host based on platform
  */
 const getEmulatorHost = (): string => {
   if (Platform.OS === 'android') {
-    return Config.ANDROID_EMULATOR_HOST || '10.0.2.2';
+    return extra.androidEmulatorHost || '10.0.2.2';
   }
-  return Config.IOS_EMULATOR_HOST || 'localhost';
+  return extra.iosEmulatorHost || 'localhost';
 };
 
 /**
- * Application configuration for React Native
+ * Get API base URL based on environment
+ */
+const getApiBaseUrl = (): string => {
+  // Extra'dan gelen değeri öncelikle kullan
+  if (extra.apiBaseUrl) {
+    return extra.apiBaseUrl;
+  }
+
+  // Environment'a göre default değerler
+  switch (env.current) {
+    case 'development':
+      return Platform.OS === 'android' 
+        ? 'http://10.0.2.2:3000' 
+        : 'http://localhost:3000';
+    
+    case 'staging':
+      return 'https://staging-api.maczamani.com';
+    
+    case 'production':
+      return 'https://api.maczamani.com';
+    
+    case 'test':
+      return 'http://localhost:3000';
+    
+    default:
+      return 'http://10.0.2.2:3000';
+  }
+};
+
+/**
+ * Get API timeout based on environment
+ */
+const getApiTimeout = (): number => {
+  if (extra.apiTimeout) {
+    return parseInt(extra.apiTimeout, 10);
+  }
+  
+  // Development'ta daha uzun timeout
+  return env.isDevelopment ? 30000 : 10000;
+};
+
+/**
+ * Application configuration for Expo
  */
 export const appConfig = {
   // ============================================
@@ -34,40 +77,40 @@ export const appConfig = {
   // APP INFO
   // ============================================
   app: {
-    name: Config.APP_NAME || 'Sports League Manager',
-    version: Config.APP_VERSION || '1.0.0',
-    bundleId: Config.BUNDLE_ID || 'com.sportsleague.app',
+    name: extra.appName || 'Maç Zamanı',
+    version: extra.appVersion || '1.0.0',
+    bundleId: extra.bundleId || 'com.mac.zamani',
   },
 
   // ============================================
   // API
   // ============================================
   api: {
-    baseUrl: Config.API_BASE_URL || 'http://localhost:3000',
-    timeout: env.isDevelopment ? 30000 : 10000,
+    baseUrl: getApiBaseUrl(),
+    timeout: getApiTimeout(),
   },
 
   // ============================================
   // FIREBASE
   // ============================================
   firebase: {
-    apiKey: Config.FIREBASE_API_KEY || '',
-    authDomain: Config.FIREBASE_AUTH_DOMAIN || '',
-    projectId: Config.FIREBASE_PROJECT_ID || '',
-    storageBucket: Config.FIREBASE_STORAGE_BUCKET || '',
-    messagingSenderId: Config.FIREBASE_MESSAGING_SENDER_ID || '',
-    appId: Config.FIREBASE_APP_ID || '',
-    measurementId: Config.FIREBASE_MEASUREMENT_ID || '',
-    region: Config.FIREBASE_REGION || 'europe-west1',
+    apiKey: extra.firebaseApiKey || '',
+    authDomain: extra.firebaseAuthDomain || '',
+    projectId: extra.firebaseProjectId || '',
+    storageBucket: extra.firebaseStorageBucket || '',
+    messagingSenderId: extra.firebaseMessagingSenderId || '',
+    appId: extra.firebaseAppId || '',
+    measurementId: extra.firebaseMeasurementId || '',
+    region: extra.firebaseRegion || 'europe-west1',
     
-    // Emulator settings
-    useEmulator: Config.USE_FIREBASE_EMULATOR === 'true' && env.isDevelopment,
+    // Emulator settings - SADECE development'ta aktif
+    useEmulator: extra.useFirebaseEmulator === true && env.isDevelopment,
     emulatorConfig: {
       host: getEmulatorHost(),
-      firestorePort: parseInt(Config.FIRESTORE_EMULATOR_PORT || '8080', 10),
-      authPort: parseInt(Config.AUTH_EMULATOR_PORT || '9099', 10),
-      storagePort: parseInt(Config.STORAGE_EMULATOR_PORT || '9199', 10),
-      functionsPort: parseInt(Config.FUNCTIONS_EMULATOR_PORT || '5001', 10),
+      firestorePort: parseInt(extra.firestoreEmulatorPort || '8080', 10),
+      authPort: parseInt(extra.authEmulatorPort || '9099', 10),
+      storagePort: parseInt(extra.storageEmulatorPort || '9199', 10),
+      functionsPort: parseInt(extra.functionsEmulatorPort || '5001', 10),
     },
   },
 
@@ -75,27 +118,40 @@ export const appConfig = {
   // FEATURES
   // ============================================
   features: {
-    enableDebugMode: env.isDevelopment || Config.ENABLE_DEBUG === 'true',
-    enableAnalytics: env.isProduction,
-    enableErrorReporting: env.isProduction || env.isStaging,
-    enablePerformanceMonitoring: env.isProduction,
+    enableDebugMode: env.isDevelopment || extra.enableDebug === true,
+    enableAnalytics: env.isProduction || extra.enableAnalytics === true,
+    enableErrorReporting: 
+      env.isProduction || 
+      env.isStaging || 
+      extra.enableErrorReporting === true,
+    enablePerformanceMonitoring: 
+      env.isProduction || 
+      extra.enablePerformanceMonitoring === true,
   },
 
   // ============================================
   // LOGGING
   // ============================================
   logging: {
-    level: env.isDevelopment ? 'debug' : 'error',
-    enableConsole: env.isDevelopment || Config.ENABLE_CONSOLE_LOGS === 'true',
-    enableApiLogs: env.isDevelopment || Config.ENABLE_API_LOGS === 'true',
-    enablePerformanceLogs: env.isDevelopment,
+    level: env.isDevelopment || env.isStaging ? 'debug' : 'error',
+    enableConsole: 
+      env.isDevelopment || 
+      env.isStaging || 
+      extra.enableConsoleLogs === true,
+    enableApiLogs: 
+      env.isDevelopment || 
+      env.isStaging || 
+      extra.enableApiLogs === true,
+    enablePerformanceLogs: 
+      env.isDevelopment || 
+      extra.enablePerformanceLogs === true,
   },
 
   // ============================================
   // CACHE
   // ============================================
   cache: {
-    ttl: env.isDevelopment ? 60000 : 300000,
+    ttl: env.isDevelopment ? 60000 : 300000, // 1 min dev, 5 min prod
     maxSize: 100,
   },
 };
@@ -103,15 +159,17 @@ export const appConfig = {
 // Type export
 export type AppConfig = typeof appConfig;
 
-// Validate required config
+// ============================================
+// VALIDATION
+// ============================================
 const validateConfig = () => {
   const required = [
-    'FIREBASE_API_KEY',
-    'FIREBASE_PROJECT_ID',
-    'FIREBASE_AUTH_DOMAIN',
+    'firebaseApiKey',
+    'firebaseProjectId',
+    'firebaseAuthDomain',
   ];
 
-  const missing = required.filter((key) => !Config[key as keyof typeof Config]);
+  const missing = required.filter((key) => !extra[key]);
 
   if (missing.length > 0 && env.isProduction) {
     console.error('❌ Missing required environment variables:', missing);
@@ -122,6 +180,27 @@ const validateConfig = () => {
 // Validate on module load (only in production)
 if (!__DEV__) {
   validateConfig();
+}
+
+// ============================================
+// DEVELOPMENT LOGGING
+// ============================================
+if (__DEV__) {
+  console.log('⚙️ App Config Loaded:', {
+    environment: env.current,
+    apiBaseUrl: appConfig.api.baseUrl,
+    apiTimeout: appConfig.api.timeout,
+    useEmulator: appConfig.firebase.useEmulator,
+    emulatorHost: appConfig.firebase.useEmulator 
+      ? appConfig.firebase.emulatorConfig.host 
+      : 'N/A',
+    platform: Platform.OS,
+    features: {
+      debug: appConfig.features.enableDebugMode,
+      analytics: appConfig.features.enableAnalytics,
+      errorReporting: appConfig.features.enableErrorReporting,
+    },
+  });
 }
 
 export default appConfig;

@@ -42,7 +42,7 @@ export const playerService = {
         lastLogin: m.lastLogin,
         favoriteSports: m.favoriteSports || [],
         sportPositions: m.sportPositions || {},
-        profilePhoto: m.profilePhoto
+        profilePhoto: m.profilePhoto,
       };
     } catch (err) {
       console.error("getById Player bulunamadı:", err);

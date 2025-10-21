@@ -12,7 +12,7 @@ import {
     Timestamp,
     writeBatch
 } from 'firebase/firestore';
-import { auth,db } from './firebaseConfig';
+import { db,auth } from '../config/firebase.config';
 
 // 🔧 Gelişmiş temizleme - boş string'leri de kaldır
 const cleanData = (data: any, options = { removeEmpty: false }): any => {
