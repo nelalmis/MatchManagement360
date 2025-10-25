@@ -26,8 +26,8 @@ import { matchInvitationService } from '../../services/matchInvitationService';
 import { matchService } from '../../services/matchService';
 import { playerService } from '../../services/playerService';
 import { IMatchInvitation, IMatch, SPORT_CONFIGS } from '../../types/types';
-import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation';
+import { useAuth } from '../../hooks';
 
 interface InvitationWithDetails extends IMatchInvitation {
     match?: IMatch;
@@ -35,7 +35,7 @@ interface InvitationWithDetails extends IMatchInvitation {
 }
 
 export const FriendlyMatchInvitationsScreen: React.FC = () => {
-    const { user } = useAppContext();
+    const { user } = useAuth();
 
     const [invitations, setInvitations] = useState<InvitationWithDetails[]>([]);
     const [loading, setLoading] = useState(true);

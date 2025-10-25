@@ -2,7 +2,7 @@
 // src/config/firebase.config.ts - SIMPLIFIED
 // ============================================
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
@@ -39,13 +39,20 @@ if (getApps().length === 0) {
   app = getApp();
   console.log('🔥 Firebase App Already Initialized');
 }
-
+console.log("🔥 Firebase Config:", JSON.stringify(firebaseConfig));
 // ============================================
 // INITIALIZE SERVICES
 // ============================================
 
 // Firestore
-export const db = getFirestore(app);
+// export const db = getFirestore(app);
+
+  // 🔥 YENİ YÖNTEM: Firestore'u cache ayarlarıyla başlat
+export const db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+    })
+});
 
 // Auth - Basit yaklaşım, persistence yok
 export const auth = getAuth(app);

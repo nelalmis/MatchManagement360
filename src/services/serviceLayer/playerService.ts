@@ -32,7 +32,7 @@ export class PlayerService {
 
       // Check if email already exists
       const emailCheck = await playerAPI.emailExists(data.email);
-      
+
       if (emailCheck.success && emailCheck.data) {
         return {
           success: false,
@@ -47,7 +47,7 @@ export class PlayerService {
       // Check if phone exists (if provided)
       if (data.phone) {
         const phoneCheck = await playerAPI.phoneExists(data.phone);
-        
+
         if (phoneCheck.success && phoneCheck.data) {
           return {
             success: false,
@@ -80,11 +80,11 @@ export class PlayerService {
         isBanned: false,
       };
 
-      const result = await playerAPI.create(playerData);
+      const result = await playerAPI.createWithId(data.id, playerData);
 
       if (result.success) {
-        ApiLogger.success('PlayerService', 'registerPlayer', { 
-          playerId: result.data?.id 
+        ApiLogger.success('PlayerService', 'registerPlayer', {
+          playerId: result.data?.id
         });
       }
 
@@ -124,6 +124,10 @@ export class PlayerService {
     return playerAPI.getByPhone(phone);
   }
 
+  static async deletePlayer(playerId: string): Promise<ApiResponse<void>> {
+    return playerAPI.delete(playerId);
+  }
+
   /**
    * Update player profile
    */
@@ -146,7 +150,7 @@ export class PlayerService {
 
       // Sanitize data
       const sanitizedData: any = {};
-      
+
       if (profileData.name) {
         sanitizedData.name = profileData.name.trim();
       }
@@ -350,10 +354,10 @@ export class PlayerService {
     positions: string[]
   ): Promise<ApiResponse<IPlayer>> {
     try {
-      ApiLogger.log('PlayerService', 'updateSportPositions', { 
-        playerId, 
-        sport, 
-        positions 
+      ApiLogger.log('PlayerService', 'updateSportPositions', {
+        playerId,
+        sport,
+        positions
       });
 
       // Validate positions (trim and remove empty)
@@ -364,9 +368,9 @@ export class PlayerService {
       const result = await playerAPI.setSportPositions(playerId, sport, validPositions);
 
       if (result.success) {
-        ApiLogger.success('PlayerService', 'updateSportPositions', { 
-          playerId, 
-          sport 
+        ApiLogger.success('PlayerService', 'updateSportPositions', {
+          playerId,
+          sport
         });
       }
 
@@ -579,7 +583,7 @@ export class PlayerService {
       }
 
       const result = await playerAPI.emailExists(email);
-      
+
       if (!result.success) {
         return result;
       }
@@ -618,7 +622,7 @@ export class PlayerService {
       }
 
       const result = await playerAPI.phoneExists(phone);
-      
+
       if (!result.success) {
         return result;
       }
@@ -671,7 +675,7 @@ export class PlayerService {
       }
 
       const player = playerResult.data;
-      
+
       // Determine account status
       let accountStatus: 'active' | 'inactive' | 'banned' = 'inactive';
       if (player.isBanned) {
@@ -739,15 +743,15 @@ export class PlayerService {
     updates: Array<{ id: string; data: Partial<IPlayer> }>
   ): Promise<ApiResponse<void>> {
     try {
-      ApiLogger.log('PlayerService', 'batchUpdatePlayers', { 
-        count: updates.length 
+      ApiLogger.log('PlayerService', 'batchUpdatePlayers', {
+        count: updates.length
       });
 
       const result = await playerAPI.batchUpdatePlayers(updates);
 
       if (result.success) {
-        ApiLogger.success('PlayerService', 'batchUpdatePlayers', { 
-          count: updates.length 
+        ApiLogger.success('PlayerService', 'batchUpdatePlayers', {
+          count: updates.length
         });
       }
 

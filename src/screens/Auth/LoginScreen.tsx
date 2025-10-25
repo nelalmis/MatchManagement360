@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAppContext } from '../../context/AppContext';
 import { IPlayer } from '../../types/types';
 import { formatPhoneNumber, isProfileComplete } from '../../helper/helper';
 import { playerService } from '../../services/playerService';
@@ -24,6 +23,7 @@ import { ArrowRight } from 'lucide-react-native';
 import { NavigationService } from '../../navigation/NavigationService';
 import { deviceService } from '../../services/deviceService';
 import { getOrCreateDeviceId } from '../../helper/deviceHelper';
+import { useAuth } from '../../hooks';
 
 export const LoginScreen: React.FC = () => {
     const scrollViewRef = useRef<ScrollView>(null);
@@ -37,7 +37,7 @@ export const LoginScreen: React.FC = () => {
         setRememberDevice,
         setCountdown,
         setIsVerified
-    } = useAppContext();
+    } = useAuth();
 
     const [loading, setLoading] = useState(false);
     const [checkingDevice, setCheckingDevice] = useState(true);

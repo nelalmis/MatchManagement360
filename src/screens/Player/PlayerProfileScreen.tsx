@@ -26,7 +26,6 @@ import {
   Phone,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import {
   IPlayer,
   IPlayerStats,
@@ -38,6 +37,7 @@ import { playerService } from '../../services/playerService';
 import { playerStatsService } from '../../services/playerStatsService';
 import { matchService } from '../../services/matchService';
 import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
 
 interface CareerStats {
   totalMatches: number;
@@ -57,7 +57,7 @@ interface LeagueStats {
 
 export const PlayerProfileScreen: React.FC = () => {
   const route: any = useRoute();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const playerId = route.params?.playerId || user?.id;
 
   const [player, setPlayer] = useState<IPlayer | null>(null);

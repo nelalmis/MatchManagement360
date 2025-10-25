@@ -28,7 +28,6 @@ import {
   TrendingUp,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import {
   IMatch,
   IMatchFixture,
@@ -44,7 +43,7 @@ import { eventManager, Events } from '../../utils';
 
 export const PaymentTrackingScreen: React.FC = () => {
   const route: any = useRoute();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);

@@ -34,7 +34,6 @@ import {
   UserPlus,
 } from 'lucide-react-native';
 import { useRoute, useFocusEffect } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import {
   IMatch,
   IMatchFixture,
@@ -51,10 +50,11 @@ import { leagueService } from '../../services/leagueService';
 import { playerService } from '../../services/playerService';
 import { matchInvitationService } from '../../services/matchInvitationService';
 import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
 
 export const MatchDetailScreen: React.FC = () => {
   const route: any = useRoute();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);

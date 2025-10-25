@@ -26,7 +26,6 @@ import {
   Filter,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
 import {
@@ -39,6 +38,7 @@ import { matchService } from '../../services/matchService';
 import { matchInvitationService } from '../../services/matchInvitationService';
 import { playerService } from '../../services/playerService';
 import { leagueService } from '../../services/leagueService';
+import { useAuth } from '../../hooks';
 
 type InvitationWithPlayer = {
   invitation: IMatchInvitation;
@@ -49,7 +49,7 @@ type FilterType = 'all' | 'pending' | 'accepted' | 'declined';
 
 export const ManageInvitationsScreen: React.FC = () => {
   const route: any = useRoute();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);

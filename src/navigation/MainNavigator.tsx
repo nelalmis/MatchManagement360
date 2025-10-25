@@ -10,7 +10,6 @@ import {
     BarChart3,
     User,
 } from 'lucide-react-native';
-import { useAppContext } from '../context/AppContext';
 
 // ============================================
 // SCREENS IMPORTS
@@ -309,7 +308,6 @@ const ProfileStack = () => {
 // BOTTOM TAB NAVIGATOR
 // ============================================
 export const MainNavigator: React.FC = () => {
-    const { user } = useAppContext();
 
     return (
         <Tab.Navigator

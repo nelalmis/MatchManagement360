@@ -26,7 +26,6 @@ import {
   Plus,
   Settings,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
 import {
   IMatchFixture,
   IPlayer,
@@ -38,11 +37,12 @@ import { playerService } from '../../services/playerService';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { EditFixtureRouteProp, NavigationService } from '../../navigation';
 import { eventManager, Events, FixtureEventData } from '../../utils';
+import { useAuth } from '../../hooks';
 
 type TabType = 'basic' | 'schedule' | 'players' | 'organizers';
 
 export const EditFixtureScreen: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const route = useRoute<EditFixtureRouteProp>();
   const fixtureId = route.params?.fixtureId;
 

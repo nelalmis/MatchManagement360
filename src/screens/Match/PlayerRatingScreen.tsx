@@ -23,7 +23,6 @@ import {
   Crown,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
 import {
@@ -38,6 +37,7 @@ import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
 import { matchRatingService } from '../../services/matchRatingService'; // ✅ EKLE
 import { playerRatingProfileService } from '../../services/playerRatingProfileService'; // ✅ EKLE
+import { useAuth } from '../../hooks';
 
 // Rating interface for temporary storage
 interface PlayerRating {
@@ -53,7 +53,7 @@ interface PlayerRating {
 
 export const PlayerRatingScreen: React.FC = () => {
   const route: any = useRoute();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);

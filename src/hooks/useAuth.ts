@@ -1,7 +1,7 @@
 // src/hooks/useAuth.ts - Expo Firebase JS SDK + PlayerService Version
 import { useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { 
+import {
   loginUser,
   signUpUser,
   logoutUser,
@@ -14,9 +14,14 @@ import {
   updateSportPositions,
   clearError,
   clearMessage,
+  setUser,
 } from '../store/slices/authSlice';
 import type { IPlayer, SportType } from '../types/entity/types';
 import type { AppDispatch } from '../store';
+import { PlayerService } from '../services/serviceLayer/playerService';
+import { getOrCreateDeviceId } from '../helper/deviceHelper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '../utils';
 
 /**
  * useAuth Hook - Firebase Authentication + PlayerService
@@ -25,89 +30,194 @@ import type { AppDispatch } from '../store';
  */
 export const useAuth = () => {
   const dispatch = useDispatch<AppDispatch>();
-  
+
   const { user, isAuthenticated, loading, error, message } = useSelector(
     (state: any) => state.auth
   );
 
-  /**
-   * Sign in with email and password
-   */
+  // ============================================
+  // SIGN IN - WITH REMEMBER ME & DEVICE TRUST
+  // ============================================
   const signIn = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, rememberMe: boolean) => {
       try {
-        const result = await dispatch(loginUser({ email, password }));
+        // 1. Firebase authentication via Redux
+        const resultAction = await dispatch(
+          loginUser({ email, password })
+        );
 
-        if (loginUser.fulfilled.match(result)) {
-          return { success: true, data: result.payload };
-        } else {
-          return { 
-            success: false, 
-            error: result.payload as string || 'Giriş başarısız' 
+        // 2. Check if login was successful
+        if (!loginUser.fulfilled.match(resultAction)) {
+          return {
+            success: false,
+            error: resultAction.payload as string,
           };
         }
+
+        const userData = resultAction.payload as IPlayer;
+
+        // 3. Handle "Remember Me" - Device Trust
+        if (rememberMe && userData.id) {
+          try {
+            // Save user data
+            await AsyncStorage.setItem(
+              STORAGE_KEYS.USER_DATA,
+              JSON.stringify(userData)
+            );
+            // Save device as trusted
+            await AsyncStorage.setItem(STORAGE_KEYS.TRUSTED_DEVICE, 'true');
+
+            // Get device ID
+            const deviceId = await getOrCreateDeviceId();
+            await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_ID, deviceId);
+
+            console.log('✅ Device marked as trusted');
+
+            // Record login in backend
+            //await PlayerService.recordLogin(userData.id);
+          } catch (storageError) {
+            console.error('❌ Storage error:', storageError);
+            // Continue anyway, don't fail login
+          }
+        } else {
+          // ✅ Remember Me seçilmemişse storage'ı temizle
+          console.log('🧹 Remember me not selected, clearing storage...');
+          await AsyncStorage.multiRemove([
+            STORAGE_KEYS.USER_DATA,
+            STORAGE_KEYS.TRUSTED_DEVICE,
+            STORAGE_KEYS.DEVICE_ID,
+          ]);
+        }
+
+        return {
+          success: true,
+          data: userData,
+        };
       } catch (error: any) {
-        return { 
-          success: false, 
-          error: error.message || 'Bir hata oluştu' 
+        console.error('❌ Sign in error:', error);
+        return {
+          success: false,
+          error: error.message || 'Giriş yapılamadı',
         };
       }
     },
     [dispatch]
   );
 
-  /**
-   * Sign up with email and password
-   */
-  const signUp = useCallback(
-    async (data: {
-      email: string;
-      password: string;
-      name: string;
-      surname: string;
-      phone?: string;
-    }) => {
-      try {
-        const result = await dispatch(signUpUser(data));
-
-        if (signUpUser.fulfilled.match(result)) {
-          return { success: true, data: result.payload };
-        } else {
-          return { 
-            success: false, 
-            error: result.payload as string || 'Kayıt başarısız' 
-          };
-        }
-      } catch (error: any) {
-        return { 
-          success: false, 
-          error: error.message || 'Bir hata oluştu' 
-        };
-      }
-    },
-    [dispatch]
-  );
-
-  /**
-   * Sign out
-   */
-  const logout = useCallback(async () => {
+  // ============================================
+  // AUTO LOGIN - Check Trusted Device
+  // ============================================
+  const checkAutoLogin = useCallback(async () => {
     try {
-      const result = await dispatch(logoutUser());
 
-      if (logoutUser.fulfilled.match(result)) {
-        return { success: true };
-      } else {
-        return { 
-          success: false, 
-          error: result.payload as string || 'Çıkış yapılamadı' 
+      // ✅ 1. Önce trusted device kontrolü - EN ÖNEMLİ!
+      const trustedDevice = await AsyncStorage.getItem(STORAGE_KEYS.TRUSTED_DEVICE);
+
+      if (trustedDevice !== 'true') {
+        console.log('⚠️ Not a trusted device, skipping auto-login');
+        // Storage'ı temizle (güvenlik için)
+        await AsyncStorage.multiRemove([
+          STORAGE_KEYS.USER_DATA,
+          STORAGE_KEYS.DEVICE_ID,
+        ]);
+        return null;
+      }
+
+      const storedUserData = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
+      if (!storedUserData) {
+        console.log('⚠️ No user data found, clearing trusted device flag');
+        await AsyncStorage.removeItem(STORAGE_KEYS.TRUSTED_DEVICE);
+        return null;
+      }
+
+      const userData = JSON.parse(storedUserData) as IPlayer;
+
+      // Verify device ID (optional security check)
+      const storedDeviceId = await AsyncStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+      const currentDeviceId = await getOrCreateDeviceId();
+
+      if (storedDeviceId && storedDeviceId !== currentDeviceId) {
+        console.warn('⚠️ Device ID mismatch - clearing trusted device');
+        await AsyncStorage.multiRemove([
+          STORAGE_KEYS.TRUSTED_DEVICE,
+          STORAGE_KEYS.USER_DATA,
+          STORAGE_KEYS.DEVICE_ID,
+        ]);
+        return null;
+      }
+      // Update last login
+      if (userData.id) {
+        await PlayerService.recordLogin(userData.id);
+      }
+
+      // Set user in Redux
+      dispatch(setUser(userData));
+
+      console.log('✅ Auto login successful');
+      return userData;
+    } catch (error) {
+      console.error('❌ Auto login error:', error);
+      return null;
+    }
+  }, [dispatch]);
+
+
+  // ============================================
+  // SIGN UP
+  // ============================================
+  const signUp = useCallback(
+    async (
+      email: string,
+      password: string,
+      name: string,
+      surname: string,
+      phone?: string
+    ) => {
+      try {
+        const resultAction = await dispatch(
+          signUpUser({ email, password, name, surname })
+        );
+
+        if (signUpUser.fulfilled.match(resultAction)) {
+          return {
+            success: true,
+            data: resultAction.payload,
+          };
+        } else {
+          return {
+            success: false,
+            error: resultAction.payload as string,
+          };
+        }
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message || 'Kayıt yapılamadı',
         };
       }
-    } catch (error: any) {
-      return { 
-        success: false, 
-        error: error.message || 'Bir hata oluştu' 
-      };
+    },
+    [dispatch]
+  );
+
+  // ============================================
+  // SIGN OUT - Clear Everything
+  // ============================================
+  const signOut = useCallback(async () => {
+    try {
+      // 1. Logout from Firebase
+      await dispatch(logoutUser());
+
+      // 2. ✅ Clear ALL AsyncStorage - Remember me dahil
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.USER_DATA,
+        STORAGE_KEYS.TRUSTED_DEVICE,
+        STORAGE_KEYS.DEVICE_ID,
+      ]);
+
+      console.log('✅ Logout successful');
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+      throw error;
     }
   }, [dispatch]);
 
@@ -122,42 +232,46 @@ export const useAuth = () => {
         if (resetPassword.fulfilled.match(result)) {
           return { success: true, message: result.payload };
         } else {
-          return { 
-            success: false, 
-            error: result.payload as string || 'E-posta gönderilemedi' 
+          return {
+            success: false,
+            error: result.payload as string || 'E-posta gönderilemedi'
           };
         }
       } catch (error: any) {
-        return { 
-          success: false, 
-          error: error.message || 'Bir hata oluştu' 
+        return {
+          success: false,
+          error: error.message || 'Bir hata oluştu'
         };
       }
     },
     [dispatch]
   );
 
-  /**
-   * Update user profile
-   */
-  const updateProfile = useCallback(
-    async (updates: Partial<IPlayer>) => {
-      try {
-        const result = await dispatch(updateUserProfile(updates));
 
-        if (updateUserProfile.fulfilled.match(result)) {
-          return { success: true, data: result.payload };
+  // ============================================
+  // PROFILE OPERATIONS
+  // ============================================
+  const updateProfile = useCallback(
+    async (data: Partial<IPlayer>) => {
+      try {
+        const resultAction = await dispatch(updateUserProfile(data));
+
+        if (updateUserProfile.fulfilled.match(resultAction)) {
+          // ✅ Eğer trusted device ise storage'ı da güncelle
+          const trustedDevice = await AsyncStorage.getItem(STORAGE_KEYS.TRUSTED_DEVICE);
+          if (trustedDevice === 'true' && resultAction.payload) {
+            await AsyncStorage.setItem(
+              STORAGE_KEYS.USER_DATA,
+              JSON.stringify(resultAction.payload)
+            );
+            console.log('✅ Updated user data in storage');
+          }
+          return { success: true };
         } else {
-          return { 
-            success: false, 
-            error: result.payload as string || 'Profil güncellenemedi' 
-          };
+          return { success: false, error: resultAction.payload as string };
         }
       } catch (error: any) {
-        return { 
-          success: false, 
-          error: error.message || 'Bir hata oluştu' 
-        };
+        return { success: false, error: error.message };
       }
     },
     [dispatch]
@@ -173,15 +287,15 @@ export const useAuth = () => {
       if (sendEmailVerification.fulfilled.match(result)) {
         return { success: true, message: result.payload };
       } else {
-        return { 
-          success: false, 
-          error: result.payload as string || 'E-posta gönderilemedi' 
+        return {
+          success: false,
+          error: result.payload as string || 'E-posta gönderilemedi'
         };
       }
     } catch (error: any) {
-      return { 
-        success: false, 
-        error: error.message || 'Bir hata oluştu' 
+      return {
+        success: false,
+        error: error.message || 'Bir hata oluştu'
       };
     }
   }, [dispatch]);
@@ -196,15 +310,15 @@ export const useAuth = () => {
       if (checkEmailVerification.fulfilled.match(result)) {
         return { success: true, verified: result.payload };
       } else {
-        return { 
-          success: false, 
-          error: result.payload as string || 'Kontrol edilemedi' 
+        return {
+          success: false,
+          error: result.payload as string || 'Kontrol edilemedi'
         };
       }
     } catch (error: any) {
-      return { 
-        success: false, 
-        error: error.message || 'Bir hata oluştu' 
+      return {
+        success: false,
+        error: error.message || 'Bir hata oluştu'
       };
     }
   }, [dispatch]);
@@ -219,15 +333,15 @@ export const useAuth = () => {
       if (reloadUserData.fulfilled.match(result)) {
         return { success: true, data: result.payload };
       } else {
-        return { 
-          success: false, 
-          error: result.payload as string || 'Veriler yüklenemedi' 
+        return {
+          success: false,
+          error: result.payload as string || 'Veriler yüklenemedi'
         };
       }
     } catch (error: any) {
-      return { 
-        success: false, 
-        error: error.message || 'Bir hata oluştu' 
+      return {
+        success: false,
+        error: error.message || 'Bir hata oluştu'
       };
     }
   }, [dispatch]);
@@ -243,15 +357,15 @@ export const useAuth = () => {
         if (addFavoriteSport.fulfilled.match(result)) {
           return { success: true, data: result.payload };
         } else {
-          return { 
-            success: false, 
-            error: result.payload as string || 'Spor eklenemedi' 
+          return {
+            success: false,
+            error: result.payload as string || 'Spor eklenemedi'
           };
         }
       } catch (error: any) {
-        return { 
-          success: false, 
-          error: error.message || 'Bir hata oluştu' 
+        return {
+          success: false,
+          error: error.message || 'Bir hata oluştu'
         };
       }
     },
@@ -271,15 +385,15 @@ export const useAuth = () => {
         if (updateSportPositions.fulfilled.match(result)) {
           return { success: true, data: result.payload };
         } else {
-          return { 
-            success: false, 
-            error: result.payload as string || 'Pozisyonlar güncellenemedi' 
+          return {
+            success: false,
+            error: result.payload as string || 'Pozisyonlar güncellenemedi'
           };
         }
       } catch (error: any) {
-        return { 
-          success: false, 
-          error: error.message || 'Bir hata oluştu' 
+        return {
+          success: false,
+          error: error.message || 'Bir hata oluştu'
         };
       }
     },
@@ -299,6 +413,19 @@ export const useAuth = () => {
   const clearAuthMessage = useCallback(() => {
     dispatch(clearMessage());
   }, [dispatch]);
+
+  const clearStoredAuth = useCallback(async () => {
+    try {
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.USER_DATA,
+        STORAGE_KEYS.TRUSTED_DEVICE,
+        STORAGE_KEYS.DEVICE_ID,
+      ]);
+      console.log('✅ Auth storage cleared');
+    } catch (error) {
+      console.error('❌ Failed to clear storage:', error);
+    }
+  }, []);
 
   /**
    * Check if user has specific sport
@@ -325,7 +452,7 @@ export const useAuth = () => {
    */
   const isProfileComplete = useCallback((): boolean => {
     if (!user) return false;
-    
+
     return !!(
       user.name &&
       user.surname &&
@@ -359,9 +486,9 @@ export const useAuth = () => {
     // ============================================
     signIn,
     signUp,
-    logout,
+    signOut,
     sendPasswordResetEmail,
-
+    checkAutoLogin,
     // ============================================
     // PROFILE ACTIONS
     // ============================================
@@ -387,6 +514,7 @@ export const useAuth = () => {
     // ============================================
     clearError: clearAuthError,
     clearMessage: clearAuthMessage,
+    clearStoredAuth,
     isProfileComplete,
     isUserActive,
   };

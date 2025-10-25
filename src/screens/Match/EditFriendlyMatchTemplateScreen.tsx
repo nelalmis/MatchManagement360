@@ -30,12 +30,12 @@ import {
 } from 'lucide-react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
 import { friendlyMatchConfigService } from '../../services/friendlyMatchConfigService';
 import { playerService } from '../../services/playerService';
 import { IPlayer, SportType, SPORT_CONFIGS, getSportIcon, getSportColor } from '../../types/types';
+import { useAuth } from '../../hooks';
 
 interface PlayerSelection extends IPlayer {
   selected: boolean;
@@ -51,7 +51,7 @@ type EditTemplateRouteProp = RouteProp<{
 export const EditFriendlyMatchTemplateScreen: React.FC = () => {
   const route = useRoute<EditTemplateRouteProp>();
   const { goBack } = useNavigation();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const templateId = route.params?.templateId;
 
   // Loading States

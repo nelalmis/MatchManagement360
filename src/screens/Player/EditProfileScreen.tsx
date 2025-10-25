@@ -21,7 +21,6 @@ import {
   ChevronRight,
   Camera,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
 import {
   IPlayer,
   SportType,
@@ -31,9 +30,10 @@ import {
 } from '../../types/types';
 import { playerService } from '../../services/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
 
 export const EditProfileScreen: React.FC = () => {
-  const { user, setUser } = useAppContext();
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -112,7 +112,7 @@ export const EditProfileScreen: React.FC = () => {
       if (result.success) {
         // Update context
         const updatedUser = { ...user, ...updates };
-        setUser(updatedUser);
+        //setUser(updatedUser); TODO:
 
         Alert.alert('Başarılı', 'Profil güncellendi', [
           {
@@ -140,7 +140,7 @@ export const EditProfileScreen: React.FC = () => {
     favoriteSports,
     sportPositions,
     validateForm,
-    setUser,
+    //setUser,
   ]);
 
   const handleCancel = useCallback(() => {

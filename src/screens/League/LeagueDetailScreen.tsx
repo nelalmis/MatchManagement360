@@ -25,7 +25,6 @@ import {
   Trophy,
   ChevronLeft,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
 import {
   ILeague,
   IMatchFixture,
@@ -39,10 +38,11 @@ import { standingsService } from '../../services/standingsService';
 import { RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
 import {  LeagueDetailRouteProp, NavigationService } from '../../navigation';
 import { ContactSelector } from './components/ContactSelector';
+import { useAuth } from '../../hooks';
 
 
 export const LeagueDetailScreen: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const route = useRoute<LeagueDetailRouteProp>();
   const { leagueId } = route.params; // ✅ TypeScript bilir ki leagueId: string
   // 3. Optional parametreler için

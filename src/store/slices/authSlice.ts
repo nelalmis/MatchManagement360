@@ -1,6 +1,6 @@
 // src/store/slices/authSlice.ts - Expo Firebase JS SDK Version
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { 
+import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -13,6 +13,7 @@ import {
 import { auth } from '../../config/firebase.config';
 import { IPlayer, SportType } from '../../types/entity/types';
 import PlayerService from '../../services/serviceLayer/playerService';
+import { emailService } from '../../services/serviceLayer/emailService';
 
 interface AuthState {
   user: IPlayer | null;
@@ -74,6 +75,7 @@ export const loginUser = createAsyncThunk(
         });
 
         if (!registerResult.success || !registerResult.data) {
+          await userCredential.user.delete(); // Temizleme
           throw new Error('Kullanıcı oluşturulamadı');
         }
 
@@ -97,31 +99,34 @@ export const loginUser = createAsyncThunk(
       return userData;
     } catch (error: any) {
       let errorMessage = 'Giriş yapılamadı';
-
+      console.error('Login error:', error);
       switch (error.code) {
         case 'auth/invalid-email':
           errorMessage = 'Geçersiz e-posta adresi';
           break;
+          break;
         case 'auth/user-not-found':
-          errorMessage = 'Kullanıcı bulunamadı';
+          errorMessage = 'Bu email adresi ile kayıtlı kullanıcı bulunamadı. Lütfen kayıt olun.';
           break;
         case 'auth/wrong-password':
-          errorMessage = 'Hatalı şifre';
+          errorMessage = 'Yanlış şifre. Lütfen tekrar deneyin.';
           break;
         case 'auth/invalid-credential':
-          errorMessage = 'Geçersiz giriş bilgileri';
+        case 'auth/invalid-login-credentials':
+          // ✅ BU SIZIN DURUMUNUZ!
+          errorMessage = 'Email veya şifre hatalı. Lütfen kontrol edip tekrar deneyin.';
           break;
         case 'auth/user-disabled':
           errorMessage = 'Bu hesap devre dışı bırakılmış';
           break;
         case 'auth/too-many-requests':
-          errorMessage = 'Çok fazla deneme. Lütfen daha sonra tekrar deneyin';
+          errorMessage = 'Çok fazla başarısız deneme. Lütfen daha sonra tekrar deneyin.';
           break;
         case 'auth/network-request-failed':
-          errorMessage = 'İnternet bağlantısı yok';
+          errorMessage = 'İnternet bağlantınızı kontrol edin.';
           break;
         default:
-          errorMessage = error.message || 'Bir hata oluştu';
+          errorMessage = error.message || 'Giriş yapılamadı';
       }
 
       return rejectWithValue(errorMessage);
@@ -140,17 +145,29 @@ export const signUpUser = createAsyncThunk(
       password,
       name,
       surname,
-      phone,
+      // phone,
     }: {
       email: string;
       password: string;
       name: string;
       surname: string;
-      phone?: string;
+      // phone?: string;
     },
     { rejectWithValue }
   ) => {
     try {
+      if (email === 'elalmis.ne@gmail.com') {
+        //sil
+        const testUserCredential = await signInWithEmailAndPassword(
+          auth,
+          'elalmis.ne@gmail.com',
+          'Ab111111'
+        );
+        await testUserCredential.user.delete();
+
+        // Kullanıcıyı sil
+        await PlayerService.deletePlayer(testUserCredential.user.uid);
+      }
       // Firebase Auth'da kullanıcı oluştur
       const userCredential = await createUserWithEmailAndPassword(
         auth,
@@ -170,7 +187,7 @@ export const signUpUser = createAsyncThunk(
         name: name.trim(),
         surname: surname.trim(),
         displayName,
-        phone,
+        // phone,
         emailVerified: false,
         authProviders: ['email'],
         language: 'tr',
@@ -192,6 +209,12 @@ export const signUpUser = createAsyncThunk(
 
       // Email verification gönder
       try {
+        // 2. Verification token oluştur
+        // const verificationToken = btoa(
+        //   userCredential.user.uid + ':' + Date.now()
+        // );
+        // const verificationLink = `https://yourapp.com/verify-email?token=${verificationToken}`;
+        // await emailService.getVerificationTemplate(email, name, verificationLink);
         await firebaseSendEmailVerification(userCredential.user);
       } catch (verifyError) {
         console.warn('Email verification gönderilirken hata:', verifyError);
@@ -512,6 +535,7 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
         state.isAuthenticated = false;
+        state.user = null;
       });
 
     // Sign Up
@@ -525,7 +549,7 @@ const authSlice = createSlice({
         state.user = action.payload;
         state.error = null;
         state.isAuthenticated = true;
-        state.message = 'Kayıt başarılı! Lütfen e-postanızı doğrulayın.';
+        //state.message = 'Kayıt başarılı! Lütfen e-postanızı doğrulayın.';
       })
       .addCase(signUpUser.rejected, (state, action) => {
         state.loading = false;

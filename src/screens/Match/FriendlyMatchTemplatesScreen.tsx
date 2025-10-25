@@ -28,7 +28,6 @@ import {
   Calendar,
   Zap,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
 import {
@@ -40,6 +39,7 @@ import {
   SPORT_CONFIGS,
 } from '../../types/types';
 import { friendlyMatchConfigService } from '../../services/friendlyMatchConfigService';
+import { useAuth } from '../../hooks';
 
 interface TemplateWithStats {
   template: NonNullable<IFriendlyMatchConfig['templates']>[number]
@@ -48,7 +48,7 @@ interface TemplateWithStats {
 }
 
 export const FriendlyMatchTemplatesScreen: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
 
   const [config, setConfig] = useState<IFriendlyMatchConfig | null>(null);
   const [templates, setTemplates] = useState<TemplateWithStats[]>([]);

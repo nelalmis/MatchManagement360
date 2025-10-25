@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import {
   View,
   Text,
@@ -21,7 +21,6 @@ import {
   Trophy,
   ChevronRight,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
 import {
   ILeague,
   SportType,
@@ -31,10 +30,11 @@ import {
 } from '../../types/types';
 import { leagueService } from '../../services/leagueService';
 import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
 // import { CustomHeader } from '../../components/CustomHeader';
 
 export const LeagueListScreen: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
 
   const [leagues, setLeagues] = useState<ILeague[]>([]);
   const [filteredLeagues, setFilteredLeagues] = useState<ILeague[]>([]);

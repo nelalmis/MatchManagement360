@@ -30,7 +30,6 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
 import {
@@ -46,6 +45,7 @@ import { matchService } from '../../services/matchService';
 import { leagueService } from '../../services/leagueService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { matchInvitationService } from '../../services/matchInvitationService';
+import { useAuth } from '../../hooks';
 
 type FilterType = 'all' | 'upcoming' | 'past' | 'myMatches';
 type MatchTypeFilter = 'all' | 'league' | 'friendly';
@@ -56,7 +56,7 @@ interface MatchListParams {
 }
 
 export const MatchListScreen: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const route = useRoute<RouteProp<{ params: MatchListParams }, 'params'>>();
 
   const { fixtureId, leagueId } = route.params || {};

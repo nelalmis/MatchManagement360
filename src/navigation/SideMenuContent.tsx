@@ -17,12 +17,11 @@ import {
     BarChart3,
     X
 } from 'lucide-react-native';
-import { useAppContext } from '../context/AppContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationService } from './NavigationService';
+import { useAuth } from '../hooks';
 
 export const SideMenuContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const { user, setUser, setIsVerified } = useAppContext();
+    const { user, signOut} = useAuth();
 
     const handleLogout = () => {
         Alert.alert(
@@ -35,11 +34,7 @@ export const SideMenuContent: React.FC<{ onClose: () => void }> = ({ onClose }) 
                     style: 'destructive',
                     onPress: async () => {
                         // Clear user data
-                        await AsyncStorage.removeItem('userData');
-                        await AsyncStorage.removeItem('deviceToken');
-                        await AsyncStorage.removeItem('trustedDevice');
-                        setUser(null);
-                        setIsVerified(false);
+                        await signOut();
                         onClose();
                         NavigationService.resetToAuth();
                     },

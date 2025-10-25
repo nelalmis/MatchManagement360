@@ -1,282 +1,717 @@
-// src/screens/auth/LoginScreen.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useDispatch, useSelector } from 'react-redux';
-import { Screen, Container, Input, Button, Spacer, Divider } from '../../components';
-import { loginUser, clearError } from '../../store/slices/authSlice';
-import { colors, typography, spacing } from '../../config/theme';
-import type { AppDispatch } from '../../store';
+// src/screens/auth/LoginScreen.tsx - MODERN DESIGN WITH OLD LOGIC
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  StatusBar,
+  Alert,
+  ActivityIndicator,
+  Animated,
+  Keyboard,
+  AppState,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { AuthInput } from './components/AuthInput';
+import { AuthButton } from './components/AuthButton';
+import { SocialLoginButtons } from './components/SocialLoginButtons';
+import { commonColors, typography, spacing } from '../../utils/theme';
+import { validateEmail, getEmailError } from '../../utils/validation';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { isProfileComplete } from '../../helper/helper';
+import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
+import PlayerService from '../../services/serviceLayer/playerService';
+import { AuthStackParamList } from '../../navigation/types';
+import { IPlayer } from '../../types/entity/types';
 
-export default function LoginScreen() {
-  const navigation = useNavigation();
-  const dispatch = useDispatch<AppDispatch>();
-  
-  const { loading, error } = useSelector((state: any) => state.auth);
+type Props = NativeStackScreenProps<AuthStackParamList, 'login'>;
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [localError, setLocalError] = useState('');
+export const LoginScreen: React.FC<Props> = ({ navigation }) => {
+  const { loading, error: authError, clearError, signIn, signOut } = useAuth();
+
+  // Refs
+  const scrollViewRef = useRef<ScrollView>(null);
+  const logoScale = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // State
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  });
+
+  const [errors, setErrors] = useState({
+    email: '',
+    password: '',
+  });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [checkingDevice, setCheckingDevice] = useState(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  // ============================================
+  // LIFECYCLE & EFFECTS
+  // ============================================
 
   useEffect(() => {
+    setupKeyboardListeners();
+    setupAppStateListener();
+
+    // Fade in animation
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
+
     return () => {
-      dispatch(clearError());
+      clearError();
     };
-  }, [dispatch]);
+  }, []);
+
+  // Show auth errors
+  useEffect(() => {
+    if (authError) {
+      Alert.alert('Giriş Hatası', authError, [
+        { text: 'Tamam', onPress: () => clearError() }
+      ]);
+    }
+  }, [authError]);
+
+  // ============================================
+  // KEYBOARD HANDLING
+  // ============================================
+
+  const setupKeyboardListeners = () => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      handleKeyboardShow
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      handleKeyboardHide
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  };
+
+  const setupAppStateListener = () => {
+    const subscription = AppState.addEventListener('change', (nextAppState: string) => {
+      if (nextAppState === 'active' && Platform.OS === 'android') {
+        logoScale.setValue(1);
+        setKeyboardVisible(false);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  };
+
+  const handleKeyboardShow = () => {
+    setKeyboardVisible(true);
+    Animated.spring(logoScale, {
+      toValue: 0.6,
+      useNativeDriver: true,
+      friction: 8,
+    }).start();
+
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: 80, animated: true });
+    }, Platform.OS === 'android' ? 200 : 100);
+  };
+
+  const handleKeyboardHide = () => {
+    setKeyboardVisible(false);
+    Animated.spring(logoScale, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 8,
+    }).start();
+
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    }, 100);
+  };
+
+
+  // ============================================
+  // FORM HANDLING
+  // ============================================
+
+  const handleChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (errors[field as keyof typeof errors]) {
+      setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors = {
+      email: '',
+      password: '',
+    };
+
+    // Email validation
+    const emailError = getEmailError(formData.email);
+    if (emailError) {
+      newErrors.email = emailError;
+    }
+
+    // Password validation
+    if (!formData.password || formData.password.length === 0) {
+      newErrors.password = 'Şifre gereklidir';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Şifre en az 6 karakter olmalıdır';
+    }
+
+    setErrors(newErrors);
+    return !newErrors.email && !newErrors.password;
+  };
+
+  // ============================================
+  // LOGIN HANDLER (NEW SLICE LOGIC)
+  // ============================================
 
   const handleLogin = async () => {
-    // Validation
-    if (!email.trim()) {
-      setLocalError('E-posta adresi gerekli');
+    if (!validateForm()) {
       return;
     }
 
-    if (!password) {
-      setLocalError('Şifre gerekli');
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      setLocalError('Geçersiz e-posta formatı');
-      return;
-    }
-
-    setLocalError('');
+    Keyboard.dismiss();
 
     try {
-      // Dispatch login action
-      const result = await dispatch(loginUser({ 
-        email: email.trim().toLowerCase(), 
-        password 
-      }));
+      // Redux thunk dispatch
+      const result = await signIn(formData.email, formData.password, rememberMe);
 
-      if (loginUser.rejected.match(result)) {
-        Alert.alert('Giriş Başarısız', result.payload as string || 'Lütfen tekrar deneyin');
+      console.log('📊 Login result:', result);
+
+      // ✅ ARTIK result.success güvenle kontrol edilebilir
+      if (!result.success) {
+        // Hata durumu - authError zaten set edildi
+        console.error('❌ Login failed:', result.error);
+        // useEffect ile gösterilecek, burada ekstra bir şey yapmaya gerek yok
+        return;
+      }
+      console.log('✅ Login successful:', result.data);
+
+      const userData = result.data as IPlayer;
+      // ✅ 1. EMAIL VERIFICATION CHECK (EN ÖNCELİKLİ)
+      if (!userData.emailVerified) {
+        console.warn('⚠️ [LoginScreen] Email not verified');
+
+        Alert.alert(
+          'E-posta Doğrulama Gerekli',
+          'Hesabınıza giriş yapmadan önce e-posta adresinizi doğrulamanız gerekiyor.',
+          [
+            {
+              text: 'İptal',
+              style: 'cancel',
+              onPress: () => {
+                // Logout yap
+                signOut();
+              },
+            },
+            {
+              text: 'Doğrula',
+              onPress: () => {
+                // Email verification ekranına yönlendir
+                navigation.navigate('emailVerification', { email: formData.email });
+              },
+            },
+          ],
+          { cancelable: false }
+        );
+        return;
+      }
+      // Check profile completion
+      if (!isProfileComplete(result.data as IPlayer)) {
+        // Navigate to complete profile
+        Alert.alert(
+          'Profil Tamamla',
+          'Devam etmek için profilinizi tamamlamanız gerekiyor',
+          [
+            {
+              text: 'Tamam',
+              onPress: () => NavigationService.navigateToRegister(),
+            },
+          ]
+        );
+      } else {
+        // ✅ Profil tamam - RootNavigator otomatik Main stack'e geçecek
+        console.log('✅ Profile complete, waiting for RootNavigator redirect');
       }
     } catch (error: any) {
-      console.error('Login error:', error);
-      Alert.alert('Hata', 'Giriş yapılırken bir hata oluştu');
+      console.error('❌ Login error:', error);
+      // Error already handled by useEffect above
     }
   };
 
-  const handleForgotPassword = () => {
-    navigation.navigate('ForgotPassword' as never);
+  // ============================================
+  // SOCIAL LOGIN (PLACEHOLDER)
+  // ============================================
+
+  const handleGoogleLogin = async () => {
+    Alert.alert('Bilgi', 'Google ile giriş yakında eklenecek');
   };
 
-  const handleSignUp = () => {
-    navigation.navigate('Register' as never);
+  const handleAppleLogin = async () => {
+    Alert.alert('Bilgi', 'Apple ile giriş yakında eklenecek');
   };
 
-  const isValidEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+  const handleBiometricLogin = async () => {
+    Alert.alert('Bilgi', 'Biyometrik giriş yakında eklenecek');
   };
 
-  const errorMessage = localError || error;
+  // ============================================
+  // LOADING STATE
+  // ============================================
+
+  if (checkingDevice) {
+    return (
+      <SafeAreaView style={styles.loadingContainer} edges={['top']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F0FDF4" />
+        <View style={styles.loadingContent}>
+          <Animated.View style={[styles.loadingLogoContainer, { opacity: fadeAnim }]}>
+            <Text style={styles.loadingLogoText}>⚽</Text>
+          </Animated.View>
+          <Text style={styles.loadingTitle}>Maç Yönetimi</Text>
+          <Text style={styles.loadingSubtitle}>Giriş kontrol ediliyor...</Text>
+          <ActivityIndicator size="large" color="#16a34a" style={styles.loadingSpinner} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ============================================
+  // MAIN RENDER
+  // ============================================
 
   return (
-    <Screen scroll keyboardAvoiding backgroundColor={colors.background.default}>
-      <Container padding="large" style={styles.container}>
-        {/* Logo/Title */}
-        <View style={styles.header}>
-          <Text style={styles.logo}>⚽</Text>
-          <Text style={styles.title}>Maç Yönetimi</Text>
-          <Text style={styles.subtitle}>
-            Liglerinizi ve maçlarınızı yönetin
-          </Text>
-        </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F0FDF4" />
 
-        <Spacer size="2xl" />
-
-        {/* Login Form */}
-        <View style={styles.form}>
-          <Input
-            label="E-posta"
-            placeholder="E-posta adresinizi girin"
-            value={email}
-            onChangeText={(text) => {
-              setEmail(text);
-              setLocalError('');
-              dispatch(clearError());
-            }}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            leftIcon={<Text>📧</Text>}
-            error={errorMessage && !email ? 'E-posta gerekli' : undefined}
-          />
-
-          <Input
-            label="Şifre"
-            placeholder="Şifrenizi girin"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              setLocalError('');
-              dispatch(clearError());
-            }}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="password"
-            leftIcon={<Text>🔒</Text>}
-            error={errorMessage && !password ? 'Şifre gerekli' : undefined}
-          />
-
-          {errorMessage && email && password && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{errorMessage}</Text>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          {/* Animated Header */}
+          <Animated.View
+            style={[
+              styles.header,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: logoScale }]
+              }
+            ]}
+          >
+            <View style={styles.logoContainer}>
+              <LinearGradient
+                colors={['#16a34a', '#15803d']}
+                style={styles.logoGradient}
+              >
+                <Text style={styles.logo}>⚽</Text>
+              </LinearGradient>
             </View>
+            {!isKeyboardVisible && (
+              <>
+                <Text style={styles.appName}>Maç Yönetimi</Text>
+                <Text style={styles.title}>Hoş Geldin!</Text>
+                <Text style={styles.subtitle}>
+                  Maçlara katılmak için giriş yap
+                </Text>
+              </>
+            )}
+          </Animated.View>
+
+          {/* Form Card */}
+          <Animated.View style={[styles.formCard, { opacity: fadeAnim }]}>
+            {/* Email Input */}
+            <View style={styles.inputWrapper}>
+              <AuthInput
+                label="E-posta"
+                icon="mail-outline"
+                value={formData.email}
+                onChangeText={(value) => handleChange('email', value)}
+                error={errors.email}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
+                editable={!loading}
+              // placeholder="ornek@email.com"
+              />
+            </View>
+
+            {/* Password Input */}
+            <View style={styles.inputWrapper}>
+              <AuthInput
+                label="Şifre"
+                icon="lock-closed-outline"
+                value={formData.password}
+                onChangeText={(value) => handleChange('password', value)}
+                error={errors.password}
+                secureTextEntry={!showPassword}
+                rightIcon={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                onRightIconPress={() => setShowPassword(!showPassword)}
+                autoCapitalize="none"
+                autoComplete="password"
+                textContentType="password"
+                editable={!loading}
+                placeholder="••••••••"
+              />
+            </View>
+
+            {/* Remember Me & Forgot Password */}
+            <View style={styles.optionsRow}>
+              <TouchableOpacity
+                style={styles.rememberMeContainer}
+                onPress={() => setRememberMe(!rememberMe)}
+                activeOpacity={0.7}
+                disabled={loading}
+              >
+                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                  {rememberMe && (
+                    <Ionicons name="checkmark" size={14} color="white" />
+                  )}
+                </View>
+                <Text style={styles.rememberMeText}>Beni Hatırla</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => navigation.navigate('forgotPassword', { email: formData.email })}
+                activeOpacity={0.7}
+                disabled={loading}
+              >
+                <Text style={styles.forgotPassword}>Şifremi Unuttum</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Login Button */}
+            <AuthButton
+              title="Giriş Yap"
+              onPress={handleLogin}
+              loading={loading}
+              disabled={loading}
+              variant="gradient"
+              gradientColors={['#16a34a', '#15803d']}
+              icon="arrow-forward"
+            />
+
+            {/* Biometric Login */}
+            {Platform.OS === 'ios' && !isKeyboardVisible && (
+              <TouchableOpacity
+                style={styles.biometricButton}
+                onPress={handleBiometricLogin}
+                activeOpacity={0.7}
+                disabled={loading}
+              >
+                <Ionicons name="finger-print" size={20} color="#16a34a" />
+                <Text style={styles.biometricText}>Face ID ile Giriş Yap</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Divider */}
+            {/* {!isKeyboardVisible && (
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>veya</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            )} */}
+
+            {/* Social Login */}
+            {/* {!isKeyboardVisible && (
+              <SocialLoginButtons
+                onGooglePress={handleGoogleLogin}
+                onApplePress={handleAppleLogin}
+                loading={loading}
+              />
+            )} */}
+          </Animated.View>
+
+          {/* Register Link */}
+          {!isKeyboardVisible && (
+            <Animated.View style={[styles.registerContainer, { opacity: fadeAnim }]}>
+              <Text style={styles.registerText}>Hesabın yok mu? </Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('register')}
+                activeOpacity={0.7}
+                disabled={loading}
+              >
+                <Text style={styles.registerLink}>Kayıt Ol</Text>
+              </TouchableOpacity>
+            </Animated.View>
           )}
 
-          <TouchableOpacity
-            onPress={handleForgotPassword}
-            style={styles.forgotButton}
-          >
-            <Text style={styles.forgotText}>Şifremi Unuttum?</Text>
-          </TouchableOpacity>
-
-          <Button
-            title="Giriş Yap"
-            onPress={handleLogin}
-            loading={loading}
-            disabled={loading}
-            fullWidth
-            size="large"
-          />
-        </View>
-
-        <Spacer size="xl" />
-
-        {/* Divider */}
-        <View style={styles.dividerContainer}>
-          <Divider style={styles.divider} />
-          <Text style={styles.dividerText}>VEYA</Text>
-          <Divider style={styles.divider} />
-        </View>
-
-        <Spacer size="lg" />
-
-        {/* Social Login (Coming Soon) */}
-        <View style={styles.socialContainer}>
-          <Button
-            title="Google ile Devam Et"
-            onPress={() => Alert.alert('Yakında', 'Google ile giriş özelliği yakında eklenecek')}
-            variant="outline"
-            fullWidth
-            icon={<Text style={styles.socialIcon}>🔍</Text>}
-            iconPosition="left"
-            disabled={loading}
-          />
-
-          <Spacer size="md" />
-
-          <Button
-            title="Apple ile Devam Et"
-            onPress={() => Alert.alert('Yakında', 'Apple ile giriş özelliği yakında eklenecek')}
-            variant="outline"
-            fullWidth
-            icon={<Text style={styles.socialIcon}>🍎</Text>}
-            iconPosition="left"
-            disabled={loading}
-          />
-        </View>
-
-        <Spacer size="2xl" />
-
-        {/* Sign Up Link */}
-        <View style={styles.signupContainer}>
-          <Text style={styles.signupText}>Hesabınız yok mu? </Text>
-          <TouchableOpacity onPress={handleSignUp} disabled={loading}>
-            <Text style={styles.signupLink}>Kayıt Ol</Text>
-          </TouchableOpacity>
-        </View>
-      </Container>
-    </Screen>
+          {/* Terms - Compact when keyboard visible */}
+          {!isKeyboardVisible && (
+            <Text style={styles.termsText}>
+              Devam ederek{' '}
+              <Text style={styles.termsLink}>Kullanım Koşulları</Text>
+              {' '}ve{' '}
+              <Text style={styles.termsLink}>Gizlilik Politikası</Text>
+              'nı kabul ediyorsunuz
+            </Text>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
-}
+};
+
+// ============================================
+// STYLES
+// ============================================
 
 const styles = StyleSheet.create({
-  container: {
+  // Loading Styles
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#F0FDF4',
+  },
+  loadingContent: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
   },
+  loadingLogoContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+    marginBottom: spacing.xl,
+  },
+  loadingLogoText: {
+    fontSize: 60,
+  },
+  loadingTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#16a34a',
+    marginBottom: spacing.xs,
+  },
+  loadingSubtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: spacing.xl,
+  },
+  loadingSpinner: {
+    marginTop: spacing.lg,
+  },
+
+  // Main Container
+  container: {
+    flex: 1,
+    backgroundColor: '#F0FDF4',
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+
+  // Header
   header: {
+    alignItems: 'center',
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+  },
+  logoContainer: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    marginBottom: spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  logoGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 45,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   logo: {
-    fontSize: 64,
+    fontSize: 48,
+  },
+  appName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#16a34a',
     marginBottom: spacing.md,
   },
   title: {
-    fontSize: typography.fontSize['3xl'],
-    fontFamily: typography.fontFamily.bold,
-    color: colors.text.primary,
-    textAlign: 'center',
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#111827',
     marginBottom: spacing.xs,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: typography.fontSize.base,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.text.secondary,
+    fontSize: 16,
+    color: '#6B7280',
     textAlign: 'center',
+    lineHeight: 22,
   },
-  form: {
-    width: '100%',
-  },
-  errorContainer: {
-    backgroundColor: '#FEE2E2',
-    padding: spacing.md,
-    borderRadius: 8,
-    marginBottom: spacing.md,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.medium,
-    textAlign: 'center',
-  },
-  forgotButton: {
-    alignSelf: 'flex-end',
+
+  // Form Card
+  formCard: {
+    backgroundColor: 'white',
+    borderRadius: 24,
+    padding: spacing.xl,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 5,
     marginBottom: spacing.lg,
   },
-  forgotText: {
-    color: colors.primary.main,
-    fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.medium,
+  inputWrapper: {
+    marginBottom: spacing.md,
   },
+
+  // Options Row
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    marginTop: spacing.xs,
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    marginRight: spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'white',
+  },
+  checkboxChecked: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a',
+  },
+  rememberMeText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  forgotPassword: {
+    fontSize: 14,
+    color: '#16a34a',
+    fontWeight: '600',
+  },
+
+  // Biometric Button
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  biometricText: {
+    fontSize: 14,
+    color: '#16a34a',
+    fontWeight: '600',
+  },
+
+  // Divider
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginVertical: spacing.lg,
   },
-  divider: {
+  dividerLine: {
     flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
   },
   dividerText: {
     marginHorizontal: spacing.md,
-    color: colors.text.secondary,
-    fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.medium,
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontWeight: '500',
   },
-  socialContainer: {
-    width: '100%',
-  },
-  socialIcon: {
-    fontSize: 20,
-    marginRight: spacing.sm,
-  },
-  signupContainer: {
+
+  // Register Link
+  registerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: spacing.md,
   },
-  signupText: {
-    fontSize: typography.fontSize.base,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.text.secondary,
+  registerText: {
+    fontSize: 15,
+    color: '#6B7280',
   },
-  signupLink: {
-    fontSize: typography.fontSize.base,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.primary.main,
+  registerLink: {
+    fontSize: 15,
+    color: '#16a34a',
+    fontWeight: '700',
+  },
+
+  // Terms
+  termsText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  termsLink: {
+    color: '#16a34a',
+    fontWeight: '600',
   },
 });
+
+export default LoginScreen;

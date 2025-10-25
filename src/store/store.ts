@@ -18,8 +18,8 @@ import uiReducer from './slices/uiSlice';
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['auth', 'ui'], // Only persist these reducers
-  blacklist: ['notification'], // Don't persist these
+  whitelist: ['ui','settings','theme'], // Only persist these reducers
+  blacklist: ['notification', 'auth'], // Don't persist these
 };
 
 // ============================================

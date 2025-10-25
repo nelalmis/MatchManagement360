@@ -20,6 +20,12 @@ export type AuthStackParamList = {
   login: undefined;
   register: undefined;
   phoneVerification: { phoneNumber: string };
+  forgotPassword: { email: string };
+  completeProfile: undefined;
+  emailVerification: { email: string };
+  splash: undefined;
+  welcome: undefined;
+  // socialAuth: undefined; // Phase 2
 };
 
 // ============================================

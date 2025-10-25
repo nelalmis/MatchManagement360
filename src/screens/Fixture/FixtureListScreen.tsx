@@ -24,7 +24,6 @@ import {
   Repeat,
   AlertCircle,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
 import {
   IMatchFixture,
   ILeague,
@@ -37,9 +36,10 @@ import { matchFixtureService } from '../../services/matchFixtureService';
 import { leagueService } from '../../services/leagueService';
 import { FixtureListRouteProp, NavigationService } from '../../navigation';
 import { useRoute } from '@react-navigation/native';
+import { useAuth } from '../../hooks';
 
 export const FixtureListScreen: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
 
   const route = useRoute<FixtureListRouteProp>();
   const { leagueId } = route.params || {};

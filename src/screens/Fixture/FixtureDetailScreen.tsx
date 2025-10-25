@@ -25,7 +25,6 @@ import {
     AlertCircle,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import {
     IMatchFixture,
     IMatch,
@@ -40,10 +39,11 @@ import { leagueService } from '../../services/leagueService';
 import { playerService } from '../../services/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { CopyableText } from '../../components/CopyableText';
+import { useAuth } from '../../hooks';
 
 export const FixtureDetailScreen: React.FC = () => {
     const route: any = useRoute();
-    const { user } = useAppContext();
+    const { user } = useAuth();
     const fixtureId = route.params?.fixtureId;
 
     const [fixture, setFixture] = useState<IMatchFixture | null>(null);

@@ -18,7 +18,6 @@ import {
   Award,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import {
   ILeague,
   IMatch,
@@ -33,6 +32,7 @@ import { matchService } from '../../services/matchService';
 import { playerStatsService } from '../../services/playerStatsService';
 import { playerService } from '../../services/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
 
 interface StandingPlayer {
   playerId: string;
@@ -105,7 +105,7 @@ const getSportStatsConfig = (sportType: SportType) => {
 
 export const StandingsScreen: React.FC = () => {
   const route: any = useRoute();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const leagueId = route.params?.leagueId;
 
   const [league, setLeague] = useState<ILeague | null>(null);

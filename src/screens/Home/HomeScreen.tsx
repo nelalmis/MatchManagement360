@@ -27,12 +27,12 @@ import {
   Award,
   Activity,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation';
 import { IMatch, ILeague, getSportIcon, getMatchStatusColor } from '../../types/types';
 import { matchService } from '../../services/matchService';
 import { playerStatsService } from '../../services/playerStatsService';
 import { leagueService } from '../../services/leagueService';
+import { useAuth } from '../../hooks';
 
 // ============================================
 // CONSTANTS
@@ -144,7 +144,7 @@ const formatRelativeTime = (date: Date): string => {
 // ============================================
 
 export const HomeScreen: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
 
   // State
   const [refreshing, setRefreshing] = useState(false);

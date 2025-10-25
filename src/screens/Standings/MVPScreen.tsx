@@ -22,7 +22,6 @@ import {
   Flame,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import {
   ILeague,
   IMatch,
@@ -34,6 +33,7 @@ import { matchService } from '../../services/matchService';
 import { playerService } from '../../services/playerService';
 import { playerStatsService } from '../../services/playerStatsService';
 import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
 
 interface MVPPlayer {
   playerId: string;
@@ -49,7 +49,7 @@ interface MVPPlayer {
 
 export const MVPScreen: React.FC = () => {
   const route: any = useRoute();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const leagueId = route.params?.leagueId;
 
   const [league, setLeague] = useState<ILeague | null>(null);

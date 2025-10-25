@@ -36,7 +36,6 @@ import {
   Mail,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
 import {
@@ -53,6 +52,7 @@ import { matchService } from '../../services/matchService';
 import { leagueService } from '../../services/leagueService';
 import { matchFixtureService } from '../../services/matchFixtureService';
 import { matchInvitationService } from '../../services/matchInvitationService';
+import { useAuth } from '../../hooks';
 
 interface MatchWithLeague {
   match: IMatch;
@@ -65,7 +65,7 @@ type ViewMode = 'list' | 'compact';
 
 export const MyMatchesScreen: React.FC = () => {
   const route: any = useRoute();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const playerId = route.params?.playerId || user?.id;
 
   const [matches, setMatches] = useState<MatchWithLeague[]>([]);

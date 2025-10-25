@@ -23,7 +23,6 @@ import {
   AlertCircle,
   Search,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import {
@@ -51,7 +50,6 @@ const SPORT_TYPES: SportType[] = [
 ];
 
 export const EditLeagueScreen: React.FC = () => {
-  const { user } = useAppContext();
   const route = useRoute<EditLeagueRouteProp>();
   const { leagueId } = route.params;
 

@@ -25,7 +25,6 @@ import {
   Search,
   Plus,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
 import {
   IMatchFixture,
   IPlayer,
@@ -40,12 +39,13 @@ import { playerService } from '../../services/playerService';
 import { leagueService } from '../../services/leagueService';
 import { CreateFixtureRouteProp, NavigationService } from '../../navigation';
 import { RouteProp, useRoute } from '@react-navigation/native';
+import { useAuth } from '../../hooks';
 
 type TabType = 'basic' | 'schedule' | 'players' | 'organizers';
 
 
 export const CreateFixtureScreen: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
     const route = useRoute<CreateFixtureRouteProp>();
 
   const leagueId = route.params?.leagueId;

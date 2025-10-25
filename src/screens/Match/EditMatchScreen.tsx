@@ -22,15 +22,15 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import { matchService } from '../../services/matchService';
 import { IMatch } from '../../types/types';
 import { RootStackParamList, NavigationService, EditMatchRouteProp } from '../../navigation';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useAuth } from '../../hooks';
 
 
 export const EditMatchScreen: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const route = useRoute<EditMatchRouteProp>();
   const { matchId } = route.params;
 

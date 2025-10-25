@@ -25,7 +25,6 @@ import {
   Activity,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import {
   IPlayer,
   IPlayerStats,
@@ -41,6 +40,8 @@ import { playerStatsService } from '../../services/playerStatsService';
 import { playerRatingProfileService } from '../../services/playerRatingProfileService';
 import { leagueService } from '../../services/leagueService';
 import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
+import PlayerService from '../../services/serviceLayer/playerService';
 
 interface LeagueStatsDetail {
   leagueId: string;
@@ -55,7 +56,7 @@ interface LeagueStatsDetail {
 
 export const PlayerStatsScreen: React.FC = () => {
   const route: any = useRoute();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const playerId = route.params?.playerId || user?.id;
 
   const [player, setPlayer] = useState<IPlayer | null>(null);
@@ -122,13 +123,13 @@ export const PlayerStatsScreen: React.FC = () => {
       setLoading(true);
 
       // Player data
-      const playerData = await playerService.getById(playerId);
+      const playerData = await PlayerService.getPlayer(playerId);
       if (!playerData) {
         Alert.alert('Hata', 'Oyuncu bulunamadı');
         NavigationService.goBack();
         return;
       }
-      setPlayer(playerData);
+      setPlayer(playerData.data as IPlayer);
 
       // Get all player stats
       const allStats = await playerStatsService.getStatsByPlayer(playerId);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import {
   View,
   Text,
@@ -39,8 +39,8 @@ import { friendlyMatchConfigService } from '../../services/friendlyMatchConfigSe
 import { playerService } from '../../services/playerService';
 import { IPlayer, SportType, SPORT_CONFIGS } from '../..//types/types';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../../navigation';
+import { useAuth } from '../../hooks';
 
 interface PlayerSelection extends IPlayer {
   selected: boolean;
@@ -60,7 +60,7 @@ type CreateFriendlyMatchParams = {
 export const CreateFriendlyMatchScreen: React.FC = () => {
   const route = useRoute<RouteProp<{ params: CreateFriendlyMatchParams }, 'params'>>();
   const { navigate, goBack } = useNavigation();
-  const { user } = useAppContext();
+  const { user } = useAuth();
 
   // Loading States
   const [loading, setLoading] = useState(false);

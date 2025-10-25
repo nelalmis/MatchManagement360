@@ -3,8 +3,9 @@
 import React, { useEffect } from 'react';
 import { Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
+// import { useAppContext } from '../../context/AppContext';
 import { NavigationService } from '../NavigationService';
+import { useAuth } from '../../hooks';
 
 // ============================================
 // BASE GUARD INTERFACE
@@ -20,11 +21,11 @@ interface GuardProps {
 // ============================================
 
 export const AuthGuard: React.FC<GuardProps> = ({ children }) => {
-  const { user, isVerified } = useAppContext();
+  const { user } = useAuth();
   const navigation = useNavigation();
 
   useEffect(() => {
-    if (!user || !isVerified) {
+    if (!user ) {
       Alert.alert(
         'Giriş Gerekli',
         'Bu sayfaya erişmek için giriş yapmalısınız.',
@@ -36,9 +37,9 @@ export const AuthGuard: React.FC<GuardProps> = ({ children }) => {
         ]
       );
     }
-  }, [user, isVerified, navigation]);
+  }, [user, navigation]);
 
-  if (!user || !isVerified) return null;
+  if (!user) return null;
 
   return <>{children}</>;
 };
@@ -49,7 +50,7 @@ export const AuthGuard: React.FC<GuardProps> = ({ children }) => {
 // ============================================
 
 export const OrganizerGuard: React.FC<GuardProps> = ({ children }) => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -92,7 +93,7 @@ export const LeagueOwnerGuard: React.FC<LeagueOwnerGuardProps> = ({
   leagueId,
   onUnauthorized,
 }) => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -152,7 +153,7 @@ export const MatchOrganizerGuard: React.FC<MatchOrganizerGuardProps> = ({
   matchId,
   onUnauthorized,
 }) => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -214,7 +215,7 @@ export const TeamBuildingGuard: React.FC<TeamBuildingGuardProps> = ({
   leagueId,
   onUnauthorized,
 }) => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -274,7 +275,7 @@ export const FixtureOrganizerGuard: React.FC<FixtureOrganizerGuardProps> = ({
   fixtureId,
   onUnauthorized,
 }) => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -334,7 +335,7 @@ export const PremiumMatchGuard: React.FC<PremiumMatchGuardProps> = ({
   matchId,
   onUnauthorized,
 }) => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -396,7 +397,7 @@ export const PremiumMatchGuard: React.FC<PremiumMatchGuardProps> = ({
 // ============================================
 
 export const PremiumUserGuard: React.FC<GuardProps> = ({ children }) => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const navigation = useNavigation();
 
   useEffect(() => {

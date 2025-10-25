@@ -1,310 +1,538 @@
 // src/screens/auth/RegisterScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useDispatch, useSelector } from 'react-redux';
-import { Screen, Container, Input, Button, Spacer } from '../../components';
-import { signUpUser, clearError } from '../../store/slices/authSlice';
-import { colors, typography, spacing } from '../../config/theme';
-import type { AppDispatch } from '../../store';
+import {
+    View,
+    Text,
+    StyleSheet,
+    ScrollView,
+    KeyboardAvoidingView,
+    Platform,
+    TouchableOpacity,
+    StatusBar,
+    Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import LinearGradient from 'react-native-linear-gradient';
+import { ArrowLeft } from 'lucide-react-native';
+import { AuthInput } from './components/AuthInput';
+import { AuthButton } from './components/AuthButton';
+import { SocialLoginButtons } from './components/SocialLoginButtons';
+import { commonColors, typography, spacing, borderRadius } from '../../utils/theme';
+import { validateRegisterForm } from '../../utils/validation';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { useAuth } from '../../hooks';
+import { AuthStackParamList } from '../../navigation';
+import Ionicons from '@expo/vector-icons/build/Ionicons';
 
-export default function RegisterScreen() {
-  const navigation = useNavigation();
-  const dispatch = useDispatch<AppDispatch>();
+type Props = NativeStackScreenProps<AuthStackParamList, 'register'>;
 
-  const { loading, error } = useSelector((state: any) => state.auth);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    surname: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: '',
-  });
-  const [localError, setLocalError] = useState('');
-
-  useEffect(() => {
-    return () => {
-      dispatch(clearError());
-    };
-  }, [dispatch]);
-
-  const handleRegister = async () => {
-    // Validation
-    if (!formData.name.trim()) {
-      setLocalError('İsim gerekli');
-      return;
-    }
-
-    if (!formData.surname.trim()) {
-      setLocalError('Soyisim gerekli');
-      return;
-    }
-
-    if (!formData.email.trim()) {
-      setLocalError('E-posta adresi gerekli');
-      return;
-    }
-
-    if (!isValidEmail(formData.email)) {
-      setLocalError('Geçersiz e-posta formatı');
-      return;
-    }
-
-    if (formData.phone && !isValidPhone(formData.phone)) {
-      setLocalError('Geçersiz telefon formatı');
-      return;
-    }
-
-    if (!formData.password) {
-      setLocalError('Şifre gerekli');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setLocalError('Şifre en az 6 karakter olmalıdır');
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setLocalError('Şifreler eşleşmiyor');
-      return;
-    }
-
-    setLocalError('');
-
-    // Dispatch signup action
-    const result = await dispatch(
-      signUpUser({
-        email: formData.email.trim().toLowerCase(),
-        password: formData.password,
-        name: formData.name.trim(),
-        surname: formData.surname.trim(),
-        phone: formData.phone.trim() || undefined,
-      })
-    );
-
-    if (signUpUser.fulfilled.match(result)) {
-      // Kayıt başarılı - Email verification ekranına yönlendir
-      navigation.navigate('EmailVerification' as never);
-    } else if (signUpUser.rejected.match(result)) {
-      // Hata durumunda - state temizle
-      setFormData({
+export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
+    const { loading, error: authError, message, clearError, clearMessage, signUp } = useAuth();
+    const [formData, setFormData] = useState({
         name: '',
         surname: '',
         email: '',
-        phone: '',
         password: '',
         confirmPassword: '',
-      });
-      Alert.alert('Kayıt Başarısız', result.payload as string || 'Lütfen tekrar deneyin');
-    }
-  };
+    });
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    setLocalError('');
-    dispatch(clearError());
-  };
+    const [errors, setErrors] = useState({
+        name: '',
+        surname: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+    });
 
-  const isValidEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-  const isValidPhone = (phone: string): boolean => {
-    // Türkiye formatı: +90 veya 0 ile başlayan 10 haneli numara
-    const phoneRegex = /^(\+90|0)?[5][0-9]{9}$/;
-    return phoneRegex.test(phone.replace(/\s/g, ''));
-  };
+    // Clear Redux errors/messages when component unmounts
+    useEffect(() => {
+        return () => {
+            clearError();
+            clearMessage();
+        };
+    }, []);
 
-  const errorMessage = localError || error;
+    // Show Redux auth error/message as alert
+    useEffect(() => {
+        if (authError) {
+            Alert.alert('Hata', authError);
+            clearError();
+        }
+    }, [authError]);
 
-  return (
-    <Screen scroll keyboardAvoiding backgroundColor={colors.background.default}>
-      <Container padding="large" style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.logo}>⚽</Text>
-          <Text style={styles.title}>Hesap Oluştur</Text>
-          <Text style={styles.subtitle}>
-            Maç yönetimine başlamak için kayıt olun
-          </Text>
-        </View>
+    useEffect(() => {
+        if (message) {
+            Alert.alert('Başarılı', message, [
+                {
+                    text: 'Tamam',
+                    onPress: () => {
+                        clearMessage();
+                        navigation.replace('login');
+                    },
+                },
+            ]);
+        }
+    }, [message, navigation]);
 
-        <Spacer size="xl" />
+    const handleChange = (field: string, value: string) => {
+        setFormData((prev) => ({ ...prev, [field]: value }));
+        // Clear error when user starts typing
+        if (errors[field as keyof typeof errors]) {
+            setErrors((prev) => ({ ...prev, [field]: '' }));
+        }
+    };
 
-        {/* Registration Form */}
-        <View style={styles.form}>
-          <Input
-            label="İsim *"
-            placeholder="İsminizi girin"
-            value={formData.name}
-            onChangeText={(text) => handleInputChange('name', text)}
-            autoCapitalize="words"
-            autoComplete="name"
-            leftIcon={<Text>👤</Text>}
-          />
+    const handleRegister = async () => {
+        // Validate form
+        const { isValid, errors: validationErrors } = validateRegisterForm(
+            formData.name,
+            formData.surname,
+            formData.email,
+            formData.password,
+            formData.confirmPassword
+        );
 
-          <Input
-            label="Soyisim *"
-            placeholder="Soyisminizi girin"
-            value={formData.surname}
-            onChangeText={(text) => handleInputChange('surname', text)}
-            autoCapitalize="words"
-            autoComplete="family-name"
-            leftIcon={<Text>👤</Text>}
-          />
+        if (!isValid) {
+            setErrors(validationErrors);
+            return;
+        }
 
-          <Input
-            label="E-posta *"
-            placeholder="ornek@email.com"
-            value={formData.email}
-            onChangeText={(text) => handleInputChange('email', text)}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            leftIcon={<Text>📧</Text>}
-          />
+        // Check terms acceptance
+        if (!acceptedTerms) {
+            Alert.alert('Uyarı', 'Devam etmek için kullanım koşullarını kabul etmelisiniz');
+            return;
+        }
 
-          <Input
-            label="Telefon (Opsiyonel)"
-            placeholder="+90 5XX XXX XX XX"
-            value={formData.phone}
-            onChangeText={(text) => handleInputChange('phone', text)}
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            leftIcon={<Text>📱</Text>}
-          />
+        try {
+            // Redux thunk dispatch
+            const result = await signUp(
+                formData.email,
+                formData.password,
+                formData.name,
+                formData.surname,
+            );
+            if (!result || !result.success) {
+                throw new Error(result?.error || 'Kayıt yapılamadı');
+            }
 
-          <Input
-            label="Şifre *"
-            placeholder="Şifrenizi oluşturun (min. 6 karakter)"
-            value={formData.password}
-            onChangeText={(text) => handleInputChange('password', text)}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="password-new"
-            leftIcon={<Text>🔒</Text>}
-          />
+            navigation.navigate('emailVerification', { email: formData.email });
+            // Success message is handled by useEffect above
+            console.log('Registration successful');
+        } catch (error: any) {
+            // Error is already handled by Redux and useEffect above
+            console.error('Registration error:', error);
+        }
+    };
 
-          <Input
-            label="Şifre Tekrar *"
-            placeholder="Şifrenizi tekrar girin"
-            value={formData.confirmPassword}
-            onChangeText={(text) => handleInputChange('confirmPassword', text)}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="password-new"
-            leftIcon={<Text>🔒</Text>}
-          />
+    const handleGoogleRegister = async () => {
+        try {
+            // TODO: Implement Google Sign-Up
+            console.log('Google register');
+            Alert.alert('Bilgi', 'Google ile kayıt yakında eklenecek');
+        } catch (error: any) {
+            Alert.alert('Hata', error.message || 'Google ile kayıt oluşturulamadı');
+        }
+    };
 
-          {errorMessage && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{errorMessage}</Text>
-            </View>
-          )}
+    const handleAppleRegister = async () => {
+        try {
+            // TODO: Implement Apple Sign-Up
+            console.log('Apple register');
+            Alert.alert('Bilgi', 'Apple ile kayıt yakında eklenecek');
+        } catch (error: any) {
+            Alert.alert('Hata', error.message || 'Apple ile kayıt oluşturulamadı');
+        }
+    };
 
-          <Button
-            title="Kayıt Ol"
-            onPress={handleRegister}
-            loading={loading}
-            disabled={loading}
-            fullWidth
-            size="large"
-          />
-        </View>
+    const getPasswordStrength = () => {
+        const password = formData.password;
+        if (!password) return null;
 
-        <Spacer size="lg" />
+        let strength = 0;
+        if (password.length >= 8) strength++;
+        if (password.length >= 12) strength++;
+        if (/[A-Z]/.test(password)) strength++;
+        if (/[a-z]/.test(password)) strength++;
+        if (/[0-9]/.test(password)) strength++;
+        if (/[^A-Za-z0-9]/.test(password)) strength++;
 
-        {/* Terms */}
-        <Text style={styles.termsText}>
-          Kayıt olarak{' '}
-          <Text style={styles.termsLink}>Kullanım Şartları</Text>
-          {' '}ve{' '}
-          <Text style={styles.termsLink}>Gizlilik Politikası</Text>
-          'nı kabul etmiş olursunuz
-        </Text>
+        if (strength <= 2) return {
+            color: commonColors.error,
+            text: 'Zayıf',
+            widthPercentage: 33
+        };
+        if (strength <= 4) return {
+            color: commonColors.warning,
+            text: 'Orta',
+            widthPercentage: 66
+        };
+        return {
+            color: commonColors.success,
+            text: 'Güçlü',
+            widthPercentage: 100
+        };
+    };
 
-        <Spacer size="xl" />
+    const passwordStrength = getPasswordStrength();
 
-        {/* Login Link */}
-        <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Zaten hesabınız var mı? </Text>
-          <TouchableOpacity onPress={() => navigation.goBack()} disabled={loading}>
-            <Text style={styles.loginLink}>Giriş Yap</Text>
-          </TouchableOpacity>
-        </View>
-      </Container>
-    </Screen>
-  );
-}
+    return (
+        <SafeAreaView style={styles.container} edges={['top']}>
+            <StatusBar barStyle="dark-content" backgroundColor={commonColors.white} />
+
+            <KeyboardAvoidingView
+                style={styles.keyboardView}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            >
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    {/* Back Button */}
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => navigation.goBack()}
+                        activeOpacity={0.7}
+                    >
+                        <Ionicons name="arrow-back" size={24} color="#111827" />
+                    </TouchableOpacity>
+
+
+                    {/* Header */}
+                    <View style={styles.header}>
+                        {/* <TouchableOpacity
+                            style={styles.backButton}
+                            onPress={() => navigation.goBack()}
+                            activeOpacity={0.7}
+                            disabled={loading}
+                        >
+                            <ArrowLeft size={24} color={commonColors.text.primary} />
+                        </TouchableOpacity> */}
+
+                        <Text style={styles.title}>Hesap Oluştur</Text>
+                        <Text style={styles.subtitle}>
+                            Spor arkadaşlarını bulmaya başla
+                        </Text>
+                    </View>
+
+                    {/* Progress Indicator */}
+                    <View style={styles.progressContainer}>
+                        <View style={styles.progressBar}>
+                            <LinearGradient
+                                colors={['#16a34a', '#15803d']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={[styles.progressFill, { width: '100%' }]}
+                            />
+                        </View>
+                        <Text style={styles.progressText}>Adım 1/2</Text>
+                    </View>
+
+                    {/* Form */}
+                    <View style={styles.form}>
+                        {/* Name Row */}
+                        <View style={styles.nameRow}>
+                            <View style={styles.halfInput}>
+                                <AuthInput
+                                    label="Ad"
+                                    icon="person-outline"
+                                    value={formData.name}
+                                    onChangeText={(value) => handleChange('name', value)}
+                                    error={errors.name}
+                                    autoCapitalize="words"
+                                    textContentType="givenName"
+                                    editable={!loading}
+                                />
+                            </View>
+
+                            <View style={styles.halfInput}>
+                                <AuthInput
+                                    label="Soyad"
+                                    icon="person-outline"
+                                    value={formData.surname}
+                                    onChangeText={(value) => handleChange('surname', value)}
+                                    error={errors.surname}
+                                    autoCapitalize="words"
+                                    textContentType="familyName"
+                                    editable={!loading}
+                                />
+                            </View>
+                        </View>
+
+                        <AuthInput
+                            label="E-posta"
+                            icon="mail-outline"
+                            value={formData.email}
+                            onChangeText={(value) => handleChange('email', value)}
+                            error={errors.email}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoComplete="email"
+                            textContentType="emailAddress"
+                            editable={!loading}
+                        />
+
+                        <AuthInput
+                            label="Şifre"
+                            icon="lock-closed-outline"
+                            value={formData.password}
+                            onChangeText={(value) => handleChange('password', value)}
+                            error={errors.password}
+                            secureTextEntry={!showPassword}
+                            rightIcon={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                            onRightIconPress={() => setShowPassword(!showPassword)}
+                            autoCapitalize="none"
+                            textContentType="newPassword"
+                            editable={!loading}
+                        />
+
+                        {/* Password Strength Indicator */}
+                        {passwordStrength && formData.password.length > 0 && (
+                            <View style={styles.passwordStrengthContainer}>
+                                <View style={styles.passwordStrengthBar}>
+                                    <View
+                                        style={[
+                                            styles.passwordStrengthFill,
+                                            {
+                                                width: `${passwordStrength.widthPercentage}%`,
+                                                backgroundColor: passwordStrength.color,
+                                            },
+                                        ]}
+                                    />
+                                </View>
+                                <Text
+                                    style={[
+                                        styles.passwordStrengthText,
+                                        { color: passwordStrength.color },
+                                    ]}
+                                >
+                                    {passwordStrength.text}
+                                </Text>
+                            </View>
+                        )}
+
+                        <AuthInput
+                            label="Şifre Tekrar"
+                            icon="lock-closed-outline"
+                            value={formData.confirmPassword}
+                            onChangeText={(value) => handleChange('confirmPassword', value)}
+                            error={errors.confirmPassword}
+                            secureTextEntry={!showConfirmPassword}
+                            rightIcon={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
+                            onRightIconPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                            autoCapitalize="none"
+                            textContentType="newPassword"
+                            editable={!loading}
+                        />
+
+                        {/* Terms & Conditions */}
+                        <TouchableOpacity
+                            style={styles.termsContainer}
+                            onPress={() => setAcceptedTerms(!acceptedTerms)}
+                            activeOpacity={0.7}
+                            disabled={loading}
+                        >
+                            <View style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}>
+                                {acceptedTerms && <Text style={styles.checkmark}>✓</Text>}
+                            </View>
+                            <Text style={styles.termsText}>
+                                <Text style={styles.termsLink}>Kullanım Koşulları</Text> ve{' '}
+                                <Text style={styles.termsLink}>Gizlilik Politikası</Text>'nı okudum ve kabul ediyorum
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* Register Button */}
+                        <AuthButton
+                            title="Kayıt Ol"
+                            onPress={handleRegister}
+                            loading={loading}
+                            disabled={loading}
+                            variant="gradient"
+                            gradientColors={['#16a34a', '#15803d']}
+                            icon="arrow-forward"
+                            iconPosition="right"
+                        />
+
+                        {/* Social Register */}
+                        {/* <SocialLoginButtons
+                            onGooglePress={handleGoogleRegister}
+                            onApplePress={handleAppleRegister}
+                            loading={loading}
+                        /> */}
+
+                        {/* Login Link */}
+                        <View style={styles.loginContainer}>
+                            <Text style={styles.loginText}>Zaten hesabın var mı? </Text>
+                            <TouchableOpacity
+                                onPress={() => navigation.navigate('login')}
+                                activeOpacity={0.7}
+                                disabled={loading}
+                            >
+                                <Text style={styles.loginLink}>Giriş Yap</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
+    );
+};
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  header: {
-    alignItems: 'center',
-  },
-  logo: {
-    fontSize: 64,
-    marginBottom: spacing.md,
-  },
-  title: {
-    fontSize: typography.fontSize['2xl'],
-    fontFamily: typography.fontFamily.bold,
-    color: colors.text.primary,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: typography.fontSize.base,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  form: {
-    width: '100%',
-  },
-  errorContainer: {
-    backgroundColor: '#FEE2E2',
-    padding: spacing.md,
-    borderRadius: 8,
-    marginBottom: spacing.md,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: typography.fontSize.sm,
-    fontFamily: typography.fontFamily.medium,
-    textAlign: 'center',
-  },
-  termsText: {
-    fontSize: typography.fontSize.xs,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  termsLink: {
-    color: colors.primary.main,
-    fontFamily: typography.fontFamily.medium,
-  },
-  loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loginText: {
-    fontSize: typography.fontSize.base,
-    fontFamily: typography.fontFamily.regular,
-    color: colors.text.secondary,
-  },
-  loginLink: {
-    fontSize: typography.fontSize.base,
-    fontFamily: typography.fontFamily.bold,
-    color: colors.primary.main,
-  },
+    container: {
+        flex: 1,
+        backgroundColor: commonColors.white,
+    },
+    keyboardView: {
+        flex: 1,
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingHorizontal: spacing.lg,
+    },
+    header: {
+        paddingTop: spacing.lg,
+        paddingBottom: spacing.md,
+    },
+    // Back Button
+    backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'white',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: spacing.md,
+        marginBottom: spacing.sm,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+
+    title: {
+        fontSize: typography.h2.fontSize,
+        fontWeight: '700',
+        color: commonColors.text.primary,
+        marginBottom: spacing.xs,
+    },
+    subtitle: {
+        fontSize: typography.body1.fontSize,
+        color: commonColors.text.secondary,
+    },
+    progressContainer: {
+        marginBottom: spacing.lg,
+    },
+    progressBar: {
+        height: 4,
+        backgroundColor: commonColors.background.tertiary,
+        borderRadius: 2,
+        overflow: 'hidden',
+        marginBottom: spacing.xs,
+    },
+    progressFill: {
+        height: '100%',
+    },
+    progressText: {
+        fontSize: typography.caption.fontSize,
+        color: commonColors.text.tertiary,
+        textAlign: 'right',
+    },
+    form: {
+        flex: 1,
+        paddingTop: spacing.md,
+    },
+    nameRow: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+    },
+    halfInput: {
+        flex: 1,
+    },
+    passwordStrengthContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: -spacing.sm,
+        marginBottom: spacing.md,
+        paddingHorizontal: spacing.xs,
+    },
+    passwordStrengthBar: {
+        flex: 1,
+        height: 4,
+        backgroundColor: commonColors.background.tertiary,
+        borderRadius: 2,
+        marginRight: spacing.sm,
+        overflow: 'hidden',
+    },
+    passwordStrengthFill: {
+        height: '100%',
+        borderRadius: 2,
+    },
+    passwordStrengthText: {
+        fontSize: typography.caption.fontSize,
+        fontWeight: '600',
+    },
+    termsContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginBottom: spacing.lg,
+        paddingHorizontal: spacing.xs,
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 4,
+        borderWidth: 2,
+        borderColor: commonColors.border.medium,
+        marginRight: spacing.sm,
+        marginTop: 2,
+        justifyContent: 'center',
+        alignItems: 'center',
+        flexShrink: 0,
+    },
+    checkboxChecked: {
+        backgroundColor: commonColors.success,
+        borderColor: commonColors.success,
+    },
+    checkmark: {
+        color: commonColors.white,
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    termsText: {
+        flex: 1,
+        fontSize: typography.body2.fontSize,
+        color: commonColors.text.secondary,
+        lineHeight: 20,
+    },
+    termsLink: {
+        color: commonColors.info,
+        fontWeight: '600',
+    },
+    loginContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: spacing.lg,
+    },
+    loginText: {
+        fontSize: typography.body1.fontSize,
+        color: commonColors.text.secondary,
+    },
+    loginLink: {
+        fontSize: typography.body1.fontSize,
+        color: commonColors.info,
+        fontWeight: '600',
+    },
 });

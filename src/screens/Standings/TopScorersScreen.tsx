@@ -21,7 +21,6 @@ import {
   BarChart3,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { useAppContext } from '../../context/AppContext';
 import {
   ILeague,
   getSportIcon,
@@ -32,6 +31,7 @@ import { leagueService } from '../../services/leagueService';
 import { playerStatsService } from '../../services/playerStatsService';
 import { playerService } from '../../services/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
 
 interface TopScorer {
   playerId: string;
@@ -47,7 +47,7 @@ interface TopScorer {
 
 export const TopScorersScreen: React.FC = () => {
   const route: any = useRoute();
-  const { user } = useAppContext();
+  const { user } = useAuth();
   const leagueId = route.params?.leagueId;
 
   const [league, setLeague] = useState<ILeague | null>(null);

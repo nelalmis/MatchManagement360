@@ -22,7 +22,6 @@ import {
   Search,
   Plus,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
 import {
   ILeague,
   IPlayer,
@@ -34,6 +33,7 @@ import {
 import { leagueService } from '../../services/leagueService';
 import { playerService } from '../../services/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
 
 const SPORT_TYPES: SportType[] = [
   'Futbol',
@@ -45,7 +45,7 @@ const SPORT_TYPES: SportType[] = [
 ];
 
 export const CreateLeagueScreen: React.FC = () => {
-  const { user } = useAppContext();
+  const { user } = useAuth();
 
   // Form State
   const [title, setTitle] = useState('');

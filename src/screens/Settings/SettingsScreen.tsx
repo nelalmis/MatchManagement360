@@ -26,9 +26,8 @@ import {
   Trash2,
   Download,
 } from 'lucide-react-native';
-import { useAppContext } from '../../context/AppContext';
-import { auth } from '../../api/firebaseConfig';
 import { NavigationService } from '../../navigation/NavigationService';
+import { useAuth } from '../../hooks';
 
 interface SettingItem {
   id: string;
@@ -44,7 +43,7 @@ interface SettingItem {
 }
 
 export const SettingsScreen: React.FC = () => {
-  const { user, setUser } = useAppContext();
+  const { user, signOut } = useAuth();
 
   const [darkMode, setDarkMode] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -130,8 +129,7 @@ export const SettingsScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await auth.signOut();
-              setUser(null);
+              await signOut();
               NavigationService.navigateToLogin();
             } catch (error) {
               Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu');
@@ -140,7 +138,7 @@ export const SettingsScreen: React.FC = () => {
         },
       ]
     );
-  }, [setUser]);
+  }, []);
 
   const accountSettings: SettingItem[] = [
     {
