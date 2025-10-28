@@ -1,6 +1,7 @@
 // src/store/slices/authSlice.ts - Expo Firebase JS SDK Version
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import {
+  fetchSignInMethodsForEmail,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -53,33 +54,33 @@ export const loginUser = createAsyncThunk(
       );
 
       // PlayerService ile kullanıcı bilgilerini getir
-      const playerResult = await PlayerService.getPlayer(userCredential.user.uid);
+      const playerResult = await PlayerService.getPlayer('player_1761610022065_2rzy6my8s');
 
-      let userData: IPlayer;
+      let userData: IPlayer = null as any;
 
       if (!playerResult.success || !playerResult.data) {
         // Veritabanında yoksa oluştur (migration durumu)
-        const [name, surname] = userCredential.user.displayName
-          ? userCredential.user.displayName.split(' ')
-          : ['', ''];
+        // const [name, surname] = userCredential.user.displayName
+        //   ? userCredential.user.displayName.split(' ')
+        //   : ['', ''];
 
-        const registerResult = await PlayerService.registerPlayer({
-          id: userCredential.user.uid,
-          email: userCredential.user.email!,
-          name: name || 'User',
-          surname: surname || '',
-          displayName: userCredential.user.displayName || '',
-          emailVerified: userCredential.user.emailVerified,
-          authProviders: ['email'],
-          language: 'tr',
-        });
+        // const registerResult = await PlayerService.registerPlayer({
+        //   id: userCredential.user.uid,
+        //   email: userCredential.user.email!,
+        //   name: name || 'User',
+        //   surname: surname || '',
+        //   displayName: userCredential.user.displayName || '',
+        //   emailVerified: userCredential.user.emailVerified,
+        //   authProviders: ['email'],
+        //   language: 'tr',
+        // });
 
-        if (!registerResult.success || !registerResult.data) {
-          await userCredential.user.delete(); // Temizleme
-          throw new Error('Kullanıcı oluşturulamadı');
-        }
+        // if (!registerResult.success || !registerResult.data) {
+        //   await userCredential.user.delete(); // Temizleme
+        //   throw new Error('Kullanıcı oluşturulamadı');
+        // }
 
-        userData = registerResult.data;
+        // userData = registerResult.data;
       } else {
         userData = playerResult.data;
       }
@@ -156,17 +157,19 @@ export const signUpUser = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      if (email === 'elalmis.ne@gmail.com') {
-        //sil
-        const testUserCredential = await signInWithEmailAndPassword(
-          auth,
-          'elalmis.ne@gmail.com',
-          'Ab111111'
-        );
-        await testUserCredential.user.delete();
+      if (email === 'elalmis.ne@gmail.com') { //TODO Test kullanıcısı varsa sil
+        const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+        if (signInMethods.length > 0) {
+          const testUserCredential = await signInWithEmailAndPassword(
+            auth,
+            'elalmis.ne@gmail.com',
+            signInMethods[0] === 'google.com' ? 'GoogleSignInDummyPassword' : 'Test123!'
+          );
+          await testUserCredential.user.delete();
 
-        // Kullanıcıyı sil
-        await PlayerService.deletePlayer(testUserCredential.user.uid);
+          // Kullanıcıyı sil
+          await PlayerService.deletePlayer(testUserCredential.user.uid);
+        }
       }
       // Firebase Auth'da kullanıcı oluştur
       const userCredential = await createUserWithEmailAndPassword(
@@ -333,6 +336,8 @@ export const updateUserProfile = createAsyncThunk(
         phone: updates.phone,
         language: updates.language,
         timezone: updates.timezone,
+        favoriteSports: updates.favoriteSports,
+        sportPositions: updates.sportPositions,
       });
 
       if (!updateResult.success || !updateResult.data) {

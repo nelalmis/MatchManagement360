@@ -14,18 +14,18 @@
 //     Animated,
 // } from 'react-native';
 // import AsyncStorage from '@react-native-async-storage/async-storage';
-// import { formatPhoneNumber, isProfileComplete } from '../../helper/helper';
-// import { playerService } from '../../services/playerService';
-// import { deviceService } from '../../services/deviceService';
+// import { formatPhoneNumber, isProfileComplete } from '../../../helper/helper';
+// import { playerService } from '../../../services/playerService';
+// import { deviceService } from '../../../services/deviceService';
 // // import { ExpoNotificationService } from '../../hooks/useNotificationHandler';
-// import { IPlayer } from '../../types/types';
+// import { IPlayer } from '../../../types/types';
 // import { ArrowLeft } from 'lucide-react-native';
 // import { SafeAreaView } from 'react-native-safe-area-context';
 // import * as Device from 'expo-device';
-// import { getOrCreateDeviceId } from '../../helper/deviceHelper';
-// import { NavigationService } from '../../navigation/NavigationService';
-// import { IResponseBase } from '../../types/base/baseTypes';
-// import { useAuth } from '../../hooks';
+// import { getOrCreateDeviceId } from '../../../helper/deviceHelper';
+// import { NavigationService } from '../../../navigation/NavigationService';
+// import { IResponseBase } from '../../../types/base/baseTypes';
+// import { useAuth } from '../../../hooks';
 
 // export const PhoneVerificationScreen: React.FC = () => {
 //     const scrollViewRef = useRef<ScrollView>(null);

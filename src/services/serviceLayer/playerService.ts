@@ -143,6 +143,8 @@ export class PlayerService {
       phone?: string;
       language?: 'en' | 'tr' | 'es' | 'de' | 'fr';
       timezone?: string;
+      favoriteSports?: SportType[];
+      sportPositions?: Record<string, any>;
     }
   ): Promise<ApiResponse<IPlayer>> {
     try {
@@ -177,6 +179,12 @@ export class PlayerService {
       }
       if (profileData.timezone) {
         sanitizedData.timezone = profileData.timezone;
+      }
+      if (profileData.favoriteSports) {
+        sanitizedData.favoriteSports = profileData.favoriteSports;
+      }
+      if (profileData.sportPositions) {
+        sanitizedData.sportPositions = profileData.sportPositions;
       }
 
       const result = await playerAPI.updateProfile(playerId, sanitizedData);

@@ -39,3 +39,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+serviceAccountKey.json
+
+.firebaserc
+
+firebase.json
+firestore.indexes.json
+firestore.rules

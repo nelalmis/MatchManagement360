@@ -1002,6 +1002,663 @@ export class LeagueService {
         }
     }
 
+
+    /**
+     * Add a single premium player to league
+     */
+    static async addPremiumPlayer(
+        leagueId: string,
+        userId: string,
+        playerId: string
+    ): Promise<ApiResponse<ILeague>> {
+        try {
+            ApiLogger.log('LeagueService', 'addPremiumPlayer', {
+                leagueId,
+                userId,
+                playerId,
+            });
+
+            // Check if user is admin
+            const isAdminCheck = await leagueAPI.isAdmin(leagueId, userId);
+            if (!isAdminCheck.success || !isAdminCheck.data) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'UNAUTHORIZED',
+                        message: 'Premium oyuncu ekleme yetkiniz yok',
+                        statusCode: 403,
+                    },
+                };
+            }
+
+            // Validate player exists
+            const playerCheck = await playerAPI.exists(playerId);
+            if (!playerCheck.success || !playerCheck.data) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'PLAYER_NOT_FOUND',
+                        message: 'Oyuncu bulunamadı',
+                        statusCode: 404,
+                    },
+                };
+            }
+
+            // Get current league
+            const leagueResult = await leagueAPI.getById(leagueId);
+
+            if (!leagueResult.success || !leagueResult.data) {
+                return {
+                    success: false,
+                    error: leagueResult.error || {
+                        code: 'LEAGUE_NOT_FOUND',
+                        message: 'Lig bulunamadı',
+                        statusCode: 404,
+                    },
+                };
+            }
+
+            const league = leagueResult.data;
+
+            // Check if player is already premium
+            if (league.defaultPlayers.premium.includes(playerId)) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'ALREADY_PREMIUM',
+                        message: 'Oyuncu zaten premium listesinde',
+                        statusCode: 400,
+                    },
+                };
+            }
+
+            // Check if player is a member
+            if (!league.members.all.includes(playerId)) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'NOT_A_MEMBER',
+                        message: 'Oyuncu lig üyesi değil',
+                        statusCode: 400,
+                    },
+                };
+            }
+
+            // Add to premium list
+            const updatedPremiumPlayers = [...league.defaultPlayers.premium, playerId];
+
+            const result = await leagueAPI.update(leagueId, {
+                defaultPlayers: {
+                    ...league.defaultPlayers,
+                    premium: updatedPremiumPlayers,
+                },
+            } as Partial<Omit<ILeague, 'id'>>);
+
+            if (result.success) {
+                ApiLogger.success('LeagueService', 'addPremiumPlayer', {
+                    leagueId,
+                    playerId,
+                });
+            }
+
+            return result;
+        } catch (error: any) {
+            ApiLogger.error('LeagueService', 'addPremiumPlayer', error);
+            return {
+                success: false,
+                error: {
+                    code: 'ADD_PREMIUM_PLAYER_ERROR',
+                    message: error.message || 'Premium oyuncu eklenirken hata oluştu',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
+        }
+    }
+
+    /**
+     * Remove a single premium player from league
+     */
+    static async removePremiumPlayer(
+        leagueId: string,
+        userId: string,
+        playerId: string
+    ): Promise<ApiResponse<ILeague>> {
+        try {
+            ApiLogger.log('LeagueService', 'removePremiumPlayer', {
+                leagueId,
+                userId,
+                playerId,
+            });
+
+            // Check if user is admin
+            const isAdminCheck = await leagueAPI.isAdmin(leagueId, userId);
+            if (!isAdminCheck.success || !isAdminCheck.data) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'UNAUTHORIZED',
+                        message: 'Premium oyuncu çıkarma yetkiniz yok',
+                        statusCode: 403,
+                    },
+                };
+            }
+
+            // Get current league
+            const leagueResult = await leagueAPI.getById(leagueId);
+
+            if (!leagueResult.success || !leagueResult.data) {
+                return {
+                    success: false,
+                    error: leagueResult.error || {
+                        code: 'LEAGUE_NOT_FOUND',
+                        message: 'Lig bulunamadı',
+                        statusCode: 404,
+                    },
+                };
+            }
+
+            const league = leagueResult.data;
+
+            // Check if player is in premium list
+            if (!league.defaultPlayers.premium.includes(playerId)) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'NOT_PREMIUM',
+                        message: 'Oyuncu premium listesinde değil',
+                        statusCode: 400,
+                    },
+                };
+            }
+
+            // Remove from premium list
+            const updatedPremiumPlayers = league.defaultPlayers.premium.filter(
+                id => id !== playerId
+            );
+
+            const result = await leagueAPI.update(leagueId, {
+                defaultPlayers: {
+                    ...league.defaultPlayers,
+                    premium: updatedPremiumPlayers,
+                },
+            } as Partial<Omit<ILeague, 'id'>>);
+
+            if (result.success) {
+                ApiLogger.success('LeagueService', 'removePremiumPlayer', {
+                    leagueId,
+                    playerId,
+                });
+            }
+
+            return result;
+        } catch (error: any) {
+            ApiLogger.error('LeagueService', 'removePremiumPlayer', error);
+            return {
+                success: false,
+                error: {
+                    code: 'REMOVE_PREMIUM_PLAYER_ERROR',
+                    message: error.message || 'Premium oyuncu çıkarılırken hata oluştu',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
+        }
+    }
+
+    /**
+     * Add a single direct player to league
+     */
+    static async addDirectPlayer(
+        leagueId: string,
+        userId: string,
+        playerId: string
+    ): Promise<ApiResponse<ILeague>> {
+        try {
+            ApiLogger.log('LeagueService', 'addDirectPlayer', {
+                leagueId,
+                userId,
+                playerId,
+            });
+
+            // Check if user is admin
+            const isAdminCheck = await leagueAPI.isAdmin(leagueId, userId);
+            if (!isAdminCheck.success || !isAdminCheck.data) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'UNAUTHORIZED',
+                        message: 'Direkt oyuncu ekleme yetkiniz yok',
+                        statusCode: 403,
+                    },
+                };
+            }
+
+            // Validate player exists
+            const playerCheck = await playerAPI.exists(playerId);
+            if (!playerCheck.success || !playerCheck.data) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'PLAYER_NOT_FOUND',
+                        message: 'Oyuncu bulunamadı',
+                        statusCode: 404,
+                    },
+                };
+            }
+
+            // Get current league
+            const leagueResult = await leagueAPI.getById(leagueId);
+
+            if (!leagueResult.success || !leagueResult.data) {
+                return {
+                    success: false,
+                    error: leagueResult.error || {
+                        code: 'LEAGUE_NOT_FOUND',
+                        message: 'Lig bulunamadı',
+                        statusCode: 404,
+                    },
+                };
+            }
+
+            const league = leagueResult.data;
+
+            // Check if player is already direct
+            if (league.defaultPlayers.direct.includes(playerId)) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'ALREADY_DIRECT',
+                        message: 'Oyuncu zaten direkt listesinde',
+                        statusCode: 400,
+                    },
+                };
+            }
+
+            // Check if player is a member
+            if (!league.members.all.includes(playerId)) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'NOT_A_MEMBER',
+                        message: 'Oyuncu lig üyesi değil',
+                        statusCode: 400,
+                    },
+                };
+            }
+
+            // Add to direct list
+            const updatedDirectPlayers = [...league.defaultPlayers.direct, playerId];
+
+            const result = await leagueAPI.update(leagueId, {
+                defaultPlayers: {
+                    ...league.defaultPlayers,
+                    direct: updatedDirectPlayers,
+                },
+            } as Partial<Omit<ILeague, 'id'>>);
+
+            if (result.success) {
+                ApiLogger.success('LeagueService', 'addDirectPlayer', {
+                    leagueId,
+                    playerId,
+                });
+            }
+
+            return result;
+        } catch (error: any) {
+            ApiLogger.error('LeagueService', 'addDirectPlayer', error);
+            return {
+                success: false,
+                error: {
+                    code: 'ADD_DIRECT_PLAYER_ERROR',
+                    message: error.message || 'Direkt oyuncu eklenirken hata oluştu',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
+        }
+    }
+
+    /**
+     * Remove a single direct player from league
+     */
+    static async removeDirectPlayer(
+        leagueId: string,
+        userId: string,
+        playerId: string
+    ): Promise<ApiResponse<ILeague>> {
+        try {
+            ApiLogger.log('LeagueService', 'removeDirectPlayer', {
+                leagueId,
+                userId,
+                playerId,
+            });
+
+            // Check if user is admin
+            const isAdminCheck = await leagueAPI.isAdmin(leagueId, userId);
+            if (!isAdminCheck.success || !isAdminCheck.data) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'UNAUTHORIZED',
+                        message: 'Direkt oyuncu çıkarma yetkiniz yok',
+                        statusCode: 403,
+                    },
+                };
+            }
+
+            // Get current league
+            const leagueResult = await leagueAPI.getById(leagueId);
+
+            if (!leagueResult.success || !leagueResult.data) {
+                return {
+                    success: false,
+                    error: leagueResult.error || {
+                        code: 'LEAGUE_NOT_FOUND',
+                        message: 'Lig bulunamadı',
+                        statusCode: 404,
+                    },
+                };
+            }
+
+            const league = leagueResult.data;
+
+            // Check if player is in direct list
+            if (!league.defaultPlayers.direct.includes(playerId)) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'NOT_DIRECT',
+                        message: 'Oyuncu direkt listesinde değil',
+                        statusCode: 400,
+                    },
+                };
+            }
+
+            // Remove from direct list
+            const updatedDirectPlayers = league.defaultPlayers.direct.filter(
+                id => id !== playerId
+            );
+
+            const result = await leagueAPI.update(leagueId, {
+                defaultPlayers: {
+                    ...league.defaultPlayers,
+                    direct: updatedDirectPlayers,
+                },
+            } as Partial<Omit<ILeague, 'id'>>);
+
+            if (result.success) {
+                ApiLogger.success('LeagueService', 'removeDirectPlayer', {
+                    leagueId,
+                    playerId,
+                });
+            }
+
+            return result;
+        } catch (error: any) {
+            ApiLogger.error('LeagueService', 'removeDirectPlayer', error);
+            return {
+                success: false,
+                error: {
+                    code: 'REMOVE_DIRECT_PLAYER_ERROR',
+                    message: error.message || 'Direkt oyuncu çıkarılırken hata oluştu',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
+        }
+    }
+
+    /**
+     * Toggle player's premium status (add if not premium, remove if premium)
+     */
+    static async togglePremiumPlayer(
+        leagueId: string,
+        userId: string,
+        playerId: string
+    ): Promise<ApiResponse<ILeague>> {
+        try {
+            // Get current league
+            const leagueResult = await leagueAPI.getById(leagueId);
+
+            if (!leagueResult.success || !leagueResult.data) {
+                return {
+                    success: false,
+                    error: leagueResult.error || {
+                        code: 'LEAGUE_NOT_FOUND',
+                        message: 'Lig bulunamadı',
+                        statusCode: 404,
+                    },
+                };
+            }
+
+            const league = leagueResult.data;
+            const isPremium = league.defaultPlayers.premium.includes(playerId);
+
+            if (isPremium) {
+                return this.removePremiumPlayer(leagueId, userId, playerId);
+            } else {
+                return this.addPremiumPlayer(leagueId, userId, playerId);
+            }
+        } catch (error: any) {
+            ApiLogger.error('LeagueService', 'togglePremiumPlayer', error);
+            return {
+                success: false,
+                error: {
+                    code: 'TOGGLE_PREMIUM_ERROR',
+                    message: error.message || 'Premium durumu değiştirilirken hata oluştu',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
+        }
+    }
+
+    /**
+     * Toggle player's direct status (add if not direct, remove if direct)
+     */
+    static async toggleDirectPlayer(
+        leagueId: string,
+        userId: string,
+        playerId: string
+    ): Promise<ApiResponse<ILeague>> {
+        try {
+            // Get current league
+            const leagueResult = await leagueAPI.getById(leagueId);
+
+            if (!leagueResult.success || !leagueResult.data) {
+                return {
+                    success: false,
+                    error: leagueResult.error || {
+                        code: 'LEAGUE_NOT_FOUND',
+                        message: 'Lig bulunamadı',
+                        statusCode: 404,
+                    },
+                };
+            }
+
+            const league = leagueResult.data;
+            const isDirect = league.defaultPlayers.direct.includes(playerId);
+
+            if (isDirect) {
+                return this.removeDirectPlayer(leagueId, userId, playerId);
+            } else {
+                return this.addDirectPlayer(leagueId, userId, playerId);
+            }
+        } catch (error: any) {
+            ApiLogger.error('LeagueService', 'toggleDirectPlayer', error);
+            return {
+                success: false,
+                error: {
+                    code: 'TOGGLE_DIRECT_ERROR',
+                    message: error.message || 'Direkt durumu değiştirilirken hata oluştu',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
+        }
+    }
+
+    /**
+     * Bulk add premium players
+     */
+    static async addMultiplePremiumPlayers(
+        leagueId: string,
+        userId: string,
+        playerIds: string[]
+    ): Promise<ApiResponse<{
+        success: number;
+        failed: number;
+        results: Array<{ playerId: string; success: boolean; error?: string }>;
+    }>> {
+        try {
+            ApiLogger.log('LeagueService', 'addMultiplePremiumPlayers', {
+                leagueId,
+                userId,
+                count: playerIds.length,
+            });
+
+            // Check if user is admin
+            const isAdminCheck = await leagueAPI.isAdmin(leagueId, userId);
+            if (!isAdminCheck.success || !isAdminCheck.data) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'UNAUTHORIZED',
+                        message: 'Premium oyuncu ekleme yetkiniz yok',
+                        statusCode: 403,
+                    },
+                };
+            }
+
+            const results: Array<{ playerId: string; success: boolean; error?: string }> = [];
+            let successCount = 0;
+            let failedCount = 0;
+
+            for (const playerId of playerIds) {
+                const result = await this.addPremiumPlayer(leagueId, userId, playerId);
+
+                if (result.success) {
+                    results.push({ playerId, success: true });
+                    successCount++;
+                } else {
+                    results.push({
+                        playerId,
+                        success: false,
+                        error: result.error?.message || 'Bilinmeyen hata',
+                    });
+                    failedCount++;
+                }
+            }
+
+            ApiLogger.success('LeagueService', 'addMultiplePremiumPlayers', {
+                leagueId,
+                success: successCount,
+                failed: failedCount,
+            });
+
+            return {
+                success: true,
+                data: {
+                    success: successCount,
+                    failed: failedCount,
+                    results,
+                },
+            };
+        } catch (error: any) {
+            ApiLogger.error('LeagueService', 'addMultiplePremiumPlayers', error);
+            return {
+                success: false,
+                error: {
+                    code: 'ADD_MULTIPLE_PREMIUM_ERROR',
+                    message: error.message || 'Premium oyuncular eklenirken hata oluştu',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
+        }
+    }
+
+    /**
+     * Bulk add direct players
+     */
+    static async addMultipleDirectPlayers(
+        leagueId: string,
+        userId: string,
+        playerIds: string[]
+    ): Promise<ApiResponse<{
+        success: number;
+        failed: number;
+        results: Array<{ playerId: string; success: boolean; error?: string }>;
+    }>> {
+        try {
+            ApiLogger.log('LeagueService', 'addMultipleDirectPlayers', {
+                leagueId,
+                userId,
+                count: playerIds.length,
+            });
+
+            // Check if user is admin
+            const isAdminCheck = await leagueAPI.isAdmin(leagueId, userId);
+            if (!isAdminCheck.success || !isAdminCheck.data) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'UNAUTHORIZED',
+                        message: 'Direkt oyuncu ekleme yetkiniz yok',
+                        statusCode: 403,
+                    },
+                };
+            }
+
+            const results: Array<{ playerId: string; success: boolean; error?: string }> = [];
+            let successCount = 0;
+            let failedCount = 0;
+
+            for (const playerId of playerIds) {
+                const result = await this.addDirectPlayer(leagueId, userId, playerId);
+
+                if (result.success) {
+                    results.push({ playerId, success: true });
+                    successCount++;
+                } else {
+                    results.push({
+                        playerId,
+                        success: false,
+                        error: result.error?.message || 'Bilinmeyen hata',
+                    });
+                    failedCount++;
+                }
+            }
+
+            ApiLogger.success('LeagueService', 'addMultipleDirectPlayers', {
+                leagueId,
+                success: successCount,
+                failed: failedCount,
+            });
+
+            return {
+                success: true,
+                data: {
+                    success: successCount,
+                    failed: failedCount,
+                    results,
+                },
+            };
+        } catch (error: any) {
+            ApiLogger.error('LeagueService', 'addMultipleDirectPlayers', error);
+            return {
+                success: false,
+                error: {
+                    code: 'ADD_MULTIPLE_DIRECT_ERROR',
+                    message: error.message || 'Direkt oyuncular eklenirken hata oluştu',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
+        }
+    }
+
     // ============================================
     // 5. SEASON MANAGEMENT
     // ============================================

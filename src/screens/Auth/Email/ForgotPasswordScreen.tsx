@@ -1,4 +1,4 @@
-// src/screens/auth/EmailVerificationScreen.tsx
+// src/screens/auth/ForgotPasswordScreen.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -17,33 +17,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthButton } from './components/AuthButton';
-import { commonColors, typography, spacing } from '../../utils/theme';
-import { useAuth } from '../../hooks';
-import { AuthStackParamList } from '../../navigation/types';
+import { AuthInput } from '../components/AuthInput';
+import { AuthButton } from '../components/AuthButton';
+import { commonColors, typography, spacing } from '../../../utils/theme';
+import { validateEmail, getEmailError } from '../../../utils/validation';
+import { AuthStackParamList } from '../../../navigation/types';
+import { useAuth } from '../../../hooks';
 
-type Props = NativeStackScreenProps<AuthStackParamList, 'emailVerification'>;
+type Props = NativeStackScreenProps<AuthStackParamList, 'forgotPassword'>;
 
-export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { email } = route.params || {};
-  const {
-    user,
-    sendVerificationEmail,
-    checkVerification,
-    reloadUser,
-    loading
-  } = useAuth();
+export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
   // Refs
   const scrollViewRef = useRef<ScrollView>(null);
   const logoScale = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // State
-  const [countdown, setCountdown] = useState(0);
-  const [isChecking, setIsChecking] = useState(false);
-  const [isSending, setIsSending] = useState(false);
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const { sendPasswordResetEmail } = useAuth();
 
   // ============================================
   // LIFECYCLE & EFFECTS
@@ -59,15 +55,12 @@ export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) 
       useNativeDriver: true,
     }).start();
 
-    // Auto-send email on mount
-    handleSendVerification();
-
     return () => {
       // Cleanup
     };
   }, []);
 
-  // Countdown effect
+  // Countdown effect for resend button
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (countdown > 0) {
@@ -117,148 +110,66 @@ export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) 
   };
 
   // ============================================
-  // SEND VERIFICATION EMAIL
+  // FORM HANDLING
   // ============================================
 
-  const handleSendVerification = async () => {
-    // ✅ Countdown kontrolü
-    if (countdown > 0) {
-      Alert.alert(
-        'Bekleyin',
-        `Yeni email göndermek için ${countdown} saniye beklemeniz gerekiyor.`,
-        [{ text: 'Tamam' }]
-      );
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (emailError) {
+      setEmailError('');
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const error = getEmailError(email);
+    if (error) {
+      setEmailError(error);
+      return false;
+    }
+    return true;
+  };
+
+  // ============================================
+  // SUBMIT HANDLER
+  // ============================================
+
+  const handleSendResetLink = async () => {
+    if (!validateForm()) {
       return;
     }
-    try {
-      setIsSending(true);
-      console.log('📧 [EmailVerification] Sending verification email...');
 
-      await sendVerificationEmail();
+    Keyboard.dismiss();
+    setLoading(true);
+
+    try {
+       await sendPasswordResetEmail(email);
+
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 1500));
 
       setEmailSent(true);
       setCountdown(60); // 60 seconds countdown
-      setIsSending(false);
 
       Alert.alert(
         'Email Gönderildi! 📧',
-        `Doğrulama emaili ${email} adresine gönderildi.\n\nLütfen gelen kutunuzu ve spam klasörünüzü kontrol edin.`,
+        `Şifre sıfırlama bağlantısı ${email} adresine gönderildi. Lütfen e-postanızı kontrol edin.`,
         [{ text: 'Tamam' }]
       );
-
-      console.log('✅ [EmailVerification] Email sent successfully');
     } catch (error: any) {
-      console.error('❌ [EmailVerification] Send email error:', error);
-      setIsSending(false);
-
-      let errorMessage = 'Email gönderilemedi. Lütfen tekrar deneyin.';
-
-      if (error.code === 'auth/too-many-requests') {
-        errorMessage = 'Çok fazla istek gönderdiniz. Lütfen daha sonra tekrar deneyin.';
-      }
-
-      Alert.alert('Hata', errorMessage);
+      console.error('❌ Password reset error:', error);
+      Alert.alert(
+        'Hata',
+        error.message || 'Şifre sıfırlama e-postası gönderilemedi. Lütfen tekrar deneyin.',
+        [{ text: 'Tamam' }]
+      );
+    } finally {
+      setLoading(false);
     }
   };
-
-  // ============================================
-  // CHECK IF EMAIL IS VERIFIED
-  // ============================================
-
-  const handleCheckVerification = async () => {
-    try {
-      setIsChecking(true);
-      console.log('🔍 [EmailVerification] Checking verification status...');
-
-      const result = await checkVerification();
-
-
-      console.log('📊 [EmailVerification] Verification status:', {
-        emailVerified: result?.verified
-      });
-
-      if (result?.verified) {
-        // ✅ Email doğrulandı!
-        console.log('✅ [EmailVerification] Email verified!');
-
-        // Redux state'i güncelle
-        await checkVerification();
-
-        setIsChecking(false);
-
-        Alert.alert(
-          'Başarılı! 🎉',
-          'E-posta adresiniz doğrulandı. Şimdi uygulamayı kullanabilirsiniz.',
-          [
-            {
-              text: 'Devam Et',
-              onPress: () => {
-                // RootNavigator otomatik olarak Main'e yönlendirecek
-                console.log('✅ [EmailVerification] Navigating to app...');
-              },
-            },
-          ]
-        );
-      } else {
-        // ❌ Email henüz doğrulanmadı
-        console.log('❌ [EmailVerification] Email not verified yet');
-        setIsChecking(false);
-
-        Alert.alert(
-          'Henüz Doğrulanmadı',
-          'E-posta adresiniz henüz doğrulanmadı. Lütfen email kutunuzu kontrol edin ve doğrulama linkine tıklayın.',
-          [
-            { text: 'Tamam' },
-            {
-              text: 'Tekrar Gönder',
-              onPress: () => {
-                // Sadece countdown bittiyse gönder
-                if (countdown === 0) {
-                  handleSendVerification();
-                } else {
-                  Alert.alert(
-                    'Bekleyin',
-                    `Yeni email göndermek için ${countdown} saniye beklemeniz gerekiyor.`,
-                    [{ text: 'Tamam' }]
-                  );
-                }
-              },
-            },
-          ]
-        );
-      }
-    } catch (error: any) {
-      console.error('❌ [EmailVerification] Check error:', error);
-      setIsChecking(false);
-      Alert.alert('Hata', 'Doğrulama kontrolü yapılamadı. Lütfen tekrar deneyin.');
-    }
-  };
-
-  // ============================================
-  // RESEND EMAIL
-  // ============================================
 
   const handleResendEmail = async () => {
     if (countdown > 0) return;
-    await handleSendVerification();
-  };
-
-  // ============================================
-  // GO BACK TO LOGIN
-  // ============================================
-
-  const handleBackToLogin = () => {
-    Alert.alert(
-      'Geri Dön',
-      'E-posta doğrulaması yapmadan geri dönmek istediğinizden emin misiniz?',
-      [
-        { text: 'Hayır', style: 'cancel' },
-        {
-          text: 'Evet',
-          onPress: () => navigation.navigate('login'),
-        },
-      ]
-    );
+    await handleSendResetLink();
   };
 
   // ============================================
@@ -268,7 +179,7 @@ export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#F0FDF4" />
-
+      
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -285,20 +196,20 @@ export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) 
           {/* Back Button */}
           <TouchableOpacity
             style={styles.backButton}
-            onPress={handleBackToLogin}
+            onPress={() => navigation.goBack()}
             activeOpacity={0.7}
           >
             <Ionicons name="arrow-back" size={24} color="#111827" />
           </TouchableOpacity>
 
           {/* Header */}
-          <Animated.View
+          <Animated.View 
             style={[
-              styles.header,
-              {
+              styles.header, 
+              { 
                 opacity: fadeAnim,
-                transform: [{ scale: logoScale }],
-              },
+                transform: [{ scale: logoScale }] 
+              }
             ]}
           >
             <View style={styles.logoContainer}>
@@ -308,14 +219,14 @@ export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) 
                 end={{ x: 1, y: 1 }}
                 style={styles.logoGradient}
               >
-                <Text style={styles.logo}>📧</Text>
+                <Text style={styles.logo}>🔒</Text>
               </LinearGradient>
             </View>
-            <Text style={styles.title}>E-posta Doğrulama</Text>
+            <Text style={styles.title}>Şifremi Unuttum</Text>
             <Text style={styles.subtitle}>
               {emailSent
-                ? 'Doğrulama emaili gönderildi'
-                : 'E-posta adresinizi doğrulayın'}
+                ? 'Şifre sıfırlama bağlantısı e-postanıza gönderildi'
+                : 'E-posta adresinize şifre sıfırlama bağlantısı göndereceğiz'}
             </Text>
           </Animated.View>
 
@@ -323,23 +234,52 @@ export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) 
           <Animated.View style={[styles.formCard, { opacity: fadeAnim }]}>
             {!emailSent ? (
               <>
-                {/* Sending State */}
-                <View style={styles.sendingContainer}>
-                  <Text style={styles.sendingText}>
-                    Doğrulama emaili gönderiliyor...
+                {/* Email Input */}
+                <View style={styles.inputWrapper}>
+                  <AuthInput
+                    placeholder="E-posta adresiniz"
+                    value={email}
+                    onChangeText={handleEmailChange}
+                    error={emailError}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    icon="mail-outline"
+                    editable={!loading}
+                    label='E-posta adresiniz'
+                  />
+                </View>
+
+                {/* Info Box */}
+                <View style={styles.infoBox}>
+                  <Ionicons name="information-circle" size={20} color="#16a34a" />
+                  <Text style={styles.infoText}>
+                    E-posta adresinize şifre sıfırlama bağlantısı göndereceğiz. 
+                    Spam klasörünüzü de kontrol etmeyi unutmayın.
                   </Text>
                 </View>
+
+                {/* Submit Button */}
+                <AuthButton
+                  title="Şifre Sıfırlama Bağlantısı Gönder"
+                  onPress={handleSendResetLink}
+                  loading={loading}
+                  disabled={loading || !email}
+                  variant="gradient"
+                  gradientColors={['#16a34a', '#15803d']}
+                  icon="send"
+                />
               </>
             ) : (
               <>
                 {/* Success State */}
                 <View style={styles.successContainer}>
                   <View style={styles.successIconContainer}>
-                    <Ionicons name="mail" size={64} color="#16a34a" />
+                    <Ionicons name="checkmark-circle" size={64} color="#16a34a" />
                   </View>
                   <Text style={styles.successTitle}>Email Gönderildi!</Text>
                   <Text style={styles.successMessage}>
-                    Doğrulama emaili{'\n'}
+                    Şifre sıfırlama bağlantısı{'\n'}
                     <Text style={styles.emailHighlight}>{email}</Text>
                     {'\n'}adresine gönderildi.
                   </Text>
@@ -348,74 +288,70 @@ export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) 
                   <View style={styles.instructionsContainer}>
                     <InstructionItem
                       number="1"
-                      text="Gelen kutunuzu kontrol edin"
+                      text="E-postanızı açın ve gelen kutunuzu kontrol edin"
                     />
                     <InstructionItem
                       number="2"
-                      text="Spam klasörünü kontrol edin"
+                      text="Şifre sıfırlama bağlantısına tıklayın"
                     />
                     <InstructionItem
                       number="3"
-                      text="Doğrulama linkine tıklayın"
-                    />
-                    <InstructionItem
-                      number="4"
-                      text="Bu ekrana geri dönün ve doğrulayın"
+                      text="Yeni şifrenizi belirleyin"
                     />
                   </View>
-
-                  {/* Check Verification Button */}
-                  <AuthButton
-                    title={isChecking ? 'Kontrol Ediliyor...' : 'Doğrulamayı Kontrol Et'}
-                    onPress={handleCheckVerification}
-                    loading={isChecking}
-                    disabled={isChecking}
-                    variant="gradient"
-                    gradientColors={['#16a34a', '#15803d']}
-                    icon="checkmark-circle"
-                  />
 
                   {/* Resend Button */}
                   <TouchableOpacity
                     style={[
                       styles.resendButton,
-                      (countdown > 0 || isSending) && styles.resendButtonDisabled,
+                      countdown > 0 && styles.resendButtonDisabled,
                     ]}
                     onPress={handleResendEmail}
-                    disabled={countdown > 0 || isSending}
+                    disabled={countdown > 0}
                     activeOpacity={0.7}
                   >
                     <Ionicons
-                      name="mail"
-                      size={20}
-                      color={countdown > 0 || isSending ? '#9CA3AF' : '#16a34a'}
+                      name="reload"
+                      size={18}
+                      color={countdown > 0 ? '#9CA3AF' : '#16a34a'}
                     />
                     <Text
                       style={[
                         styles.resendText,
-                        (countdown > 0 || isSending) && styles.resendTextDisabled,
+                        countdown > 0 && styles.resendTextDisabled,
                       ]}
                     >
                       {countdown > 0
-                        ? `Tekrar Gönder (${countdown}s)`
-                        : isSending
-                          ? 'Gönderiliyor...'
-                          : 'Email\'i Tekrar Gönder'}
+                        ? `Tekrar gönder (${countdown}s)`
+                        : 'Email Tekrar Gönder'}
                     </Text>
                   </TouchableOpacity>
 
                   {/* Back to Login */}
                   <AuthButton
-                    title="Giriş Ekranına Dön"
+                    title="Giriş Sayfasına Dön"
                     onPress={() => navigation.navigate('login')}
                     variant="outline"
                     icon="arrow-back"
-                    style={styles.backToLoginButton}
                   />
                 </View>
               </>
             )}
           </Animated.View>
+
+          {/* Back to Login Link */}
+          {!emailSent && !isKeyboardVisible && (
+            <Animated.View style={[styles.loginContainer, { opacity: fadeAnim }]}>
+              <Text style={styles.loginText}>Şifrenizi hatırladınız mı? </Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('login')}
+                activeOpacity={0.7}
+                disabled={loading}
+              >
+                <Text style={styles.loginLink}>Giriş Yap</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
 
           {/* Help Section */}
           {!isKeyboardVisible && (
@@ -429,17 +365,6 @@ export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) 
                 <Ionicons name="help-circle-outline" size={18} color="#16a34a" />
                 <Text style={styles.helpButtonText}>Destek Ekibi</Text>
               </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Info Box */}
-          {emailSent && !isKeyboardVisible && (
-            <View style={styles.infoBox}>
-              <Ionicons name="information-circle" size={20} color="#16a34a" />
-              <Text style={styles.infoText}>
-                Email gelmedi mi? Spam klasörünü kontrol edin veya yukarıdaki butona
-                tıklayarak tekrar gönderin.
-              </Text>
             </View>
           )}
         </ScrollView>
@@ -556,15 +481,26 @@ const styles = StyleSheet.create({
     elevation: 5,
     marginBottom: spacing.lg,
   },
-
-  // Sending State
-  sendingContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
+  inputWrapper: {
+    marginBottom: spacing.md,
   },
-  sendingText: {
-    fontSize: 16,
-    color: '#6B7280',
+
+  // Info Box
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#15803d',
+    lineHeight: 19,
+    marginLeft: spacing.sm,
   },
 
   // Success State
@@ -629,8 +565,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.md,
-    marginTop: spacing.md,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
     gap: spacing.xs,
   },
   resendButtonDisabled: {
@@ -645,27 +580,21 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
 
-  // Back to Login Button
-  backToLoginButton: {
-    marginTop: spacing.sm,
-  },
-
-  // Info Box
-  infoBox: {
+  // Login Link
+  loginContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
   },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#15803d',
-    lineHeight: 19,
-    marginLeft: spacing.sm,
+  loginText: {
+    fontSize: 15,
+    color: '#6B7280',
+  },
+  loginLink: {
+    fontSize: 15,
+    color: '#16a34a',
+    fontWeight: '700',
   },
 
   // Help Section
@@ -690,4 +619,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EmailVerificationScreen;
+export default ForgotPasswordScreen;

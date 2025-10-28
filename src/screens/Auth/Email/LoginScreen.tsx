@@ -17,21 +17,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthInput } from './components/AuthInput';
-import { AuthButton } from './components/AuthButton';
-import { SocialLoginButtons } from './components/SocialLoginButtons';
-import { commonColors, typography, spacing } from '../../utils/theme';
-import { validateEmail, getEmailError } from '../../utils/validation';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { isProfileComplete } from '../../helper/helper';
-import { NavigationService } from '../../navigation/NavigationService';
-import { useAuth } from '../../hooks';
-import PlayerService from '../../services/serviceLayer/playerService';
-import { AuthStackParamList } from '../../navigation/types';
-import { IPlayer } from '../../types/entity/types';
+import { AuthInput } from '../components/AuthInput';
+import { AuthButton } from '../components/AuthButton';
+import { spacing } from '../../../utils/theme';
+import { getEmailError } from '../../../utils/validation';
+import { isProfileComplete } from '../../../helper/helper';
+import { NavigationService } from '../../../navigation/NavigationService';
+import { useAuth } from '../../../hooks';
+import { AuthStackParamList } from '../../../navigation/types';
+import { IPlayer } from '../../../types/entity/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'login'>;
 
@@ -713,5 +709,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-export default LoginScreen;

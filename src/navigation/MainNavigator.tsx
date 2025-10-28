@@ -16,14 +16,16 @@ import {
 // ============================================
 
 // Home
-import { HomeScreen } from '../screens';
+import { HomeScreen, LeagueSettingsScreen, ManageLeagueMembersScreen } from '../screens';
 
 // League
 import { LeagueListScreen } from '../screens';
 import { LeagueDetailScreen } from '../screens';
 import { CreateLeagueScreen } from '../screens';
 import { EditLeagueScreen } from '../screens';
-
+import { JoinLeagueScreen } from '../screens';
+import { ManageLeagueInvitationsScreen } from '../screens';
+import { CreateLeagueInvitationScreen } from '../screens';
 // Fixture
 import { FixtureListScreen } from '../screens';
 import { FixtureDetailScreen } from '../screens';
@@ -134,6 +136,32 @@ const LeaguesStack = () => {
                 component={EditFixtureScreen}
                 options={{ headerShown: false }}
             />
+            <Stack.Screen
+                name="joinLeague"
+                component={JoinLeagueScreen}
+                options={{ headerShown: true }}
+            />
+            <Stack.Screen
+                name="createLeagueInvitation"
+                component={CreateLeagueInvitationScreen}
+                options={{ headerShown: true }}
+            />
+            <Stack.Screen
+                name="manageLeagueInvitations"
+                component={ManageLeagueInvitationsScreen}
+                options={{ headerShown: true }}
+            />
+            <Stack.Screen
+                name="leagueSettings"
+                component={LeagueSettingsScreen}
+                options={{ headerShown: true }}
+            />
+            <Stack.Screen
+                name="manageLeagueMembers"
+                component={ManageLeagueMembersScreen}
+                options={{ headerShown: false }}
+            />
+            
         </Stack.Navigator>
     );
 };

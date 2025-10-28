@@ -8,13 +8,13 @@
 //     Image,
 //     Animated,
 // } from 'react-native';
-// import { useAuth } from '../../hooks';
+// import { useAuth } from '../../../hooks';
 
 // export const PhoneVerificationSuccessScreen: React.FC = () => {
 //     const { rememberDevice } = useAuth();
 //     const [progressAnim] = useState(new Animated.Value(0));
 //     const [scaleAnim] = useState(new Animated.Value(0));
-//     const { setIsVerified } = useAppContext();
+//     const { setIsVerified } = useAuth();
 
 //     useEffect(() => {
 //         setIsVerified(true);

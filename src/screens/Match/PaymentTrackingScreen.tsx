@@ -40,6 +40,7 @@ import { matchFixtureService } from '../../services/matchFixtureService';
 import { playerService } from '../../services/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
+import { useAuth } from '../../hooks';
 
 export const PaymentTrackingScreen: React.FC = () => {
   const route: any = useRoute();

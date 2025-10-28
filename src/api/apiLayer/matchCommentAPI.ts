@@ -9,7 +9,7 @@ import { db } from '../../config/firebase.config';
 
 export class MatchCommentAPI extends BaseAPI<IMatchComment> {
   constructor() {
-    super('comments');
+    super('match_comments');
   }
 
   // ============================================

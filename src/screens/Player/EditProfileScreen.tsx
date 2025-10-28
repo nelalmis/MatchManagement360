@@ -9,7 +9,13 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Modal,
+  Pressable,
+  Animated,
+  Image,
 } from 'react-native';
+import { launchCamera, launchImageLibrary, ImagePickerResponse } from 'react-native-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   User,
   Mail,
@@ -20,6 +26,8 @@ import {
   X,
   ChevronRight,
   Camera,
+  Check,
+  Image as ImageIcon,
 } from 'lucide-react-native';
 import {
   IPlayer,
@@ -28,13 +36,57 @@ import {
   getSportIcon,
   getSportColor,
 } from '../../types/types';
-import { playerService } from '../../services/playerService';
+import { PlayerService } from '../../services/serviceLayer/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 
-export const EditProfileScreen: React.FC = () => {
-  const { user } = useAuth();
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+const formatPhoneNumber = (value: string) => {
+  // Remove all non-digits
+  const digits = value.replace(/\D/g, '');
 
+  // Turkish phone format: +90 (5XX) XXX XX XX
+  if (digits.startsWith('90')) {
+    const phone = digits.substring(2);
+    if (phone.length <= 3) return `+90 (${phone}`;
+    if (phone.length <= 6) return `+90 (${phone.slice(0, 3)}) ${phone.slice(3)}`;
+    if (phone.length <= 8) return `+90 (${phone.slice(0, 3)}) ${phone.slice(3, 6)} ${phone.slice(6)}`;
+    return `+90 (${phone.slice(0, 3)}) ${phone.slice(3, 6)} ${phone.slice(6, 8)} ${phone.slice(8, 10)}`;
+  } else if (digits.startsWith('0')) {
+    const phone = digits.substring(1);
+    if (phone.length <= 3) return `+90 (${phone}`;
+    if (phone.length <= 6) return `+90 (${phone.slice(0, 3)}) ${phone.slice(3)}`;
+    if (phone.length <= 8) return `+90 (${phone.slice(0, 3)}) ${phone.slice(3, 6)} ${phone.slice(6)}`;
+    return `+90 (${phone.slice(0, 3)}) ${phone.slice(3, 6)} ${phone.slice(6, 8)} ${phone.slice(8, 10)}`;
+  } else {
+    if (digits.length <= 3) return `+90 (${digits}`;
+    if (digits.length <= 6) return `+90 (${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    if (digits.length <= 8) return `+90 (${digits.slice(0, 3)}) ${digits.slice(3, 6)} ${digits.slice(6)}`;
+    return `+90 (${digits.slice(0, 3)}) ${digits.slice(3, 6)} ${digits.slice(6, 8)} ${digits.slice(8, 10)}`;
+  }
+};
+
+const getPhoneDigits = (formattedPhone: string) => {
+  // Extract only digits and remove country code
+  const digits = formattedPhone.replace(/\D/g, '');
+  // Remove +90 or 90 prefix
+  if (digits.startsWith('90')) {
+    return digits.substring(2);
+  }
+  return digits;
+};
+
+const isValidPhone = (formattedPhone: string) => {
+  const digits = getPhoneDigits(formattedPhone);
+  // Turkish mobile numbers: 10 digits starting with 5
+  return /^5\d{9}$/.test(digits);
+};
+
+export const EditProfileScreen: React.FC = () => {
+  const { user, updateProfile } = useAuth();
+  console.log('EditProfileScreen - Current user:', user.favoriteSports);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -42,9 +94,15 @@ export const EditProfileScreen: React.FC = () => {
   const [name, setName] = useState(user?.name || '');
   const [surname, setSurname] = useState(user?.surname || '');
   const [email, setEmail] = useState(user?.email || '');
-  const [phone, setPhone] = useState(user?.phone || '');
+  const [phone, setPhone] = useState(
+    user?.phone ? formatPhoneNumber(user.phone) : ''
+  );
+  const [profilePhoto, setProfilePhoto] = useState(user?.profilePhoto || '');
   const [jerseyNumber, setJerseyNumber] = useState(user?.jerseyNumber || '');
-  const [birthDate, setBirthDate] = useState(user?.birthDate || '');
+  const [birthDate, setBirthDate] = useState(
+    user?.birthDate ? new Date(user.birthDate) : new Date(2000, 0, 1)
+  );
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [favoriteSports, setFavoriteSports] = useState<SportType[]>(
     user?.favoriteSports || []
   );
@@ -52,8 +110,25 @@ export const EditProfileScreen: React.FC = () => {
     user?.sportPositions || {}
   );
 
+  // Modal states
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedSport, setSelectedSport] = useState<SportType | null>(null);
+  const [slideAnim] = useState(new Animated.Value(0));
+
   // Validation states
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const handlePhoneChange = (value: string) => {
+    const formatted = formatPhoneNumber(value);
+    setPhone(formatted);
+  };
+
+  const formatDate = (date: Date) => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  };
 
   const validateForm = useCallback(() => {
     const newErrors: Record<string, string> = {};
@@ -70,8 +145,8 @@ export const EditProfileScreen: React.FC = () => {
       newErrors.email = 'Geçerli bir e-posta adresi girin';
     }
 
-    if (phone && !/^[0-9]{10,11}$/.test(phone.replace(/\s/g, ''))) {
-      newErrors.phone = 'Geçerli bir telefon numarası girin';
+    if (phone && !isValidPhone(phone)) {
+      newErrors.phone = 'Geçerli bir telefon numarası girin (5XX XXX XX XX)';
     }
 
     if (jerseyNumber && !/^[0-9]{1,3}$/.test(jerseyNumber)) {
@@ -100,20 +175,17 @@ export const EditProfileScreen: React.FC = () => {
         name: name.trim(),
         surname: surname.trim(),
         email: email.trim() || undefined,
-        phone: phone.replace(/\s/g, '') || undefined,
+        phone: phone ? getPhoneDigits(phone) : undefined,
+        profilePhoto: profilePhoto || undefined,
         jerseyNumber: jerseyNumber || undefined,
-        birthDate: birthDate || undefined,
+        birthDate: birthDate.toISOString(),
         favoriteSports,
         sportPositions,
       };
 
-      const result = await playerService.update(user.id, updates);
+      const result = await updateProfile(updates);
 
       if (result.success) {
-        // Update context
-        const updatedUser = { ...user, ...updates };
-        //setUser(updatedUser); TODO:
-
         Alert.alert('Başarılı', 'Profil güncellendi', [
           {
             text: 'Tamam',
@@ -140,12 +212,95 @@ export const EditProfileScreen: React.FC = () => {
     favoriteSports,
     sportPositions,
     validateForm,
-    //setUser,
   ]);
 
   const handleCancel = useCallback(() => {
     NavigationService.goBack();
   }, []);
+
+  const pickImageFromGallery = async () => {
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 0.8,
+        maxWidth: 1000,
+        maxHeight: 1000,
+        includeBase64: false,
+      });
+
+      if (result.didCancel) {
+        return;
+      }
+
+      if (result.errorCode) {
+        Alert.alert('Hata', 'Fotoğraf seçilirken bir hata oluştu');
+        return;
+      }
+
+      if (result.assets && result.assets[0]) {
+        setProfilePhoto(result.assets[0].uri || '');
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Hata', 'Fotoğraf seçilirken bir hata oluştu');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const result = await launchCamera({
+        mediaType: 'photo',
+        quality: 0.8,
+        maxWidth: 1000,
+        maxHeight: 1000,
+        includeBase64: false,
+        cameraType: 'front',
+      });
+
+      if (result.didCancel) {
+        return;
+      }
+
+      if (result.errorCode) {
+        if (result.errorCode === 'camera_unavailable') {
+          Alert.alert('Hata', 'Kamera kullanılamıyor');
+        } else if (result.errorCode === 'permission') {
+          Alert.alert('İzin Gerekli', 'Kamera erişim izni gerekiyor');
+        } else {
+          Alert.alert('Hata', 'Fotoğraf çekilirken bir hata oluştu');
+        }
+        return;
+      }
+
+      if (result.assets && result.assets[0]) {
+        setProfilePhoto(result.assets[0].uri || '');
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Hata', 'Fotoğraf çekilirken bir hata oluştu');
+    }
+  };
+
+  const showImageOptions = () => {
+    Alert.alert(
+      'Profil Fotoğrafı',
+      'Fotoğraf seçmek için bir yöntem seçin',
+      [
+        {
+          text: 'Kameradan Çek',
+          onPress: takePhoto,
+        },
+        {
+          text: 'Galeriden Seç',
+          onPress: pickImageFromGallery,
+        },
+        {
+          text: 'İptal',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
 
   const toggleFavoriteSport = useCallback((sport: SportType) => {
     setFavoriteSports((prev) => {
@@ -163,22 +318,76 @@ export const EditProfileScreen: React.FC = () => {
     });
   }, []);
 
-  const handleSelectPositions = useCallback((sport: SportType) => {
-    // NavigationService.navigateToSelectPositions(
-    //   sport,
-    //   sportPositions[sport] || [],
-    //   (positions: string[]) => {
-    //     setSportPositions((prev) => ({
-    //       ...prev,
-    //       [sport]: positions,
-    //     }));
-    //   });
-  }, [sportPositions]);
+  const openPositionModal = useCallback((sport: SportType) => {
+    setSelectedSport(sport);
+    setModalVisible(true);
+    Animated.spring(slideAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      friction: 8,
+    }).start();
+  }, []);
+
+  const closePositionModal = useCallback(() => {
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setModalVisible(false);
+      setSelectedSport(null);
+    });
+  }, []);
+
+  const togglePosition = useCallback((position: string) => {
+    if (!selectedSport) return;
+
+    setSportPositions((prev) => {
+      const currentPositions = prev[selectedSport] || [];
+
+      if (currentPositions.includes(position)) {
+        // Remove position
+        return {
+          ...prev,
+          [selectedSport]: currentPositions.filter(p => p !== position),
+        };
+      } else {
+        // Add position
+        return {
+          ...prev,
+          [selectedSport]: [...currentPositions, position],
+        };
+      }
+    });
+  }, [selectedSport]);
 
   const handleSelectBirthDate = useCallback(() => {
-    // TODO: Implement date picker
-    Alert.alert('Yakında', 'Tarih seçici eklenecek');
+    setShowDatePicker(true);
   }, []);
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setBirthDate(selectedDate);
+    }
+  };
+
+  // Get locale from user preference or default to Turkish
+  const getLocale = () => {
+    const languageMap: Record<string, string> = {
+      'tr': 'tr-TR',
+      'en': 'en-US',
+      'de': 'de-DE',
+      'fr': 'fr-FR',
+      'es': 'es-ES',
+    };
+    return languageMap[user?.language || 'tr'] || 'tr-TR';
+  };
+
+  const translateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [600, 0],
+  });
 
   if (loading) {
     return (
@@ -217,15 +426,21 @@ export const EditProfileScreen: React.FC = () => {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Profile Photo */}
-        <View style={styles.photoSection}>
-          <View style={styles.avatar}>
-            <User size={48} color="white" strokeWidth={2} />
-          </View>
-          <TouchableOpacity style={styles.photoButton} activeOpacity={0.7}>
-            <Camera size={16} color="white" strokeWidth={2.5} />
+        {/* <View style={styles.photoSection}>
+          <TouchableOpacity onPress={showImageOptions} activeOpacity={0.9}>
+            <View style={styles.avatar}>
+              {profilePhoto ? (
+                <Image source={{ uri: profilePhoto }} style={styles.avatarImage} />
+              ) : (
+                <User size={48} color="white" strokeWidth={2} />
+              )}
+            </View>
+            <View style={styles.photoButton}>
+              <Camera size={16} color="white" strokeWidth={2.5} />
+            </View>
           </TouchableOpacity>
           <Text style={styles.photoText}>Fotoğraf Değiştir</Text>
-        </View>
+        </View> */}
 
         {/* Basic Info */}
         <View style={styles.section}>
@@ -286,13 +501,19 @@ export const EditProfileScreen: React.FC = () => {
             <TextInput
               style={[styles.input, errors.phone && styles.inputError]}
               value={phone}
-              onChangeText={setPhone}
-              placeholder="5XX XXX XX XX"
+              onChangeText={handlePhoneChange}
+              placeholder="+90 (5XX) XXX XX XX"
               placeholderTextColor="#9CA3AF"
               keyboardType="phone-pad"
+              maxLength={20}
             />
             {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
           </View>
+        </View>
+
+        {/* Additional Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Ek Bilgiler</Text>
 
           <View style={styles.inputContainer}>
             <View style={styles.inputLabel}>
@@ -308,42 +529,50 @@ export const EditProfileScreen: React.FC = () => {
               keyboardType="number-pad"
               maxLength={3}
             />
-            {errors.jerseyNumber && (
-              <Text style={styles.errorText}>{errors.jerseyNumber}</Text>
-            )}
+            {errors.jerseyNumber && <Text style={styles.errorText}>{errors.jerseyNumber}</Text>}
           </View>
 
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={handleSelectBirthDate}
-            activeOpacity={0.7}
-          >
+          <View style={styles.inputContainer}>
             <View style={styles.inputLabel}>
               <Calendar size={18} color="#6B7280" strokeWidth={2} />
               <Text style={styles.labelText}>Doğum Tarihi</Text>
             </View>
-            <View style={styles.dateButtonRight}>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={handleSelectBirthDate}
+              activeOpacity={0.7}
+            >
               <Text style={styles.dateButtonText}>
-                {birthDate
-                  ? new Date(birthDate).toLocaleDateString('tr-TR')
-                  : 'Seçiniz'}
+                {formatDate(birthDate)}
               </Text>
               <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={birthDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={onDateChange}
+                maximumDate={new Date()}
+                minimumDate={new Date(1950, 0, 1)}
+                locale={getLocale()}
+              />
+            )}
+          </View>
         </View>
 
-        {/* Favorite Sports */}
+        {/* Sports */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Favori Sporlar</Text>
+          <Text style={styles.sectionTitle}>Spor Dalları</Text>
           <Text style={styles.sectionDescription}>
             İlgilendiğiniz sporları seçin
           </Text>
 
           <View style={styles.sportsGrid}>
             {(Object.keys(SPORT_CONFIGS) as SportType[]).map((sport) => {
-              const isSelected = favoriteSports.includes(sport);
               const config = SPORT_CONFIGS[sport];
+              const isSelected = favoriteSports.includes(sport);
 
               return (
                 <TouchableOpacity
@@ -351,8 +580,8 @@ export const EditProfileScreen: React.FC = () => {
                   style={[
                     styles.sportCard,
                     isSelected && {
-                      backgroundColor: config.color + '20',
                       borderColor: config.color,
+                      backgroundColor: `${config.color}10`,
                     },
                   ]}
                   onPress={() => toggleFavoriteSport(sport)}
@@ -390,7 +619,7 @@ export const EditProfileScreen: React.FC = () => {
                 <TouchableOpacity
                   key={sport}
                   style={styles.positionCard}
-                  onPress={() => hasPositions && handleSelectPositions(sport)}
+                  onPress={() => hasPositions && openPositionModal(sport)}
                   disabled={!hasPositions}
                   activeOpacity={0.7}
                 >
@@ -422,6 +651,87 @@ export const EditProfileScreen: React.FC = () => {
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* Position Selection Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closePositionModal}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closePositionModal}>
+          <Animated.View
+            style={[
+              styles.modalContent,
+              { transform: [{ translateY }] }
+            ]}
+          >
+            <Pressable>
+              {/* Modal Header */}
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHandle} />
+                <View style={styles.modalTitleContainer}>
+                  {selectedSport && (
+                    <>
+                      <Text style={styles.modalEmoji}>
+                        {SPORT_CONFIGS[selectedSport].emoji}
+                      </Text>
+                      <Text style={styles.modalTitle}>
+                        {SPORT_CONFIGS[selectedSport].name} Pozisyonları
+                      </Text>
+                    </>
+                  )}
+                </View>
+                <Text style={styles.modalSubtitle}>
+                  Birden fazla pozisyon seçebilirsin
+                </Text>
+              </View>
+
+              {/* Positions List */}
+              <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+                <View style={styles.positionsGrid}>
+                  {selectedSport && SPORT_CONFIGS[selectedSport].positions.map((position) => {
+                    const isSelected = sportPositions[selectedSport]?.includes(position) || false;
+
+                    return (
+                      <TouchableOpacity
+                        key={position}
+                        style={[
+                          styles.positionOption,
+                          isSelected && styles.positionOptionSelected
+                        ]}
+                        onPress={() => togglePosition(position)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[
+                          styles.positionOptionText,
+                          isSelected && styles.positionOptionTextSelected
+                        ]}>
+                          {position}
+                        </Text>
+                        {isSelected && (
+                          <Check size={20} color="#16a34a" strokeWidth={2.5} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              {/* Modal Footer */}
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={closePositionModal}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modalButtonText}>Tamam</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -487,6 +797,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     position: 'relative',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 48,
   },
   photoButton: {
     position: 'absolute',
@@ -571,14 +887,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
-  dateButtonRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   dateButtonText: {
     fontSize: 15,
-    color: '#6B7280',
+    color: '#1F2937',
+    fontWeight: '500',
   },
   sportsGrid: {
     flexDirection: 'row',
@@ -638,4 +950,98 @@ const styles = StyleSheet.create({
   bottomSpacing: {
     height: 32,
   },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '70%',
+    paddingTop: 8,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+    marginBottom: 16,
+  },
+  modalTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  modalEmoji: {
+    fontSize: 32,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  modalScroll: {
+    maxHeight: 400,
+  },
+  positionsGrid: {
+    padding: 24,
+    gap: 12,
+  },
+  positionOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+  },
+  positionOptionSelected: {
+    borderColor: '#16a34a',
+    backgroundColor: '#F0FDF4',
+  },
+  positionOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  positionOptionTextSelected: {
+    color: '#16a34a',
+  },
+  modalFooter: {
+    padding: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  modalButton: {
+    backgroundColor: '#16a34a',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });
+
+export default EditProfileScreen;

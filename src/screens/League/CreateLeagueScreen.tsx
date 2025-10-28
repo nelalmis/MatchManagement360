@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+// src/screens/League/CreateLeagueScreen.tsx
+
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,40 +11,33 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
-  Modal,
-  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Share,
 } from 'react-native';
 import {
   X,
-  Check,
-  Calendar,
-  Users,
   Trophy,
-  AlertCircle,
-  Search,
-  Plus,
+  Info,
+  ChevronRight,
+  Calendar,
+  Settings,
+  Check,
+  Users,
+  Copy,
+  Share2,
 } from 'lucide-react-native';
-import {
-  ILeague,
-  IPlayer,
-  SportType,
-  SPORT_CONFIGS,
-  getSportIcon,
-  getSportColor,
-} from '../../types/types';
-import { leagueService } from '../../services/leagueService';
-import { playerService } from '../../services/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
+import { LeagueService } from '../../services/serviceLayer/leagueService';
+import { LeagueInvitationService } from '../../services/serviceLayer/LeagueInvitationService';
+import { SPORT_CONFIGS, SportType } from '../../types/entity/types';
+import { getSportEmoji, sportThemes } from '../../utils/theme';
+import * as Clipboard from 'expo-clipboard';
 
-const SPORT_TYPES: SportType[] = [
-  'Futbol',
-  'Basketbol',
-  'Voleybol',
-  'Tenis',
-  'Masa Tenisi',
-  'Badminton',
-];
+// ============================================
+// MAIN COMPONENT
+// ============================================
 
 export const CreateLeagueScreen: React.FC = () => {
   const { user } = useAuth();
@@ -50,49 +45,28 @@ export const CreateLeagueScreen: React.FC = () => {
   // Form State
   const [title, setTitle] = useState('');
   const [sportType, setSportType] = useState<SportType>('Futbol');
-  const [seasonStartDate, setSeasonStartDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
-  const [seasonEndDate, setSeasonEndDate] = useState(
-    new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  );
-  const [autoResetStandings, setAutoResetStandings] = useState(true);
-  const [canChangeSeason, setCanChangeSeason] = useState(false);
+  const [description, setDescription] = useState('');
 
-  // Players
-  const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
-  const [premiumPlayerIds, setPremiumPlayerIds] = useState<string[]>([]);
-  const [directPlayerIds, setDirectPlayerIds] = useState<string[]>([]);
-  const [teamBuildingAuthorityPlayerIds, setTeamBuildingAuthorityPlayerIds] = useState<string[]>([]);
+  // Season Settings
+  const [autoCreateNewSeason, setAutoCreateNewSeason] = useState(true);
+  const [seasonDuration, setSeasonDuration] = useState('365');
+  const [autoArchiveOldSeasons, setAutoArchiveOldSeasons] = useState(true);
+  const [archiveAfterMonths, setArchiveAfterMonths] = useState('12');
+
+  // General Settings
+  const [allowFriendlyMatches, setAllowFriendlyMatches] = useState(true);
+  const [friendlyAffectsStats, setFriendlyAffectsStats] = useState(true);
+  const [friendlyAffectsStandings, setFriendlyAffectsStandings] = useState(false);
 
   // UI State
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showPlayerSearch, setShowPlayerSearch] = useState(false);
-  const [playerSearchQuery, setPlayerSearchQuery] = useState('');
-  const [currentStep, setCurrentStep] = useState(1); // 1: Basic Info, 2: Players, 3: Permissions
-  const [selectMode, setSelectMode] = useState(false);
-  const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([])
+  const [currentStep, setCurrentStep] = useState(1); // 1: Basic Info, 2: Settings
 
-  useEffect(() => {
-    loadPlayers();
-  }, []);
+  // ============================================
+  // VALIDATION
+  // ============================================
 
-  const loadPlayers = async () => {
-    try {
-      setLoading(true);
-      const playersData = await playerService.getAll();
-      setAllPlayers(playersData);
-    } catch (error) {
-      console.error('Error loading players:', error);
-      Alert.alert('Hata', 'Oyuncular yüklenirken bir hata oluştu');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const validateForm = (): boolean => {
+  const validateBasicInfo = (): boolean => {
     if (!title.trim()) {
       Alert.alert('Hata', 'Lig adı boş olamaz');
       return false;
@@ -103,691 +77,521 @@ export const CreateLeagueScreen: React.FC = () => {
       return false;
     }
 
-    if (new Date(seasonStartDate) >= new Date(seasonEndDate)) {
-      Alert.alert('Hata', 'Sezon bitiş tarihi başlangıç tarihinden sonra olmalı');
-      return false;
-    }
-
-    if (selectedPlayerIds.length === 0) {
-      Alert.alert('Uyarı', 'En az bir oyuncu eklemelisiniz', [
-        { text: 'İptal', style: 'cancel' },
-        { text: 'Devam Et', onPress: () => handleCreateLeague() }
-      ]);
+    if (title.trim().length > 50) {
+      Alert.alert('Hata', 'Lig adı en fazla 50 karakter olmalıdır');
       return false;
     }
 
     return true;
   };
 
+  const validateSettings = (): boolean => {
+    const durationNum = parseInt(seasonDuration);
+    if (isNaN(durationNum) || durationNum < 30 || durationNum > 730) {
+      Alert.alert('Hata', 'Sezon süresi 30-730 gün arasında olmalıdır');
+      return false;
+    }
+
+    if (autoArchiveOldSeasons) {
+      const archiveNum = parseInt(archiveAfterMonths);
+      if (isNaN(archiveNum) || archiveNum < 1 || archiveNum > 60) {
+        Alert.alert('Hata', 'Arşivleme süresi 1-60 ay arasında olmalıdır');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  // ============================================
+  // LEAGUE CREATION
+  // ============================================
+
   const handleCreateLeague = async () => {
-    if (!validateForm()) return;
-    if (!user?.id) return;
+    if (!validateSettings()) return;
+    if (!user?.id) {
+      Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı');
+      return;
+    }
 
     try {
       setSaving(true);
 
-      const newLeague: ILeague = {
-        id: null,
+      // ✅ Step 1: Create League
+      const leagueResult = await LeagueService.createLeague({
+        creatorId: user.id,
         title: title.trim(),
         sportType,
-        seasonStartDate,
-        seasonEndDate,
-        autoResetStandings,
-        canChangeSeason,
-        playerIds: [...selectedPlayerIds, user.id], //Yoksa kurucu ekleniyor
-        premiumPlayerIds,
-        directPlayerIds,
-        teamBuildingAuthorityPlayerIds,
-        matchFixtures: [],
-        createdAt: new Date().toISOString(),
-        createdBy: user.id,
-      };
+        description: description.trim() || undefined,
+        seasonSettings: {
+          autoCreateNewSeason,
+          seasonDuration: parseInt(seasonDuration),
+          autoArchiveOldSeasons,
+          archiveAfterMonths: parseInt(archiveAfterMonths),
+        },
+        settings: {
+          allowFriendlyMatches,
+          friendlyAffectsStats,
+          friendlyAffectsStandings,
+        },
+        autoCreateFirstSeason: true,
+      });
 
-      const response = await leagueService.add(newLeague);
+      if (!leagueResult.success || !leagueResult.data) {
+        Alert.alert('Hata', leagueResult.error?.message || 'Lig oluşturulurken hata oluştu');
+        return;
+      }
 
-      if (response.success) {
+      const league = leagueResult.data;
+
+      // ✅ Step 2: Generate Default Invite Code
+      const inviteResult = await LeagueInvitationService.generateInvite({
+        leagueId: league.id!,
+        creatorId: user.id,
+        description: 'Varsayılan davet kodu',
+        assignRole: 'member',
+        // Süresiz ve sınırsız kullanım
+      });
+
+      if (!inviteResult.success || !inviteResult.data) {
+        // Lig oluşturuldu ama davet kodu oluşturulamadı
         Alert.alert(
-          'Başarılı! 🎉',
-          'Lig başarıyla oluşturuldu',
+          'Uyarı',
+          'Lig oluşturuldu ancak davet kodu oluşturulamadı. Lig ayarlarından yeni kod oluşturabilirsiniz.',
           [
             {
               text: 'Tamam',
-              onPress: () => NavigationService.navigateToLeague(response.id)
-            }
+              onPress: () => NavigationService.navigateToLeagueDetail(league.id!),
+            },
           ]
         );
+        return;
       }
+
+      const invitation = inviteResult.data;
+
+      // ✅ Step 3: Show Success with Invite Code
+      showSuccessModal(league.id!, invitation.code, league.title);
+
     } catch (error) {
       console.error('Error creating league:', error);
-      Alert.alert('Hata', 'Lig oluşturulurken bir hata oluştu');
+      Alert.alert('Hata', 'Beklenmeyen bir hata oluştu');
     } finally {
       setSaving(false);
     }
   };
 
-  const addPlayer = (playerId: string) => {
-    if (!selectedPlayerIds.includes(playerId)) {
-      setSelectedPlayerIds([...selectedPlayerIds, playerId]);
-    }
-    if (!selectMode) {
-      setShowPlayerSearch(false);
-      setPlayerSearchQuery('');
-    }
-  };
+  // ============================================
+  // SUCCESS MODAL
+  // ============================================
 
-  const togglePlayerInModal = (playerId: string) => {
-    if (tempSelectedIds.includes(playerId)) {
-      setTempSelectedIds(tempSelectedIds.filter(id => id !== playerId));
-    } else {
-      setTempSelectedIds([...tempSelectedIds, playerId]);
-    }
-  };
-
-  const confirmMultipleSelection = () => {
-    const newPlayerIds = [...selectedPlayerIds];
-    tempSelectedIds.forEach(id => {
-      if (!newPlayerIds.includes(id)) {
-        newPlayerIds.push(id);
-      }
-    });
-    setSelectedPlayerIds(newPlayerIds);
-    setShowPlayerSearch(false);
-    setSelectMode(false);
-    setTempSelectedIds([]);
-    setPlayerSearchQuery('');
-  };
-
-  const cancelMultipleSelection = () => {
-    setSelectMode(false);
-    setTempSelectedIds([]);
-  };
-
-  const selectAllPlayers = () => {
-    setTempSelectedIds(filteredAvailablePlayers.map(p => p.id!));
-  };
-
-  const deselectAllPlayers = () => {
-    setTempSelectedIds([]);
-  };
-
-  const removePlayer = (playerId: string) => {
-    setSelectedPlayerIds(selectedPlayerIds.filter(id => id !== playerId));
-    setPremiumPlayerIds(premiumPlayerIds.filter(id => id !== playerId));
-    setDirectPlayerIds(directPlayerIds.filter(id => id !== playerId));
-    setTeamBuildingAuthorityPlayerIds(teamBuildingAuthorityPlayerIds.filter(id => id !== playerId));
-  };
-
-  const togglePremiumPlayer = (playerId: string) => {
-    setPremiumPlayerIds(prev =>
-      prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
+  const showSuccessModal = (leagueId: string, inviteCode: string, leagueTitle: string) => {
+    Alert.alert(
+      '🎉 Lig Oluşturuldu!',
+      `${leagueTitle} başarıyla oluşturuldu.\n\nDavet Kodu: ${inviteCode}\n\nBu kodu paylaşarak arkadaşlarınızı lige davet edebilirsiniz.`,
+      [
+        {
+          text: 'Kodu Kopyala',
+          onPress: async () => {
+            await Clipboard.setStringAsync(inviteCode);
+            Alert.alert('Başarılı', 'Davet kodu kopyalandı!', [
+              {
+                text: 'Paylaş',
+                onPress: () => shareInviteCode(inviteCode, leagueTitle),
+              },
+              {
+                text: 'Lige Git',
+                onPress: () => NavigationService.navigateToLeagueDetail(leagueId),
+              },
+            ]);
+          },
+        },
+        {
+          text: 'Paylaş',
+          onPress: () => shareInviteCode(inviteCode, leagueTitle),
+        },
+        {
+          text: 'Lige Git',
+          onPress: () => NavigationService.navigateToLeagueDetail(leagueId),
+          style: 'default',
+        },
+      ],
+      { cancelable: false }
     );
   };
 
-  const toggleDirectPlayer = (playerId: string) => {
-    setDirectPlayerIds(prev =>
-      prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
-    );
+  const shareInviteCode = async (code: string, leagueTitle: string) => {
+    try {
+      await Share.share({
+        message: `🏆 ${leagueTitle} ligine katılın!\n\nDavet Kodu: ${code}\n\nUygulamayı indirin ve bu kodu kullanarak lige katılın!`,
+        title: `${leagueTitle} - Davet`,
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+    }
   };
 
-  const toggleTeamBuildingAuthority = (playerId: string) => {
-    setTeamBuildingAuthorityPlayerIds(prev =>
-      prev.includes(playerId) ? prev.filter(id => id !== playerId) : [...prev, playerId]
-    );
-  };
+  // ============================================
+  // NAVIGATION
+  // ============================================
 
   const nextStep = () => {
     if (currentStep === 1) {
-      if (!title.trim()) {
-        Alert.alert('Hata', 'Lig adı boş olamaz');
-        return;
-      }
-      if (new Date(seasonStartDate) >= new Date(seasonEndDate)) {
-        Alert.alert('Hata', 'Sezon bitiş tarihi başlangıç tarihinden sonra olmalı');
-        return;
-      }
+      if (!validateBasicInfo()) return;
+      setCurrentStep(2);
     }
-    setCurrentStep(currentStep + 1);
   };
 
   const prevStep = () => {
-    setCurrentStep(currentStep - 1);
+    setCurrentStep(1);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('tr-TR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
+  // ============================================
+  // RENDER FUNCTIONS
+  // ============================================
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
-  }
-
-  const selectedPlayers = allPlayers.filter(p => selectedPlayerIds.includes(p.id!));
-  const availablePlayers = allPlayers.filter(p => !selectedPlayerIds.includes(p.id!));
-  const filteredAvailablePlayers = availablePlayers.filter(p =>
-    `${p.name} ${p.surname}`.toLowerCase().includes(playerSearchQuery.toLowerCase())
-  );
-
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => NavigationService.goBack()}
-          style={styles.headerButton}
-          activeOpacity={0.7}
-        >
-          <X size={24} color="#1F2937" strokeWidth={2} />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Yeni Lig Oluştur</Text>
-          <Text style={styles.headerSubtitle}>Adım {currentStep}/3</Text>
-        </View>
-
-        <View style={styles.headerButton} />
-      </View>
-
-      {/* Progress Bar */}
-      <View style={styles.progressBar}>
-        <View style={[styles.progressSegment, currentStep >= 1 && styles.progressSegmentActive]} />
-        <View style={[styles.progressSegment, currentStep >= 2 && styles.progressSegmentActive]} />
-        <View style={[styles.progressSegment, currentStep >= 3 && styles.progressSegmentActive]} />
-      </View>
-
-      {/* Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* STEP 1: Basic Info */}
-        {currentStep === 1 && (
-          <View style={styles.stepContent}>
-            <View style={styles.stepHeader}>
-              <Trophy size={32} color="#16a34a" strokeWidth={2} />
-              <Text style={styles.stepTitle}>Temel Bilgiler</Text>
-              <Text style={styles.stepDescription}>
-                Liginizin adını ve spor türünü belirleyin
-              </Text>
-            </View>
-
-            {/* League Name */}
-            <View style={styles.card}>
-              <Text style={styles.label}>Lig Adı *</Text>
-              <TextInput
-                style={styles.input}
-                value={title}
-                onChangeText={setTitle}
-                placeholder="Örn: Architect Halı Saha Ligi"
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-
-            {/* Sport Type */}
-            <View style={styles.card}>
-              <Text style={styles.label}>Spor Türü *</Text>
-              <View style={styles.sportGrid}>
-                {SPORT_TYPES.map((sport) => {
-                  const isSelected = sportType === sport;
-                  const sportColor = getSportColor(sport);
-
-                  return (
-                    <TouchableOpacity
-                      key={sport}
-                      onPress={() => setSportType(sport)}
-                      style={[
-                        styles.sportCard,
-                        isSelected && { ...styles.sportCardActive, borderColor: sportColor },
-                      ]}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.sportEmoji}>{getSportIcon(sport)}</Text>
-                      <Text style={[styles.sportLabel, isSelected && { color: sportColor }]}>
-                        {sport}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Season Settings */}
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Calendar size={20} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.cardTitle}>Sezon Ayarları</Text>
-              </View>
-
-              <View style={styles.dateRow}>
-                <View style={styles.dateInput}>
-                  <Text style={styles.dateLabel}>Başlangıç *</Text>
-                  <Text style={styles.dateValue}>{formatDate(seasonStartDate)}</Text>
-                </View>
-                <View style={styles.dateInput}>
-                  <Text style={styles.dateLabel}>Bitiş *</Text>
-                  <Text style={styles.dateValue}>{formatDate(seasonEndDate)}</Text>
-                </View>
-              </View>
-
-              <View style={styles.switchRow}>
-                <View style={styles.switchInfo}>
-                  <Text style={styles.switchTitle}>Otomatik Sezon Sıfırlama</Text>
-                  <Text style={styles.switchDescription}>Sezon bitince puan durumu sıfırlansın</Text>
-                </View>
-                <Switch
-                  value={autoResetStandings}
-                  onValueChange={setAutoResetStandings}
-                  trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-                  thumbColor={autoResetStandings ? '#16a34a' : '#F3F4F6'}
-                />
-              </View>
-
-              <View style={styles.switchRow}>
-                <View style={styles.switchInfo}>
-                  <Text style={styles.switchTitle}>Sezon Değiştirme</Text>
-                  <Text style={styles.switchDescription}>Lig devam ederken sezon değiştirilebilir</Text>
-                </View>
-                <Switch
-                  value={canChangeSeason}
-                  onValueChange={setCanChangeSeason}
-                  trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-                  thumbColor={canChangeSeason ? '#16a34a' : '#F3F4F6'}
-                />
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* STEP 2: Players */}
-        {currentStep === 2 && (
-          <View style={styles.stepContent}>
-            <View style={styles.stepHeader}>
-              <Users size={32} color="#16a34a" strokeWidth={2} />
-              <Text style={styles.stepTitle}>Oyuncu Seçimi</Text>
-              <Text style={styles.stepDescription}>
-                Lige katılacak oyuncuları seçin
-              </Text>
-            </View>
-
-            {/* Add Player Button */}
-            <TouchableOpacity
-              style={styles.addPlayerButton}
-              onPress={() => setShowPlayerSearch(true)}
-              activeOpacity={0.7}
-            >
-              <Plus size={20} color="#16a34a" strokeWidth={2} />
-              <Text style={styles.addPlayerButtonText}>Oyuncu Ekle</Text>
-            </TouchableOpacity>
-
-            {/* Selected Players */}
-            {selectedPlayers.length > 0 && (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>Seçili Oyuncular ({selectedPlayers.length})</Text>
-
-                {selectedPlayers.map((player) => (
-                  <View key={player.id} style={styles.playerItem}>
-                    <View style={styles.playerInfo}>
-                      <View style={styles.playerAvatar}>
-                        <Text style={styles.playerInitial}>
-                          {player.name?.[0]}{player.surname?.[0]}
-                        </Text>
-                      </View>
-                      <View style={styles.playerDetails}>
-                        <Text style={styles.playerName}>
-                          {player.name} {player.surname}
-                        </Text>
-                        <Text style={styles.playerPhone}>{player.phone}</Text>
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => removePlayer(player.id!)}
-                      style={styles.removeButton}
-                      activeOpacity={0.7}
-                    >
-                      <X size={20} color="#DC2626" strokeWidth={2} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {selectedPlayers.length === 0 && (
-              <View style={styles.emptyState}>
-                <Users size={48} color="#D1D5DB" strokeWidth={1.5} />
-                <Text style={styles.emptyStateTitle}>Henüz oyuncu eklenmedi</Text>
-                <Text style={styles.emptyStateText}>
-                  "Oyuncu Ekle" butonuna tıklayarak oyuncu ekleyin
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* STEP 3: Permissions */}
-        {currentStep === 3 && (
-          <View style={styles.stepContent}>
-            <View style={styles.stepHeader}>
-              <Trophy size={32} color="#16a34a" strokeWidth={2} />
-              <Text style={styles.stepTitle}>Oyuncu Yetkileri</Text>
-              <Text style={styles.stepDescription}>
-                İsteğe bağlı - Oyunculara özel yetkiler verin
-              </Text>
-            </View>
-
-            <View style={styles.infoBox}>
-              <AlertCircle size={20} color="#2563EB" strokeWidth={2} />
-              <View style={styles.infoBoxContent}>
-                <Text style={styles.infoBoxTitle}>Yetki Tipleri</Text>
-                <Text style={styles.infoBoxText}>
-                  <Text style={styles.infoBoxBold}>Premium:</Text> Kayıt olursa kadroda öncelikli{'\n'}
-                  <Text style={styles.infoBoxBold}>Direkt:</Text> Otomatik kadroda, kayıt beklenmez{'\n'}
-                  <Text style={styles.infoBoxBold}>Takım Kurma:</Text> Maçlarda takım kurabilir
-                </Text>
-              </View>
-            </View>
-
-            {selectedPlayers.length > 0 ? (
-              selectedPlayers.map((player) => (
-                <View key={player.id} style={styles.permissionCard}>
-                  <Text style={styles.permissionPlayerName}>
-                    {player.name} {player.surname}
-                  </Text>
-
-                  <TouchableOpacity
-                    style={styles.permissionRow}
-                    onPress={() => togglePremiumPlayer(player.id!)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.permissionInfo}>
-                      <View style={[
-                        styles.checkbox,
-                        premiumPlayerIds.includes(player.id!) && styles.checkboxActive
-                      ]}>
-                        {premiumPlayerIds.includes(player.id!) && (
-                          <Check size={14} color="white" strokeWidth={3} />
-                        )}
-                      </View>
-                      <View>
-                        <Text style={styles.permissionTitle}>Premium Oyuncu</Text>
-                        <Text style={styles.permissionDesc}>Kayıt olursa öncelikli</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.permissionRow}
-                    onPress={() => toggleDirectPlayer(player.id!)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.permissionInfo}>
-                      <View style={[
-                        styles.checkbox,
-                        directPlayerIds.includes(player.id!) && styles.checkboxActive
-                      ]}>
-                        {directPlayerIds.includes(player.id!) && (
-                          <Check size={14} color="white" strokeWidth={3} />
-                        )}
-                      </View>
-                      <View>
-                        <Text style={styles.permissionTitle}>Direkt Oyuncu</Text>
-                        <Text style={styles.permissionDesc}>Otomatik kadroda</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.permissionRow}
-                    onPress={() => toggleTeamBuildingAuthority(player.id!)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.permissionInfo}>
-                      <View style={[
-                        styles.checkbox,
-                        teamBuildingAuthorityPlayerIds.includes(player.id!) && styles.checkboxActive
-                      ]}>
-                        {teamBuildingAuthorityPlayerIds.includes(player.id!) && (
-                          <Check size={14} color="white" strokeWidth={3} />
-                        )}
-                      </View>
-                      <View>
-                        <Text style={styles.permissionTitle}>Takım Kurma Yetkisi</Text>
-                        <Text style={styles.permissionDesc}>Maçlarda takım kurabilir</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              ))
-            ) : (
-              <View style={styles.card}>
-                <Text style={styles.emptyText}>Önce oyuncu eklemelisiniz</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        {currentStep > 1 && (
-          <TouchableOpacity
-            onPress={prevStep}
-            style={styles.navButtonSecondary}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.navButtonSecondaryText}>Geri</Text>
-          </TouchableOpacity>
-        )}
-
-        {currentStep < 3 ? (
-          <TouchableOpacity
-            onPress={nextStep}
-            style={[styles.navButtonPrimary, currentStep === 1 && styles.navButtonFull]}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.navButtonPrimaryText}>İleri</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            onPress={handleCreateLeague}
-            disabled={saving}
-            style={[styles.navButtonPrimary, saving && styles.navButtonDisabled]}
-            activeOpacity={0.7}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <>
-                <Check size={20} color="white" strokeWidth={2.5} />
-                <Text style={styles.navButtonPrimaryText}>Lig Oluştur</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Player Search Modal */}
-      <Modal
-        visible={showPlayerSearch}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => {
-          setShowPlayerSearch(false);
-          setSelectMode(false);
-          setTempSelectedIds([]);
-        }}
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <TouchableOpacity
+        onPress={() => NavigationService.goBack()}
+        style={styles.headerButton}
+        activeOpacity={0.7}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Oyuncu Seç</Text>
-              <View style={styles.modalHeaderRight}>
-                {!selectMode ? (
-                  <TouchableOpacity
-                    onPress={() => setSelectMode(true)}
-                    style={styles.selectModeButton}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.selectModeButtonText}>Toplu Seç</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    onPress={cancelMultipleSelection}
-                    style={styles.cancelSelectButton}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.cancelSelectButtonText}>İptal</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  onPress={() => {
-                    setShowPlayerSearch(false);
-                    setSelectMode(false);
-                    setTempSelectedIds([]);
-                  }}
-                  style={styles.modalClose}
-                  activeOpacity={0.7}
-                >
-                  <X size={24} color="#6B7280" strokeWidth={2} />
-                </TouchableOpacity>
-              </View>
-            </View>
+        <X size={24} color="#1F2937" strokeWidth={2} />
+      </TouchableOpacity>
 
-            {/* Select Mode Actions */}
-            {selectMode && (
-              <View style={styles.selectModeActions}>
-                <TouchableOpacity
-                  onPress={selectAllPlayers}
-                  style={styles.selectActionButton}
-                  activeOpacity={0.7}
-                >
-                  <Check size={16} color="#16a34a" strokeWidth={2.5} />
-                  <Text style={styles.selectActionText}>Tümünü Seç</Text>
-                </TouchableOpacity>
+      <View style={styles.headerCenter}>
+        <Text style={styles.headerTitle}>Yeni Lig Oluştur</Text>
+        <Text style={styles.headerSubtitle}>Adım {currentStep}/2</Text>
+      </View>
 
-                <TouchableOpacity
-                  onPress={deselectAllPlayers}
-                  style={styles.selectActionButton}
-                  activeOpacity={0.7}
-                >
-                  <X size={16} color="#DC2626" strokeWidth={2.5} />
-                  <Text style={styles.selectActionText}>Tümünü Kaldır</Text>
-                </TouchableOpacity>
-
-                <View style={styles.selectedCountBadge}>
-                  <Text style={styles.selectedCountText}>
-                    {tempSelectedIds.length} seçili
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            <View style={styles.modalSearch}>
-              <Search size={20} color="#9CA3AF" strokeWidth={2} />
-              <TextInput
-                style={styles.modalSearchInput}
-                placeholder="Oyuncu ara..."
-                placeholderTextColor="#9CA3AF"
-                value={playerSearchQuery}
-                onChangeText={setPlayerSearchQuery}
-                autoFocus={!selectMode}
-              />
-            </View>
-
-            <FlatList
-              data={filteredAvailablePlayers}
-              keyExtractor={(item) => item.id!}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.modalPlayerItem,
-                    selectMode && tempSelectedIds.includes(item.id!) && styles.modalPlayerItemSelected
-                  ]}
-                  onPress={() => selectMode ? togglePlayerInModal(item.id!) : addPlayer(item.id!)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.playerInfo}>
-                    {selectMode && (
-                      <View style={[
-                        styles.checkboxModal,
-                        tempSelectedIds.includes(item.id!) && styles.checkboxModalActive
-                      ]}>
-                        {tempSelectedIds.includes(item.id!) && (
-                          <Check size={14} color="white" strokeWidth={3} />
-                        )}
-                      </View>
-                    )}
-                    <View style={styles.playerAvatar}>
-                      <Text style={styles.playerInitial}>
-                        {item.name?.[0]}{item.surname?.[0]}
-                      </Text>
-                    </View>
-                    <View style={styles.playerDetails}>
-                      <Text style={styles.playerName}>
-                        {item.name} {item.surname}
-                      </Text>
-                      <Text style={styles.playerPhone}>{item.phone}</Text>
-                    </View>
-                  </View>
-                  {!selectMode && (
-                    <View style={styles.addBadge}>
-                      <Plus size={16} color="white" strokeWidth={2.5} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <View style={styles.modalEmpty}>
-                  <Text style={styles.emptyText}>Oyuncu bulunamadı</Text>
-                </View>
-              }
-            />
-
-            {/* Confirm Button for Select Mode */}
-            {selectMode && tempSelectedIds.length > 0 && (
-              <View style={styles.modalFooter}>
-                <TouchableOpacity
-                  onPress={confirmMultipleSelection}
-                  style={styles.confirmMultipleButton}
-                  activeOpacity={0.7}
-                >
-                  <Check size={20} color="white" strokeWidth={2.5} />
-                  <Text style={styles.confirmMultipleButtonText}>
-                    {tempSelectedIds.length} Oyuncu Ekle
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
+      <View style={styles.headerButton} />
     </View>
   );
+
+  const renderStepIndicator = () => (
+    <View style={styles.stepIndicator}>
+      <View style={styles.stepItem}>
+        <View style={[styles.stepCircle, currentStep >= 1 && styles.stepCircleActive]}>
+          {currentStep > 1 ? (
+            <Check size={16} color="white" strokeWidth={3} />
+          ) : (
+            <Text style={[styles.stepNumber, currentStep === 1 && styles.stepNumberActive]}>1</Text>
+          )}
+        </View>
+        <Text style={[styles.stepLabel, currentStep >= 1 && styles.stepLabelActive]}>
+          Temel Bilgiler
+        </Text>
+      </View>
+
+      <View style={[styles.stepLine, currentStep >= 2 && styles.stepLineActive]} />
+
+      <View style={styles.stepItem}>
+        <View style={[styles.stepCircle, currentStep >= 2 && styles.stepCircleActive]}>
+          <Text style={[styles.stepNumber, currentStep === 2 && styles.stepNumberActive]}>2</Text>
+        </View>
+        <Text style={[styles.stepLabel, currentStep >= 2 && styles.stepLabelActive]}>
+          Ayarlar
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderBasicInfo = () => (
+    <View style={styles.stepContent}>
+      {/* League Title */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Trophy size={20} color="#16a34a" strokeWidth={2} />
+          <Text style={styles.sectionTitle}>Lig Bilgileri</Text>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Lig Adı *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Örn: Pazar Ligi, Kızılay Halı Saha"
+            value={title}
+            onChangeText={setTitle}
+            maxLength={50}
+            autoCapitalize="words"
+            returnKeyType="next"
+          />
+          <Text style={styles.hint}>{title.length}/50 karakter</Text>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Açıklama (İsteğe Bağlı)</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Lig hakkında kısa bilgi..."
+            value={description}
+            onChangeText={setDescription}
+            maxLength={200}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+          <Text style={styles.hint}>{description.length}/200 karakter</Text>
+        </View>
+      </View>
+
+      {/* Sport Type Selection */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Users size={20} color="#2563EB" strokeWidth={2} />
+          <Text style={styles.sectionTitle}>Spor Dalı</Text>
+        </View>
+
+        <View style={styles.sportGrid}>
+          {Object.values(sportThemes).map(option => {
+            const isSelected = sportType === option.type;
+            return (
+              <TouchableOpacity
+                key={option.type}
+                style={[
+                  styles.sportCard,
+                  isSelected && { backgroundColor: option.primaryLight, borderColor: option.primary },
+                ]}
+                onPress={() => setSportType(option.type)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sportEmoji}>{option.emoji}</Text>
+                <Text style={[styles.sportLabel, isSelected && { color: option.primary }]}>
+                  {option.label}
+                </Text>
+                {isSelected && (
+                  <View style={[styles.sportCheckmark, { backgroundColor: option.primary }]}>
+                    <Check size={12} color="white" strokeWidth={3} />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Info Box */}
+      <View style={styles.infoBox}>
+        <Info size={16} color="#2563EB" strokeWidth={2} />
+        <Text style={styles.infoText}>
+          Lig oluşturduktan sonra otomatik bir <Text style={styles.infoBold}>davet kodu</Text> oluşturulacak.
+          Bu kodu paylaşarak oyuncuları lige davet edebilirsiniz.
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderSettings = () => (
+    <View style={styles.stepContent}>
+      {/* Season Settings */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Calendar size={20} color="#F59E0B" strokeWidth={2} />
+          <Text style={styles.sectionTitle}>Sezon Ayarları</Text>
+        </View>
+
+        <View style={styles.settingItem}>
+          <View style={styles.settingLeft}>
+            <Text style={styles.settingLabel}>Otomatik Yeni Sezon</Text>
+            <Text style={styles.settingDescription}>
+              Sezon bittiğinde otomatik olarak yeni sezon oluşturulsun
+            </Text>
+          </View>
+          <Switch
+            value={autoCreateNewSeason}
+            onValueChange={setAutoCreateNewSeason}
+            trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+            thumbColor={autoCreateNewSeason ? '#16a34a' : '#F3F4F6'}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Sezon Süresi (Gün)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="365"
+            value={seasonDuration}
+            onChangeText={setSeasonDuration}
+            keyboardType="number-pad"
+            maxLength={3}
+          />
+          <Text style={styles.hint}>Bir sezonun kaç gün süreceğini belirler (30-730 gün)</Text>
+        </View>
+
+        <View style={styles.settingItem}>
+          <View style={styles.settingLeft}>
+            <Text style={styles.settingLabel}>Eski Sezonları Arşivle</Text>
+            <Text style={styles.settingDescription}>
+              Belirli bir süreden eski sezonlar otomatik arşivlensin
+            </Text>
+          </View>
+          <Switch
+            value={autoArchiveOldSeasons}
+            onValueChange={setAutoArchiveOldSeasons}
+            trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+            thumbColor={autoArchiveOldSeasons ? '#16a34a' : '#F3F4F6'}
+          />
+        </View>
+
+        {autoArchiveOldSeasons && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Arşivleme Süresi (Ay)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="12"
+              value={archiveAfterMonths}
+              onChangeText={setArchiveAfterMonths}
+              keyboardType="number-pad"
+              maxLength={2}
+            />
+            <Text style={styles.hint}>Kaç ay sonra eski sezonlar arşivlensin (1-60 ay)</Text>
+          </View>
+        )}
+      </View>
+
+      {/* General Settings */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Settings size={20} color="#8B5CF6" strokeWidth={2} />
+          <Text style={styles.sectionTitle}>Genel Ayarlar</Text>
+        </View>
+
+        <View style={styles.settingItem}>
+          <View style={styles.settingLeft}>
+            <Text style={styles.settingLabel}>Dostluk Maçları İzin Ver</Text>
+            <Text style={styles.settingDescription}>
+              Oyuncular lig dışında dostluk maçı organize edebilsin
+            </Text>
+          </View>
+          <Switch
+            value={allowFriendlyMatches}
+            onValueChange={setAllowFriendlyMatches}
+            trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+            thumbColor={allowFriendlyMatches ? '#16a34a' : '#F3F4F6'}
+          />
+        </View>
+
+        {allowFriendlyMatches && (
+          <>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingLabel}>İstatistiklere Etki Etsin</Text>
+                <Text style={styles.settingDescription}>
+                  Dostluk maçları oyuncu istatistiklerini etkileyebilsin
+                </Text>
+              </View>
+              <Switch
+                value={friendlyAffectsStats}
+                onValueChange={setFriendlyAffectsStats}
+                trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+                thumbColor={friendlyAffectsStats ? '#16a34a' : '#F3F4F6'}
+              />
+            </View>
+
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Text style={styles.settingLabel}>Puan Durumuna Etki Etsin</Text>
+                <Text style={styles.settingDescription}>
+                  Dostluk maçları puan durumunu etkileyebilsin
+                </Text>
+              </View>
+              <Switch
+                value={friendlyAffectsStandings}
+                onValueChange={setFriendlyAffectsStandings}
+                trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+                thumbColor={friendlyAffectsStandings ? '#16a34a' : '#F3F4F6'}
+              />
+            </View>
+          </>
+        )}
+      </View>
+
+      {/* Info Box */}
+      <View style={styles.infoBox}>
+        <Info size={16} color="#8B5CF6" strokeWidth={2} />
+        <Text style={styles.infoText}>
+          Bu ayarları daha sonra lig ayarlarından değiştirebilirsiniz.
+          Premium ve direct oyuncu ayarlarını lig detayında yapabilirsiniz.
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderFooter = () => (
+    <View style={styles.footer}>
+      {currentStep > 1 && (
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={prevStep}
+          activeOpacity={0.7}
+          disabled={saving}
+        >
+          <Text style={styles.backButtonText}>Geri</Text>
+        </TouchableOpacity>
+      )}
+
+      <TouchableOpacity
+        style={[styles.nextButton, (currentStep === 1 || saving) && { flex: 1 }]}
+        onPress={currentStep === 1 ? nextStep : handleCreateLeague}
+        activeOpacity={0.7}
+        disabled={saving}
+      >
+        {saving ? (
+          <>
+            <ActivityIndicator size="small" color="white" />
+            <Text style={styles.nextButtonText}>Oluşturuluyor...</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.nextButtonText}>
+              {currentStep === 1 ? 'Devam Et' : 'Ligi Oluştur'}
+            </Text>
+            {currentStep === 1 && <ChevronRight size={20} color="white" strokeWidth={2.5} />}
+          </>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
+
+  // ============================================
+  // MAIN RENDER
+  // ============================================
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
+      {renderHeader()}
+      
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {renderStepIndicator()}
+        {currentStep === 1 ? renderBasicInfo() : renderSettings()}
+      </ScrollView>
+
+      {renderFooter()}
+    </KeyboardAvoidingView>
+  );
 };
+
+// ============================================
+// STYLES
+// ============================================
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -801,71 +605,119 @@ const styles = StyleSheet.create({
   headerButton: {
     width: 40,
     height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
+    paddingHorizontal: 16,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1F2937',
+    marginBottom: 2,
   },
   headerSubtitle: {
     fontSize: 12,
     color: '#6B7280',
-    marginTop: 2,
   },
-  progressBar: {
-    flexDirection: 'row',
-    gap: 4,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-  },
-  progressSegment: {
+
+  // Scroll View
+  scrollView: {
     flex: 1,
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
   },
-  progressSegmentActive: {
+  scrollContent: {
+    paddingBottom: 20,
+  },
+
+  // Step Indicator
+  stepIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 40,
+    backgroundColor: 'white',
+    marginBottom: 16,
+  },
+  stepItem: {
+    alignItems: 'center',
+  },
+  stepCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  stepCircleActive: {
     backgroundColor: '#16a34a',
   },
-  content: {
-    flex: 1,
-  },
-  stepContent: {
-    padding: 16,
-  },
-  stepHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  stepTitle: {
-    fontSize: 24,
+  stepNumber: {
+    fontSize: 16,
     fontWeight: '700',
+    color: '#9CA3AF',
+  },
+  stepNumberActive: {
+    color: 'white',
+  },
+  stepLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#9CA3AF',
+  },
+  stepLabelActive: {
     color: '#1F2937',
-    marginTop: 12,
   },
-  stepDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 4,
+  stepLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 12,
+    marginBottom: 28,
   },
-  card: {
+  stepLineActive: {
+    backgroundColor: '#16a34a',
+  },
+
+  // Step Content
+  stepContent: {
+    paddingHorizontal: 16,
+  },
+
+  // Section
+  section: {
     backgroundColor: 'white',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 2,
     elevation: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+
+  // Input Group
+  inputGroup: {
+    marginBottom: 16,
   },
   label: {
     fontSize: 14,
@@ -874,117 +726,64 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
+    backgroundColor: '#F9FAFB',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 15,
     color: '#1F2937',
   },
+  textArea: {
+    height: 100,
+    paddingTop: 12,
+  },
+  hint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 6,
+  },
+
+  // Sport Selection
   sportGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginTop: 8,
   },
   sportCard: {
-    width: '30%',
-    aspectRatio: 1,
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#F9FAFB',
     borderWidth: 2,
     borderColor: '#E5E7EB',
     borderRadius: 12,
-    justifyContent: 'center',
+    padding: 16,
     alignItems: 'center',
-    gap: 6,
-  },
-  sportCardActive: {
-    borderWidth: 2,
-    backgroundColor: '#F0FDF4',
+    position: 'relative',
   },
   sportEmoji: {
     fontSize: 32,
+    marginBottom: 8,
   },
   sportLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  dateRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  dateInput: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 12,
-  },
-  dateLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  dateValue: {
-    fontSize: 14,
-    color: '#1F2937',
-    fontWeight: '600',
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
-  switchInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  switchTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  switchDescription: {
-    fontSize: 12,
     color: '#6B7280',
   },
-  addPlayerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  sportCheckmark: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    paddingVertical: 16,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: '#16a34a',
-    borderStyle: 'dashed',
+    alignItems: 'center',
   },
-  addPlayerButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#16a34a',
-  },
-  playerItem: {
+
+  // Setting Item
+  settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -992,351 +791,88 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
-  playerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  settingLeft: {
     flex: 1,
+    marginRight: 16,
   },
-  playerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#DCFCE7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  playerInitial: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#16a34a',
-  },
-  playerDetails: {
-    flex: 1,
-  },
-  playerName: {
+  settingLabel: {
     fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 2,
-  },
-  playerPhone: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  removeButton: {
-    padding: 8,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 32,
-  },
-  emptyStateTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginTop: 12,
     marginBottom: 4,
   },
-  emptyStateText: {
+  settingDescription: {
     fontSize: 13,
     color: '#6B7280',
-    textAlign: 'center',
     lineHeight: 18,
   },
+
+  // Info Box
   infoBox: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
     backgroundColor: '#EFF6FF',
     borderRadius: 12,
-    padding: 12,
+    padding: 16,
     marginBottom: 16,
-    gap: 10,
   },
-  infoBoxContent: {
+  infoText: {
     flex: 1,
-  },
-  infoBoxTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E40AF',
-    marginBottom: 4,
-  },
-  infoBoxText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#1E40AF',
     lineHeight: 18,
   },
-  infoBoxBold: {
+  infoBold: {
     fontWeight: '700',
   },
-  permissionCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
+
+  // Footer
+  footer: {
+    flexDirection: 'row',
+    gap: 12,
     padding: 16,
-    marginBottom: 12,
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 5,
   },
-  permissionPlayerName: {
+  backButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 16,
+    gap: 8,
+  },
+  backButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  permissionRow: {
-    marginBottom: 8,
-  },
-  permissionInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
-    padding: 12,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxActive: {
-    backgroundColor: '#16a34a',
-    borderColor: '#16a34a',
-  },
-  permissionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  permissionDesc: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#9CA3AF',
-    fontSize: 14,
-    paddingVertical: 20,
-  },
-  bottomSpacing: {
-    height: 20,
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  navButtonSecondary: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  navButtonSecondaryText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#4B5563',
-  },
-  navButtonPrimary: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#16a34a',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navButtonFull: {
-    flex: 1,
-  },
-  navButtonPrimaryText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: 'white',
-  },
-  navButtonDisabled: {
-    opacity: 0.6,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '80%',
-    paddingBottom: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  modalHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  selectModeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#DCFCE7',
-  },
-  selectModeButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#16a34a',
-  },
-  cancelSelectButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#FEE2E2',
-  },
-  cancelSelectButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  modalClose: {
-    padding: 4,
-  },
-  selectModeActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: '#F9FAFB',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  selectActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  selectActionText: {
-    fontSize: 13,
-    fontWeight: '600',
     color: '#374151',
   },
-  selectedCountBadge: {
-    marginLeft: 'auto',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  nextButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#16a34a',
     borderRadius: 12,
-    backgroundColor: '#16a34a',
-  },
-  selectedCountText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'white',
-  },
-  modalSearch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginHorizontal: 20,
-    marginVertical: 12,
-  },
-  modalSearchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1F2937',
-  },
-  modalPlayerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  modalPlayerItemSelected: {
-    backgroundColor: '#F0FDF4',
-  },
-  checkboxModal: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  checkboxModalActive: {
-    backgroundColor: '#16a34a',
-    borderColor: '#16a34a',
-  },
-  addBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#16a34a',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalEmpty: {
-    paddingVertical: 40,
-  },
-  modalFooter: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    backgroundColor: 'white',
-  },
-  confirmMultipleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 16,
     gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#16a34a',
+    shadowColor: '#16a34a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  confirmMultipleButtonText: {
-    fontSize: 15,
+  nextButtonText: {
+    fontSize: 16,
     fontWeight: '700',
     color: 'white',
   },

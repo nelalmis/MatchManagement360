@@ -4,7 +4,6 @@ import { SportType } from '../types/entity/types';
 // ============================================
 // SPORT-SPECIFIC COLOR PALETTES
 // ============================================
-
 export const sportThemes = {
   Futbol: {
     primary: '#16a34a',
@@ -14,6 +13,8 @@ export const sportThemes = {
     emoji: '⚽',
     background: '#f0fdf4', // green-50
     lightBackground: '#dcfce7', // green-100
+    label: 'Futbol',
+    type: 'Futbol',
   },
   Basketbol: {
     primary: '#f59e0b',
@@ -23,6 +24,8 @@ export const sportThemes = {
     emoji: '🏀',
     background: '#fffbeb', // amber-50
     lightBackground: '#fef3c7', // amber-100
+    label: 'Basketbol',
+    type: 'Basketbol',
   },
   Voleybol: {
     primary: '#2563eb',
@@ -32,6 +35,8 @@ export const sportThemes = {
     emoji: '🏐',
     background: '#eff6ff', // blue-50
     lightBackground: '#dbeafe', // blue-100
+    label: 'Voleybol',
+    type: 'Voleybol',
   },
   Tenis: {
     primary: '#10b981',
@@ -41,6 +46,8 @@ export const sportThemes = {
     emoji: '🎾',
     background: '#ecfdf5', // emerald-50
     lightBackground: '#d1fae5', // emerald-100
+    label: 'Tenis',
+    type: 'Tenis',
   },
   'Masa Tenisi': {
     primary: '#8b5cf6',
@@ -50,6 +57,8 @@ export const sportThemes = {
     emoji: '🏓',
     background: '#faf5ff', // violet-50
     lightBackground: '#f3e8ff', // violet-100
+    label: 'Masa Tenisi',
+    type: 'Masa Tenisi',
   },
   Badminton: {
     primary: '#ec4899',
@@ -59,6 +68,8 @@ export const sportThemes = {
     emoji: '🏸',
     background: '#fdf2f8', // pink-50
     lightBackground: '#fce7f3', // pink-100
+    label: 'Badminton',
+    type: 'Badminton',
   },
 } as const;
 

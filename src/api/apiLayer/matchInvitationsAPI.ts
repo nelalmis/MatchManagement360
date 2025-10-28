@@ -10,7 +10,7 @@ import { IMatchInvitation, MatchType } from '../../types/entity/types';
 // ============================================
 export class MatchInvitationsAPI extends BaseAPI<IMatchInvitation> {
     constructor() {
-        super('invitations');
+        super('match_invitations');
     }
 
     // ============================================

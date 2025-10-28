@@ -1,15 +1,16 @@
 // src/navigation/AuthNavigator.tsx
 import React, { useEffect, useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { LoginScreen } from '../screens_v2/auth/LoginScreen';
-import { RegisterScreen } from '../screens_v2/auth/RegisterScreen';
-import ForgotPasswordScreen from '../screens_v2/auth/ForgotPasswordScreen';
-import EmailVerificationScreen from '../screens_v2/auth/EmailVerificationScreen';
-import CompleteProfileScreen from '../screens_v2/auth/CompleteProfileScreen';
-// import SocialAuthScreen from '../screens/auth/SocialAuthScreen'; // Phase 2
+import {
+  EmailLoginScreen,
+  CompleteProfileScreen,
+  RegisterScreen,
+  ForgotPasswordScreen,
+  EmailVerificationScreen,
+  SplashScreen,
+  WelcomeScreen
+} from '../screens';
 import { AuthStackParamList } from './types';
-import { SplashScreen } from '../screens_v2/auth/SplashScreen';
-import { WelcomeScreen } from '../screens_v2/auth/WelcomeScreen';
 import { OnboardingStorage } from '../services/storage/onboardingStorage';
 import { useAuth } from '../hooks';
 
@@ -89,7 +90,7 @@ export default function AuthNavigator() {
       />
       <Stack.Screen
         name="login"
-        component={LoginScreen}
+        component={EmailLoginScreen}
         options={{
           title: 'Giriş Yap',
           gestureEnabled: false, // ← Login'den geri gidilemesin

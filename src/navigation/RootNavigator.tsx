@@ -34,17 +34,17 @@ export function RootNavigator() {
 
   const validateAuthState = async () => {
     try {
-      console.log('🔍 [RootNavigator] Starting validation...');
+     // console.log('🔍 [RootNavigator] Starting validation...');
       
       const trustedDevice = await AsyncStorage.getItem('trustedDevice');
       const userData = await AsyncStorage.getItem('userData');
-      
-      console.log('📊 [RootNavigator] Initial state:', {
-        isAuthenticated,
-        trustedDevice,
-        hasUserData: !!userData,
-        userEmailVerified: user?.emailVerified,
-      });
+
+      // console.log('📊 [RootNavigator] Initial state:', {
+      //   isAuthenticated,
+      //   trustedDevice,
+      //   hasUserData: !!userData,
+      //   userEmailVerified: user?.emailVerified,
+      // });
 
       if (isAuthenticated && trustedDevice !== 'true') {
         console.warn('⚠️ [RootNavigator] Invalid state - resetting');
@@ -56,7 +56,7 @@ export function RootNavigator() {
       }
       
       setIsValidating(false);
-      console.log('✅ [RootNavigator] Validation complete');
+      // console.log('✅ [RootNavigator] Validation complete');
     } catch (error) {
       console.error('❌ [RootNavigator] Validation error:', error);
       dispatch(resetAuthState());
@@ -66,12 +66,12 @@ export function RootNavigator() {
   };
   // ✅ CRITICAL: Main'e erişim kontrolü
   const checkMainAccess = () => {
-    console.log('🔐 [RootNavigator] Checking main access...');
-    console.log('📊 [RootNavigator] User state:', {
-      isAuthenticated,
-      userEmail: user?.email,
-      emailVerified: user?.emailVerified,
-    });
+    // console.log('🔐 [RootNavigator] Checking main access...');
+    // console.log('📊 [RootNavigator] User state:', {
+    //   isAuthenticated,
+    //   userEmail: user?.email,
+    //   emailVerified: user?.emailVerified,
+    // });
 
     // 1️⃣ Authentication kontrolü
     if (!isAuthenticated || !user) {
@@ -88,7 +88,7 @@ export function RootNavigator() {
     }
 
     // 3️⃣ Her şey tamam
-    console.log('✅ [RootNavigator] All checks passed - allowing main access');
+    // console.log('✅ [RootNavigator] All checks passed - allowing main access');
     setCanAccessMain(true);
   };
   if (isValidating) {

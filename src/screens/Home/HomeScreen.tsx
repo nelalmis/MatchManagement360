@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  Modal,
+  Linking,
 } from 'react-native';
 import {
   Trophy,
@@ -26,20 +28,45 @@ import {
   Star,
   Award,
   Activity,
+  UserPlus,
+  X,
+  Info,
+  AlertTriangle,
+  Check,
 } from 'lucide-react-native';
-import { NavigationService } from '../../navigation';
-import { IMatch, ILeague, getSportIcon, getMatchStatusColor } from '../../types/types';
-import { matchService } from '../../services/matchService';
-import { playerStatsService } from '../../services/playerStatsService';
-import { leagueService } from '../../services/leagueService';
+import { NavigationService } from '../../navigation/NavigationService';
+import { 
+  IMatch, 
+  ILeague, 
+  IPlayerStats,
+  IAnnouncement,
+  MatchStatus,
+  SportType,
+} from '../../types/entity/types';
+import { MatchService } from '../../services/serviceLayer/matchService';
+import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
+import { LeagueService } from '../../services/serviceLayer/leagueService';
+import { MatchRatingService } from '../../services/serviceLayer/matchRatingService';
+import { AnnouncementService } from '../../services/serviceLayer/announcementService';
 import { useAuth } from '../../hooks';
+import {
+  getSportEmoji,
+  getSportPrimaryColor,
+} from '../../utils/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ============================================
 // CONSTANTS
 // ============================================
 
-const UPCOMING_STATUSES = ['Kayıt Açık', 'Kayıt Kapandı', 'Takımlar Oluşturuldu', 'Oynanıyor'] as const;
+const UPCOMING_STATUSES: MatchStatus[] = [
+  MatchStatus.REGISTRATION_OPEN,
+  MatchStatus.REGISTRATION_CLOSED,
+  MatchStatus.TEAMS_SET,
+  MatchStatus.IN_PROGRESS,
+];
 const MAX_ITEMS = 3;
+const DISMISSED_ANNOUNCEMENTS_KEY = '@dismissed_announcements';
 
 // ============================================
 // TYPES
@@ -110,7 +137,7 @@ const MatchCardSkeleton = React.memo(() => (
 // UTILITY FUNCTIONS
 // ============================================
 
-const formatDate = (date: Date): string => {
+const formatDate = (date: Date | string): string => {
   return new Date(date).toLocaleDateString('tr-TR', {
     day: 'numeric',
     month: 'long',
@@ -118,14 +145,14 @@ const formatDate = (date: Date): string => {
   });
 };
 
-const formatTime = (date: Date): string => {
+const formatTime = (date: Date | string): string => {
   return new Date(date).toLocaleTimeString('tr-TR', {
     hour: '2-digit',
     minute: '2-digit',
   });
 };
 
-const formatRelativeTime = (date: Date): string => {
+const formatRelativeTime = (date: Date | string): string => {
   const now = new Date();
   const diffMs = now.getTime() - new Date(date).getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -137,6 +164,145 @@ const formatRelativeTime = (date: Date): string => {
   if (diffHours < 24) return `${diffHours} saat önce`;
   if (diffDays < 7) return `${diffDays} gün önce`;
   return formatDate(date);
+};
+
+const getMatchStatusColor = (status: MatchStatus): string => {
+  const colorMap: Record<MatchStatus, string> = {
+    [MatchStatus.CREATED]: '#9CA3AF',
+    [MatchStatus.REGISTRATION_OPEN]: '#16a34a',
+    [MatchStatus.REGISTRATION_CLOSED]: '#F59E0B',
+    [MatchStatus.TEAMS_SET]: '#2563EB',
+    [MatchStatus.IN_PROGRESS]: '#EF4444',
+    [MatchStatus.AWAITING_SCORE]: '#8B5CF6',
+    [MatchStatus.COMPLETED]: '#10B981',
+    [MatchStatus.CANCELLED]: '#6B7280',
+  };
+  return colorMap[status] || '#9CA3AF';
+};
+
+const getMatchStatusText = (status: MatchStatus): string => {
+  const textMap: Record<MatchStatus, string> = {
+    [MatchStatus.CREATED]: 'Oluşturuldu',
+    [MatchStatus.REGISTRATION_OPEN]: 'Kayıt Açık',
+    [MatchStatus.REGISTRATION_CLOSED]: 'Kayıt Kapandı',
+    [MatchStatus.TEAMS_SET]: 'Takımlar Oluşturuldu',
+    [MatchStatus.IN_PROGRESS]: 'Oynanıyor',
+    [MatchStatus.AWAITING_SCORE]: 'Skor Onay Bekliyor',
+    [MatchStatus.COMPLETED]: 'Tamamlandı',
+    [MatchStatus.CANCELLED]: 'İptal Edildi',
+  };
+  return textMap[status] || 'Bilinmiyor';
+};
+
+// ============================================
+// ANNOUNCEMENT CARD COMPONENT
+// ============================================
+
+interface AnnouncementCardProps {
+  announcement: IAnnouncement;
+  onDismiss: () => void;
+  onAction?: () => void;
+}
+
+const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
+  announcement,
+  onDismiss,
+  onAction,
+}) => {
+  const getTypeColor = (type: IAnnouncement['type']) => {
+    const colors = {
+      info: '#2563EB',
+      warning: '#F59E0B',
+      success: '#16a34a',
+      error: '#EF4444',
+    };
+    return colors[type];
+  };
+
+  const getTypeIcon = (type: IAnnouncement['type']) => {
+    const color = getTypeColor(type);
+    switch (type) {
+      case 'info':
+        return <Info size={20} color={color} strokeWidth={2} />;
+      case 'warning':
+        return <AlertCircle size={20} color={color} strokeWidth={2} />;
+      case 'success':
+        return <Check size={20} color={color} strokeWidth={2} />;
+      case 'error':
+        return <AlertTriangle size={20} color={color} strokeWidth={2} />;
+    }
+  };
+
+  const color = getTypeColor(announcement.type);
+
+  return (
+    <View style={[styles.announcementCard, { borderLeftColor: color, borderLeftWidth: 4 }]}>
+      <View style={styles.announcementHeader}>
+        <View style={[styles.announcementIconContainer, { backgroundColor: `${color}20` }]}>
+          {getTypeIcon(announcement.type)}
+        </View>
+        
+        {announcement.display.dismissable && (
+          <TouchableOpacity
+            onPress={onDismiss}
+            style={styles.dismissButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <X size={20} color="#9CA3AF" strokeWidth={2} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <Text style={styles.announcementTitle}>{announcement.title}</Text>
+      <Text style={styles.announcementMessage}>{announcement.message}</Text>
+
+      {announcement.action && (
+        <TouchableOpacity 
+          style={[styles.announcementAction, { backgroundColor: color }]}
+          onPress={onAction}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.announcementActionText}>{announcement.action.label}</Text>
+          <ChevronRight size={16} color="white" strokeWidth={2.5} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
+// ============================================
+// ANNOUNCEMENT POPUP MODAL
+// ============================================
+
+interface AnnouncementPopupProps {
+  announcement: IAnnouncement;
+  onDismiss: () => void;
+  onAction?: () => void;
+}
+
+const AnnouncementPopup: React.FC<AnnouncementPopupProps> = ({
+  announcement,
+  onDismiss,
+  onAction,
+}) => {
+  return (
+    <Modal
+      visible={true}
+      transparent
+      animationType="fade"
+      onRequestClose={onDismiss}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <AnnouncementCard
+            announcement={announcement}
+            onDismiss={onDismiss}
+            onAction={onAction}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
 };
 
 // ============================================
@@ -153,6 +319,9 @@ export const HomeScreen: React.FC = () => {
   const [myLeagues, setMyLeagues] = useState<ILeague[]>([]);
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [announcements, setAnnouncements] = useState<IAnnouncement[]>([]);
+  const [popupAnnouncement, setPopupAnnouncement] = useState<IAnnouncement | null>(null);
+  const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>([]);
   const [paymentSummary, setPaymentSummary] = useState({
     pending: 0,
     total: 0,
@@ -166,6 +335,31 @@ export const HomeScreen: React.FC = () => {
   });
 
   // ============================================
+  // ANNOUNCEMENT STORAGE
+  // ============================================
+
+  const loadDismissedAnnouncements = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(DISMISSED_ANNOUNCEMENTS_KEY);
+      if (stored) {
+        setDismissedAnnouncements(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Error loading dismissed announcements:', error);
+    }
+  };
+
+  const saveDismissedAnnouncement = async (announcementId: string) => {
+    try {
+      const updated = [...dismissedAnnouncements, announcementId];
+      await AsyncStorage.setItem(DISMISSED_ANNOUNCEMENTS_KEY, JSON.stringify(updated));
+      setDismissedAnnouncements(updated);
+    } catch (error) {
+      console.error('Error saving dismissed announcement:', error);
+    }
+  };
+
+  // ============================================
   // DATA LOADING
   // ============================================
 
@@ -176,21 +370,49 @@ export const HomeScreen: React.FC = () => {
       setLoading(true);
 
       // Parallel fetch for performance
-      const [matches, leagues, playerStats] = await Promise.all([
-        matchService.getMatchesByPlayer(user.id),
-        leagueService.getLeaguesByPlayer(user.id),
-        playerStatsService.getStatsByPlayer(user.id),
+      const [matchesResult, leaguesResult, statsResult, announcementsResult] = await Promise.all([
+        MatchService.getPlayerMatchHistory(user.id),
+        LeagueService.getPlayerLeagues(user.id),
+        PlayerStatsService.getAllPlayerStats(user.id),
+        AnnouncementService.getHomeAnnouncements(true),
       ]);
+
+      const matches = matchesResult.success && matchesResult.data ? matchesResult.data : [];
+      const leagues = leaguesResult.success && leaguesResult.data ? leaguesResult.data : [];
+      const playerStats = statsResult.success && statsResult.data ? statsResult.data : [];
+      const allAnnouncements = announcementsResult.success && announcementsResult.data ? announcementsResult.data : [];
+
+      // Filter announcements
+      const activeAnnouncements = allAnnouncements.filter(a => 
+        AnnouncementService.isAnnouncementActive(a) &&
+        !dismissedAnnouncements.includes(a.id!)
+      );
+
+      setAnnouncements(activeAnnouncements);
+
+      // Check for popup announcement
+      const popupAnnouncements = await AnnouncementService.getPopupAnnouncements(true);
+      if (popupAnnouncements.success && popupAnnouncements.data) {
+        const popup = popupAnnouncements.data.find(a => 
+          AnnouncementService.isAnnouncementActive(a) &&
+          !dismissedAnnouncements.includes(a.id!)
+        );
+        if (popup) {
+          setPopupAnnouncement(popup);
+          // Track view
+          await AnnouncementService.incrementViews(popup.id!);
+        }
+      }
 
       // Process upcoming matches
       const now = new Date();
       const upcoming = matches
         .filter(m => 
-          new Date(m.matchStartTime) > now && 
-          UPCOMING_STATUSES.includes(m.status as any)
+          new Date(m.schedule.matchStart) > now && 
+          UPCOMING_STATUSES.includes(m.status)
         )
         .sort((a, b) => 
-          new Date(a.matchStartTime).getTime() - new Date(b.matchStartTime).getTime()
+          new Date(a.schedule.matchStart).getTime() - new Date(b.schedule.matchStart).getTime()
         )
         .slice(0, MAX_ITEMS);
 
@@ -198,10 +420,15 @@ export const HomeScreen: React.FC = () => {
       setMyLeagues(leagues.slice(0, MAX_ITEMS));
 
       // Calculate average rating
-      const totalRatings = playerStats.reduce((sum, s) => sum + (s.rating || 0), 0);
-      const averageRating = playerStats.length > 0 
-        ? parseFloat((totalRatings / playerStats.length).toFixed(1)) 
-        : 0;
+      let totalRating = 0;
+      let ratingCount = 0;
+      playerStats.forEach(stat => {
+        if (stat.rating && typeof stat.rating === 'number') {
+          totalRating += stat.rating;
+          ratingCount++;
+        }
+      });
+      const averageRating = ratingCount > 0 ? parseFloat((totalRating / ratingCount).toFixed(1)) : 0;
 
       setStats({
         totalMatches: matches.length,
@@ -228,13 +455,70 @@ export const HomeScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, dismissedAnnouncements]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
   }, [loadData]);
+
+  // ============================================
+  // ANNOUNCEMENT HANDLERS
+  // ============================================
+
+  const handleDismissAnnouncement = async (announcementId: string) => {
+    await saveDismissedAnnouncement(announcementId);
+    setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
+    
+    // Track dismiss
+    await AnnouncementService.incrementDismissed(announcementId);
+  };
+
+  const handleAnnouncementAction = async (announcement: IAnnouncement) => {
+    if (!announcement.action) return;
+
+    // Track click
+    await AnnouncementService.incrementClicks(announcement.id!);
+
+    const { url } = announcement.action;
+
+    // Handle deep links
+    if (url.startsWith('app://')) {
+      const path = url.replace('app://', '');
+      
+      // Parse and navigate
+      if (path.startsWith('league/')) {
+        const leagueId = path.split('/')[1];
+        NavigationService.navigateToLeagueDetail(leagueId);
+      } else if (path.startsWith('match/')) {
+        const matchId = path.split('/')[1];
+        NavigationService.navigateToMatchDetail(matchId);
+      } else if (path === 'join-league') {
+        NavigationService.navigateToJoinLeague();
+      } else if (path === 'payments') {
+        NavigationService.navigateToPaymentTracking('');
+      }
+    } else if (url.startsWith('http://') || url.startsWith('https://')) {
+      // External URL
+      Linking.openURL(url);
+    }
+  };
+
+  const handleDismissPopup = async () => {
+    if (popupAnnouncement) {
+      await saveDismissedAnnouncement(popupAnnouncement.id!);
+      await AnnouncementService.incrementDismissed(popupAnnouncement.id!);
+    }
+    setPopupAnnouncement(null);
+  };
+
+  const handlePopupAction = async () => {
+    if (popupAnnouncement) {
+      await handleAnnouncementAction(popupAnnouncement);
+      handleDismissPopup();
+    }
+  };
 
   // ============================================
   // DATA PROCESSING FUNCTIONS
@@ -245,60 +529,84 @@ export const HomeScreen: React.FC = () => {
 
     for (const match of matches) {
       // Bekleyen ödeme
-      const myPayment = match.paymentStatus?.find(p => p.playerId === userId);
-      if (myPayment && !myPayment.paid && match.status !== 'İptal Edildi') {
+      const myPayment = match.payments?.find(p => p.playerId === userId);
+      if (myPayment && !myPayment.paid && match.status !== MatchStatus.CANCELLED) {
         actions.push({
           id: `payment-${match.id}`,
           type: 'payment',
           title: 'Ödeme Bekliyor',
           subtitle: `${match.title} - ${myPayment.amount}₺`,
-          matchId: match.id,
+          matchId: match.id!,
           priority: 'high',
         });
       }
 
       // Puanlama bekleniyor
-      if (match.status === 'Ödeme Bekliyor' || match.status === 'Tamamlandı') {
-        const hasRated = false; // matchRatingService'den kontrol edilmeli
-        if (!hasRated && match.registeredPlayerIds?.includes(userId)) {
+      if (match.status === MatchStatus.COMPLETED) {
+        const ratingsResult = await MatchRatingService.getRaterRatings(match.id!, userId);
+        const hasRated = ratingsResult.success && ratingsResult.data && ratingsResult.data.length > 0;
+        
+        const allPlayerIds = match.players.teams
+          ? [
+              ...match.players.teams.team1.map(p => p.playerId),
+              ...match.players.teams.team2.map(p => p.playerId),
+            ]
+          : [];
+        
+        if (!hasRated && allPlayerIds.includes(userId)) {
           actions.push({
             id: `rating-${match.id}`,
             type: 'rating',
             title: 'Oyuncu Puanlaması',
             subtitle: `${match.title} - Oyuncuları puanla`,
-            matchId: match.id,
+            matchId: match.id!,
             priority: 'medium',
           });
         }
       }
 
       // Gol/Asist girişi bekleniyor
-      if (match.status === 'Skor Onay Bekliyor') {
-        const myGoalEntry = match.goalScorers?.find(g => g.playerId === userId);
-        if (!myGoalEntry && match.registeredPlayerIds?.includes(userId)) {
+      if (match.status === MatchStatus.AWAITING_SCORE && match.score) {
+        const myGoalEntry = match.score.scorers.find(s => s.playerId === userId);
+        
+        const allPlayerIds = match.players.teams
+          ? [
+              ...match.players.teams.team1.map(p => p.playerId),
+              ...match.players.teams.team2.map(p => p.playerId),
+            ]
+          : [];
+        
+        if (!myGoalEntry && allPlayerIds.includes(userId)) {
           actions.push({
             id: `goal-${match.id}`,
             type: 'goalAssist',
             title: 'Gol & Asist Gir',
             subtitle: `${match.title} - Performansını kaydet`,
-            matchId: match.id,
+            matchId: match.id!,
             priority: 'medium',
           });
         }
       }
 
       // Kayıt açık maçlar
-      if (match.status === 'Kayıt Açık' && !match.registeredPlayerIds?.includes(userId)) {
-        const hoursUntil = (new Date(match.matchStartTime).getTime() - Date.now()) / 3600000;
-        if (hoursUntil < 48) {
-          actions.push({
-            id: `register-${match.id}`,
-            type: 'registration',
-            title: 'Maça Kayıt Ol',
-            subtitle: `${match.title} - ${Math.floor(hoursUntil)} saat kaldı`,
-            matchId: match.id,
-            priority: hoursUntil < 24 ? 'high' : 'low',
-          });
+      if (match.status === MatchStatus.REGISTRATION_OPEN) {
+        const isAlreadyRegistered = match.players.registered.some(r => r.playerId === userId);
+        const isDirectPlayer = match.players.direct.mode === 'custom' && match.players.direct.overrides
+          ? match.players.direct.overrides.includes(userId)
+          : match.players.direct.inherited.includes(userId);
+        
+        if (!isAlreadyRegistered && !isDirectPlayer) {
+          const hoursUntil = (new Date(match.schedule.matchStart).getTime() - Date.now()) / 3600000;
+          if (hoursUntil < 48) {
+            actions.push({
+              id: `register-${match.id}`,
+              type: 'registration',
+              title: 'Maça Kayıt Ol',
+              subtitle: `${match.title} - ${Math.floor(hoursUntil)} saat kaldı`,
+              matchId: match.id!,
+              priority: hoursUntil < 24 ? 'high' : 'low',
+            });
+          }
         }
       }
     }
@@ -315,8 +623,8 @@ export const HomeScreen: React.FC = () => {
     let total = 0;
 
     matches.forEach(match => {
-      const myPayment = match.paymentStatus?.find(p => p.playerId === userId);
-      if (myPayment && match.status !== 'İptal Edildi') {
+      const myPayment = match.payments?.find(p => p.playerId === userId);
+      if (myPayment && match.status !== MatchStatus.CANCELLED) {
         total += myPayment.amount;
         if (!myPayment.paid) {
           pending += myPayment.amount;
@@ -330,33 +638,37 @@ export const HomeScreen: React.FC = () => {
   const generateNewsFeed = async (
     matches: IMatch[],
     leagues: ILeague[],
-    playerStats: any[],
+    playerStats: IPlayerStats[],
     userId: string
   ): Promise<NewsItem[]> => {
     const feed: NewsItem[] = [];
 
     // Son tamamlanan maç
     const completedMatches = matches
-      .filter(m => m.status === 'Tamamlandı')
-      .sort((a, b) => new Date(b.matchStartTime).getTime() - new Date(a.matchStartTime).getTime());
+      .filter(m => m.status === MatchStatus.COMPLETED)
+      .sort((a, b) => new Date(b.schedule.matchStart).getTime() - new Date(a.schedule.matchStart).getTime());
 
     if (completedMatches[0]) {
       const match = completedMatches[0];
+      const scoreText = match.score 
+        ? `${match.score.team1} - ${match.score.team2}`
+        : 'Skor girilmedi';
+      
       feed.push({
         id: `match-${match.id}`,
         type: 'match_result',
         title: 'Maç Tamamlandı',
-        description: `${match.title} - Skor: ${match.score}`,
-        icon: '⚽',
-        time: formatRelativeTime(match.matchStartTime),
+        description: `${match.title} - Skor: ${scoreText}`,
+        icon: getSportEmoji(match.sportType as SportType),
+        time: formatRelativeTime(match.schedule.matchStart),
         color: '#16a34a',
       });
     }
 
     // MVP Ödülü
     const recentMVP = matches.find(m => 
-      m.playerIdOfMatchMVP === userId && 
-      m.status === 'Tamamlandı'
+      m.mvp?.playerId === userId && 
+      m.status === MatchStatus.COMPLETED
     );
     if (recentMVP) {
       feed.push({
@@ -365,7 +677,7 @@ export const HomeScreen: React.FC = () => {
         title: '🏆 MVP Ödülü Kazandın!',
         description: `${recentMVP.title} maçında en iyi oyuncu seçildin`,
         icon: '🏆',
-        time: formatRelativeTime(recentMVP.matchStartTime),
+        time: formatRelativeTime(recentMVP.schedule.matchStart),
         color: '#F59E0B',
       });
     }
@@ -382,24 +694,13 @@ export const HomeScreen: React.FC = () => {
           id: `league-${newestLeague.id}`,
           type: 'league_update',
           title: 'Yeni Lige Katıldın',
-          description: `${newestLeague.title} - ${newestLeague.playerIds?.length} oyuncu`,
-          icon: getSportIcon(newestLeague.sportType),
+          description: `${newestLeague.title} - ${newestLeague.totalMembers} oyuncu`,
+          icon: getSportEmoji(newestLeague.sportType as SportType),
           time: formatRelativeTime(new Date(newestLeague.createdAt)),
           color: '#2563EB',
         });
       }
     }
-
-    // Genel duyuru (örnek)
-    feed.push({
-      id: 'announcement-1',
-      type: 'announcement',
-      title: '📢 Yeni Özellik',
-      description: 'Artık maçtan sonra oyuncuları puanlayabilirsiniz!',
-      icon: '📢',
-      time: '2 gün önce',
-      color: '#8B5CF6',
-    });
 
     return feed;
   };
@@ -407,6 +708,10 @@ export const HomeScreen: React.FC = () => {
   // ============================================
   // EFFECTS
   // ============================================
+
+  useEffect(() => {
+    loadDismissedAnnouncements();
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -419,8 +724,8 @@ export const HomeScreen: React.FC = () => {
   const formattedMatches = useMemo<FormattedMatch[]>(() =>
     upcomingMatches.map(match => ({
       ...match,
-      formattedDate: formatDate(match.matchStartTime),
-      formattedTime: formatTime(match.matchStartTime),
+      formattedDate: formatDate(match.schedule.matchStart),
+      formattedTime: formatTime(match.schedule.matchStart),
     })),
     [upcomingMatches]
   );
@@ -430,15 +735,15 @@ export const HomeScreen: React.FC = () => {
   // ============================================
 
   const handleMatchPress = useCallback((match: IMatch) => {
-    if (match.status === 'Kayıt Açık') {
-      NavigationService.navigateToMatchRegistration(match.id);
+    if (match.status === MatchStatus.REGISTRATION_OPEN) {
+      NavigationService.navigateToMatchRegistration(match.id!);
     } else {
-      NavigationService.navigateToMatch(match.id);
+      NavigationService.navigateToMatchDetail(match.id!);
     }
   }, []);
 
   const handleLeaguePress = useCallback((leagueId: string) => {
-    NavigationService.navigateToLeague(leagueId);
+    NavigationService.navigateToLeagueDetail(leagueId);
   }, []);
 
   const handlePendingAction = useCallback((action: PendingAction) => {
@@ -461,14 +766,14 @@ export const HomeScreen: React.FC = () => {
   const handleNewsPress = useCallback((newsItem: NewsItem) => {
     if (newsItem.type === 'match_result') {
       const matchId = newsItem.id.split('-')[1];
-      NavigationService.navigateToMatch(matchId);
+      NavigationService.navigateToMatchDetail(matchId);
     } else if (newsItem.type === 'league_update') {
       const leagueId = newsItem.id.split('-')[1];
-      NavigationService.navigateToLeague(leagueId);
+      NavigationService.navigateToLeagueDetail(leagueId);
     }
   }, []);
 
-  const handleQuickAction = useCallback((action: 'standings' | 'profile' | 'payments') => {
+  const handleQuickAction = useCallback((action: 'standings' | 'profile' | 'payments' | 'joinLeague') => {
     if (action === 'standings') {
       if (myLeagues.length === 0) {
         Alert.alert('Lig Bulunamadı', 'Önce bir lige katılmanız gerekiyor.');
@@ -478,8 +783,9 @@ export const HomeScreen: React.FC = () => {
     } else if (action === 'profile') {
       NavigationService.navigateToProfileTab();
     } else if (action === 'payments') {
-      // Ödeme geçmişi ekranına git (yakında eklenecek)
       Alert.alert('Ödemelerim', `Toplam: ${paymentSummary.total}₺\nBekleyen: ${paymentSummary.pending}₺`);
+    } else if (action === 'joinLeague') {
+      NavigationService.navigateToJoinLeague();
     }
   }, [myLeagues.length, paymentSummary]);
 
@@ -497,94 +803,66 @@ export const HomeScreen: React.FC = () => {
     </View>
   ), []);
 
+  const renderAnnouncements = useCallback(() => {
+    if (announcements.length === 0) return null;
+
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Bell size={20} color="#F59E0B" strokeWidth={2} />
+          <Text style={styles.sectionTitle}>Duyurular</Text>
+        </View>
+
+        {announcements.map(announcement => (
+          <AnnouncementCard
+            key={announcement.id}
+            announcement={announcement}
+            onDismiss={() => handleDismissAnnouncement(announcement.id!)}
+            onAction={() => handleAnnouncementAction(announcement)}
+          />
+        ))}
+      </View>
+    );
+  }, [announcements]);
+
   const renderPendingActions = useCallback(() => {
     if (pendingActions.length === 0) return null;
 
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            <AlertCircle size={20} color="#EF4444" strokeWidth={2} />
-            <Text style={styles.sectionTitle}>Bekleyen İşlemler</Text>
-            {pendingActions.length > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{pendingActions.length}</Text>
-              </View>
-            )}
+          <Text style={styles.sectionTitle}>Bekleyen İşlemler</Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{pendingActions.length}</Text>
           </View>
         </View>
 
-        {pendingActions.map((action) => (
-          <TouchableOpacity
-            key={action.id}
-            style={[
-              styles.actionCard,
-              action.priority === 'high' && styles.actionCardHigh,
-            ]}
-            activeOpacity={0.7}
-            onPress={() => handlePendingAction(action)}
-          >
-            <View style={styles.actionCardLeft}>
-              <View style={[
-                styles.actionIcon,
-                { backgroundColor: action.priority === 'high' ? '#FEE2E2' : '#FEF3C7' }
-              ]}>
-                {action.type === 'payment' && <DollarSign size={20} color="#EF4444" strokeWidth={2} />}
-                {action.type === 'rating' && <Star size={20} color="#F59E0B" strokeWidth={2} />}
-                {action.type === 'goalAssist' && <Target size={20} color="#F59E0B" strokeWidth={2} />}
-                {action.type === 'registration' && <Calendar size={20} color="#F59E0B" strokeWidth={2} />}
+        {pendingActions.map(action => {
+          const iconColor = action.priority === 'high' ? '#EF4444' : '#F59E0B';
+          return (
+            <TouchableOpacity
+              key={action.id}
+              style={styles.actionCard}
+              onPress={() => handlePendingAction(action)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: `${iconColor}20` }]}>
+                {action.type === 'payment' && <DollarSign size={20} color={iconColor} />}
+                {action.type === 'rating' && <Star size={20} color={iconColor} />}
+                {action.type === 'goalAssist' && <Target size={20} color={iconColor} />}
+                {action.type === 'registration' && <Calendar size={20} color={iconColor} />}
               </View>
-              <View style={styles.actionCardInfo}>
-                <Text style={styles.actionCardTitle}>{action.title}</Text>
-                <Text style={styles.actionCardSubtitle}>{action.subtitle}</Text>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>{action.title}</Text>
+                <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
               </View>
-            </View>
-            <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-          </TouchableOpacity>
-        ))}
+              <ChevronRight size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          );
+        })}
       </View>
     );
   }, [pendingActions, handlePendingAction]);
-
-  const renderPaymentSummary = useCallback(() => {
-    if (paymentSummary.total === 0) return null;
-
-    return (
-      <TouchableOpacity
-        style={styles.paymentCard}
-        activeOpacity={0.7}
-        onPress={() => handleQuickAction('payments')}
-      >
-        <View style={styles.paymentCardHeader}>
-          <View style={styles.paymentIconContainer}>
-            <DollarSign size={24} color="#16a34a" strokeWidth={2} />
-          </View>
-          <View style={styles.paymentCardInfo}>
-            <Text style={styles.paymentCardTitle}>Ödemelerim</Text>
-            <Text style={styles.paymentCardSubtitle}>
-              {paymentSummary.pending > 0 ? `${paymentSummary.pending}₺ bekliyor` : 'Tüm ödemeler tamam'}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.paymentCardFooter}>
-          <View style={styles.paymentStat}>
-            <Text style={styles.paymentStatLabel}>Toplam</Text>
-            <Text style={styles.paymentStatValue}>{paymentSummary.total}₺</Text>
-          </View>
-          <View style={styles.paymentDivider} />
-          <View style={styles.paymentStat}>
-            <Text style={styles.paymentStatLabel}>Bekleyen</Text>
-            <Text style={[
-              styles.paymentStatValue,
-              { color: paymentSummary.pending > 0 ? '#EF4444' : '#16a34a' }
-            ]}>
-              {paymentSummary.pending}₺
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  }, [paymentSummary, handleQuickAction]);
 
   const renderNews = useCallback(() => {
     if (news.length === 0) return null;
@@ -592,30 +870,23 @@ export const HomeScreen: React.FC = () => {
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            <Bell size={20} color="#2563EB" strokeWidth={2} />
-            <Text style={styles.sectionTitle}>Haberler</Text>
-          </View>
+          <Text style={styles.sectionTitle}>Haberler</Text>
         </View>
 
-        {news.map((item) => (
+        {news.map(item => (
           <TouchableOpacity
             key={item.id}
             style={styles.newsCard}
-            activeOpacity={0.7}
             onPress={() => handleNewsPress(item)}
+            activeOpacity={0.7}
           >
-            <View style={styles.newsCardLeft}>
-              <View style={[styles.newsIcon, { backgroundColor: item.color + '20' }]}>
-                <Text style={styles.newsEmoji}>{item.icon}</Text>
-              </View>
-              <View style={styles.newsCardInfo}>
-                <Text style={styles.newsCardTitle}>{item.title}</Text>
-                <Text style={styles.newsCardDescription} numberOfLines={2}>
-                  {item.description}
-                </Text>
-                <Text style={styles.newsCardTime}>{item.time}</Text>
-              </View>
+            <View style={[styles.newsIcon, { backgroundColor: `${item.color}20` }]}>
+              <Text style={styles.newsEmoji}>{item.icon}</Text>
+            </View>
+            <View style={styles.newsContent}>
+              <Text style={styles.newsTitle}>{item.title}</Text>
+              <Text style={styles.newsDescription}>{item.description}</Text>
+              <Text style={styles.newsTime}>{item.time}</Text>
             </View>
           </TouchableOpacity>
         ))}
@@ -623,303 +894,310 @@ export const HomeScreen: React.FC = () => {
     );
   }, [news, handleNewsPress]);
 
-  const renderNextMatch = useCallback(() => {
-    if (!stats.nextMatch) return null;
-
-    const match = stats.nextMatch;
-    const league = myLeagues.find(l => l.id === match.fixtureId);
-
-    return (
-      <TouchableOpacity
-        style={styles.nextMatchCard}
-        activeOpacity={0.7}
-        onPress={() => handleMatchPress(match)}
-      >
-        <View style={styles.nextMatchHeader}>
-          <View style={styles.nextMatchBadge}>
-            <Zap size={14} color="white" strokeWidth={2.5} />
-            <Text style={styles.nextMatchBadgeText}>Sonraki Maç</Text>
-          </View>
-          <Text style={styles.nextMatchEmoji}>
-            {getSportIcon(league?.sportType || 'Futbol')}
-          </Text>
-        </View>
-
-        <Text style={styles.nextMatchTitle}>{match.title}</Text>
-
-        <View style={styles.nextMatchDetails}>
-          <View style={styles.nextMatchDetailItem}>
-            <Clock size={16} color="#6B7280" strokeWidth={2} />
-            <Text style={styles.nextMatchDetailText}>
-              {formatDate(match.matchStartTime)} • {formatTime(match.matchStartTime)}
-            </Text>
-          </View>
-
-          {match.location && (
-            <View style={styles.nextMatchDetailItem}>
-              <MapPin size={16} color="#6B7280" strokeWidth={2} />
-              <Text style={styles.nextMatchDetailText}>{match.location}</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.nextMatchFooter}>
-          <View style={styles.nextMatchPlayers}>
-            <Users size={16} color="#16a34a" strokeWidth={2} />
-            <Text style={styles.nextMatchPlayersText}>
-              {match.registeredPlayerIds?.length || 0} oyuncu kayıtlı
-            </Text>
-          </View>
-          <ChevronRight size={20} color="#16a34a" strokeWidth={2.5} />
-        </View>
-      </TouchableOpacity>
-    );
-  }, [stats.nextMatch, myLeagues, handleMatchPress]);
-
-  const renderMatchCard = useCallback((match: FormattedMatch) => {
-    const league = myLeagues.find(l => l.id === match.fixtureId);
-
-    return (
-      <TouchableOpacity
-        key={match.id}
-        style={styles.matchCard}
-        activeOpacity={0.7}
-        onPress={() => handleMatchPress(match)}
-      >
-        <View style={styles.matchCardLeft}>
-          <Text style={styles.matchEmoji}>
-            {getSportIcon(league?.sportType || 'Futbol')}
-          </Text>
-          <View style={styles.matchCardInfo}>
-            <Text style={styles.matchCardTitle} numberOfLines={1}>
-              {match.title}
-            </Text>
-            <View style={styles.matchCardMeta}>
-              <Clock size={12} color="#6B7280" strokeWidth={2} />
-              <Text style={styles.matchCardMetaText}>
-                {match.formattedDate} • {match.formattedTime}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.matchCardRight}>
-          <View
-            style={[
-              styles.matchStatusBadge,
-              { backgroundColor: getMatchStatusColor(match.status) + '20' },
-            ]}
-          >
-            <Text
-              style={[
-                styles.matchStatusText,
-                { color: getMatchStatusColor(match.status) },
-              ]}
-            >
-              {match.status}
-            </Text>
-          </View>
-          <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-        </View>
-      </TouchableOpacity>
-    );
-  }, [myLeagues, handleMatchPress]);
-
-  const renderLeagueCard = useCallback((league: ILeague) => (
-    <TouchableOpacity
-      key={league.id}
-      style={styles.leagueCard}
-      activeOpacity={0.7}
-      onPress={() => handleLeaguePress(league.id!)}
-    >
-      <View style={styles.leagueCardLeft}>
-        <Text style={styles.leagueEmoji}>{getSportIcon(league.sportType)}</Text>
-        <View style={styles.leagueCardInfo}>
-          <Text style={styles.leagueCardTitle} numberOfLines={1}>
-            {league.title}
-          </Text>
-          <View style={styles.leagueCardMeta}>
-            <Users size={12} color="#6B7280" strokeWidth={2} />
-            <Text style={styles.leagueCardMetaText}>
-              {league.playerIds?.length || 0} oyuncu
-            </Text>
-          </View>
-        </View>
-      </View>
-      <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-    </TouchableOpacity>
-  ), [handleLeaguePress]);
-
-  const renderEmptyState = useCallback((
-    icon: React.ReactNode,
-    text: string,
-    buttonText: string,
-    onPress: () => void
-  ) => (
-    <View style={styles.emptyState}>
-      <View style={styles.emptyIconContainer}>{icon}</View>
-      <Text style={styles.emptyStateText}>{text}</Text>
-      <TouchableOpacity
-        style={styles.emptyStateButton}
-        onPress={onPress}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.emptyStateButtonText}>{buttonText}</Text>
-      </TouchableOpacity>
-    </View>
-  ), []);
-
   // ============================================
-  // LOADING STATE
+  // MAIN RENDER
   // ============================================
 
   if (loading) {
     return (
       <ScrollView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.greeting}>Yükleniyor...</Text>
+        </View>
         <View style={styles.statsContainer}>
-          <StatCardSkeleton />
-          <StatCardSkeleton />
-          <StatCardSkeleton />
+          {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
         </View>
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Skeleton width={150} height={24} />
-          </View>
-          <MatchCardSkeleton />
-          <MatchCardSkeleton />
+          {[1, 2, 3].map(i => <MatchCardSkeleton key={i} />)}
         </View>
       </ScrollView>
     );
   }
 
-  // ============================================
-  // MAIN RENDER
-  // ============================================
-
   return (
-    <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor="#16a34a"
-          colors={['#16a34a']}
+    <>
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#16a34a" />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Merhaba 👋</Text>
+            <Text style={styles.userName}>{user?.displayName || user?.name}</Text>
+          </View>
+          <TouchableOpacity style={styles.notificationButton}>
+            <Bell size={24} color="#1F2937" strokeWidth={2} />
+            {(pendingActions.length > 0 || announcements.length > 0) && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {pendingActions.length + announcements.length}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Stats Grid */}
+        <View style={styles.statsContainer}>
+          {renderStatCard(
+            <Trophy size={24} color="#16a34a" strokeWidth={2} />,
+            stats.totalLeagues,
+            'Ligim',
+            '#DCFCE7'
+          )}
+          {renderStatCard(
+            <Calendar size={24} color="#2563eb" strokeWidth={2} />,
+            stats.totalMatches,
+            'Maç',
+            '#DBEAFE'
+          )}
+          {renderStatCard(
+            <Star size={24} color="#F59E0B" strokeWidth={2} />,
+            stats.averageRating.toFixed(1),
+            'Puan',
+            '#FEF3C7'
+          )}
+          {renderStatCard(
+            <DollarSign size={24} color="#EF4444" strokeWidth={2} />,
+            `${paymentSummary.pending}₺`,
+            'Borç',
+            '#FEE2E2'
+          )}
+        </View>
+
+        {/* Next Match Highlight */}
+        {stats.nextMatch && (
+          <TouchableOpacity
+            style={styles.nextMatchCard}
+            onPress={() => handleMatchPress(stats.nextMatch!)}
+            activeOpacity={0.9}
+          >
+            <View style={styles.nextMatchHeader}>
+              <View style={styles.nextMatchBadge}>
+                <Zap size={14} color="white" strokeWidth={2.5} />
+                <Text style={styles.nextMatchBadgeText}>Yaklaşan Maç</Text>
+              </View>
+              <Text style={styles.nextMatchEmoji}>
+                {getSportEmoji(stats.nextMatch.sportType as SportType)}
+              </Text>
+            </View>
+
+            <Text style={styles.nextMatchTitle}>{stats.nextMatch.title}</Text>
+
+            <View style={styles.nextMatchDetails}>
+              <View style={styles.nextMatchDetailItem}>
+                <Calendar size={16} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.nextMatchDetailText}>
+                  {formatDate(stats.nextMatch.schedule.matchStart)}
+                </Text>
+              </View>
+
+              <View style={styles.nextMatchDetailItem}>
+                <Clock size={16} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.nextMatchDetailText}>
+                  {formatTime(stats.nextMatch.schedule.matchStart)}
+                </Text>
+              </View>
+
+              <View style={styles.nextMatchDetailItem}>
+                <MapPin size={16} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.nextMatchDetailText}>
+                  {stats.nextMatch.venue?.location || 'Lokasyon belirtilmemiş'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.nextMatchFooter}>
+              <View style={styles.nextMatchPlayers}>
+                <Users size={16} color="#16a34a" strokeWidth={2} />
+                <Text style={styles.nextMatchPlayersText}>
+                  {stats.nextMatch.players.registered.length}/{stats.nextMatch.squad.totalPlayers} Oyuncu
+                </Text>
+              </View>
+
+              <View style={[
+                styles.matchStatusBadge,
+                { backgroundColor: `${getMatchStatusColor(stats.nextMatch.status)}20` }
+              ]}>
+                <Text style={[
+                  styles.matchStatusText,
+                  { color: getMatchStatusColor(stats.nextMatch.status) }
+                ]}>
+                  {getMatchStatusText(stats.nextMatch.status)}
+                </Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Quick Actions */}
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => handleQuickAction('joinLeague')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#DCFCE7' }]}>
+              <UserPlus size={24} color="#16a34a" strokeWidth={2.5} />
+            </View>
+            <Text style={styles.quickActionText}>Lige Katıl</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => handleQuickAction('standings')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#FEF3C7' }]}>
+              <TrendingUp size={24} color="#F59E0B" strokeWidth={2.5} />
+            </View>
+            <Text style={styles.quickActionText}>Puan Durumu</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => handleQuickAction('payments')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#FEE2E2' }]}>
+              <DollarSign size={24} color="#EF4444" strokeWidth={2.5} />
+            </View>
+            <Text style={styles.quickActionText}>Ödemeler</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Announcements */}
+        {renderAnnouncements()}
+
+        {/* Pending Actions */}
+        {renderPendingActions()}
+
+        {/* Upcoming Matches */}
+        {formattedMatches.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Yaklaşan Maçlar</Text>
+              <TouchableOpacity onPress={() => NavigationService.navigateToMatchList()}>
+                <Text style={styles.seeAllText}>Tümünü Gör</Text>
+              </TouchableOpacity>
+            </View>
+
+            {formattedMatches.map(match => (
+              <TouchableOpacity
+                key={match.id}
+                style={styles.matchCard}
+                onPress={() => handleMatchPress(match)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.matchCardLeft}>
+                  <Text style={styles.matchEmoji}>
+                    {getSportEmoji(match.sportType as SportType)}
+                  </Text>
+                  <View style={styles.matchCardInfo}>
+                    <Text style={styles.matchCardTitle}>{match.title}</Text>
+                    <View style={styles.matchCardMeta}>
+                      <Clock size={12} color="#6B7280" strokeWidth={2} />
+                      <Text style={styles.matchCardMetaText}>
+                        {match.formattedDate} • {match.formattedTime}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.matchCardRight}>
+                  <View style={[
+                    styles.matchStatusBadge,
+                    { backgroundColor: `${getMatchStatusColor(match.status)}15` }
+                  ]}>
+                    <Text style={[
+                      styles.matchStatusText,
+                      { color: getMatchStatusColor(match.status) }
+                    ]}>
+                      {getMatchStatusText(match.status)}
+                    </Text>
+                  </View>
+                  <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* My Leagues */}
+        {myLeagues.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Ligilerim</Text>
+              <TouchableOpacity onPress={() => NavigationService.navigateToLeagueList()}>
+                <Text style={styles.seeAllText}>Tümünü Gör</Text>
+              </TouchableOpacity>
+            </View>
+
+            {myLeagues.map(league => (
+              <TouchableOpacity
+                key={league.id}
+                style={styles.leagueCard}
+                onPress={() => handleLeaguePress(league.id!)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.leagueCardLeft}>
+                  <Text style={styles.leagueEmoji}>
+                    {getSportEmoji(league.sportType as SportType)}
+                  </Text>
+                  <View style={styles.leagueCardInfo}>
+                    <Text style={styles.leagueCardTitle}>{league.title}</Text>
+                    <View style={styles.leagueCardMeta}>
+                      <Users size={12} color="#6B7280" strokeWidth={2} />
+                      <Text style={styles.leagueCardMetaText}>
+                        {league.totalMembers} Üye
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* News Feed */}
+        {renderNews()}
+
+        {/* Empty State */}
+        {myLeagues.length === 0 && (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
+              <Trophy size={40} color="#D1D5DB" strokeWidth={2} />
+            </View>
+            <Text style={styles.emptyStateText}>
+              Henüz bir lige katılmadınız
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyStateButton}
+              onPress={() => handleQuickAction('joinLeague')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.emptyStateButtonText}>Lige Katıl</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+
+      {/* Popup Announcement Modal */}
+      {popupAnnouncement && (
+        <AnnouncementPopup
+          announcement={popupAnnouncement}
+          onDismiss={handleDismissPopup}
+          onAction={handlePopupAction}
         />
-      }
-    >
-      {/* Quick Stats */}
-      <View style={styles.statsContainer}>
-        {renderStatCard(
-          <Calendar size={24} color="#16a34a" strokeWidth={2} />,
-          stats.totalMatches,
-          'Toplam Maç',
-          '#F0FDF4'
-        )}
-        {renderStatCard(
-          <Trophy size={24} color="#F59E0B" strokeWidth={2} />,
-          stats.totalLeagues,
-          'Lig',
-          '#FFFBEB'
-        )}
-        {renderStatCard(
-          <TrendingUp size={24} color="#2563EB" strokeWidth={2} />,
-          stats.averageRating > 0 ? stats.averageRating : '-',
-          'Ortalama',
-          '#EFF6FF'
-        )}
-      </View>
-
-      {/* Pending Actions */}
-      {renderPendingActions()}
-
-      {/* Payment Summary */}
-      {renderPaymentSummary()}
-
-      {/* Next Match Highlight */}
-      {renderNextMatch()}
-
-      {/* News Feed */}
-      {renderNews()}
-
-      {/* Upcoming Matches */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Yaklaşan Maçlar</Text>
-          <TouchableOpacity
-            onPress={() => NavigationService.navigateToFixturesTab()}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.seeAllText}>Tümünü Gör</Text>
-          </TouchableOpacity>
-        </View>
-
-        {formattedMatches.length > 0 ? (
-          formattedMatches.map(renderMatchCard)
-        ) : (
-          renderEmptyState(
-            <Calendar size={48} color="#D1D5DB" strokeWidth={1.5} />,
-            'Yaklaşan maç bulunmuyor',
-            'Maçları Keşfet',
-            () => NavigationService.navigateToFixturesTab()
-          )
-        )}
-      </View>
-
-      {/* My Leagues */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Liglerim</Text>
-          <TouchableOpacity
-            onPress={() => NavigationService.navigateToLeaguesTab()}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.seeAllText}>Tümünü Gör</Text>
-          </TouchableOpacity>
-        </View>
-
-        {myLeagues.length > 0 ? (
-          myLeagues.map(renderLeagueCard)
-        ) : (
-          renderEmptyState(
-            <Trophy size={48} color="#D1D5DB" strokeWidth={1.5} />,
-            'Henüz bir lige katılmadınız',
-            'Ligleri Keşfet',
-            () => NavigationService.navigateToLeaguesTab()
-          )
-        )}
-      </View>
-
-      {/* Quick Actions */}
-      {/* <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.quickActionButton}
-          onPress={() => handleQuickAction('standings')}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.quickActionIcon, { backgroundColor: '#F0FDF4' }]}>
-            <TrendingUp size={20} color="#16a34a" strokeWidth={2} />
-          </View>
-          <Text style={styles.quickActionText}>Puan Durumu</Text>
-          <ChevronRight size={16} color="#9CA3AF" strokeWidth={2} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.quickActionButton}
-          onPress={() => handleQuickAction('profile')}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.quickActionIcon, { backgroundColor: '#FFFBEB' }]}>
-            <Target size={20} color="#F59E0B" strokeWidth={2} />
-          </View>
-          <Text style={styles.quickActionText}>İstatistiklerim</Text>
-          <ChevronRight size={16} color="#9CA3AF" strokeWidth={2} />
-        </TouchableOpacity>
-      </View> */}
-
-      <View style={styles.bottomSpacing} />
-    </ScrollView>
+      )}
+    </>
   );
 };
 
@@ -933,13 +1211,59 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
   },
 
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+    backgroundColor: 'white',
+  },
+  greeting: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1F2937',
+  },
+  notificationButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
   // Stats
   statsContainer: {
     flexDirection: 'row',
-    gap: 12,
     paddingHorizontal: 16,
-    paddingTop: 20,
-    marginBottom: 20,
+    paddingTop: 16,
+    gap: 12,
   },
   statCard: {
     flex: 1,
@@ -949,8 +1273,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 2,
   },
   statIconContainer: {
@@ -959,13 +1283,13 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#1F2937',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
@@ -973,178 +1297,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Pending Actions
-  actionCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderLeftWidth: 3,
-    borderLeftColor: '#F59E0B',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  actionCardHigh: {
-    borderLeftColor: '#EF4444',
-  },
-  actionCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 12,
-  },
-  actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  actionCardInfo: {
-    flex: 1,
-  },
-  actionCardTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  actionCardSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-
-  // Payment Card
-  paymentCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 16,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  paymentCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  paymentIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F0FDF4',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  paymentCardInfo: {
-    flex: 1,
-  },
-  paymentCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  paymentCardSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  paymentCardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  paymentStat: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  paymentStatLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  paymentStatValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  paymentDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#E5E7EB',
-  },
-
-  // News
-  newsCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  newsCardLeft: {
-    flexDirection: 'row',
-    flex: 1,
-  },
-  newsIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  newsEmoji: {
-    fontSize: 24,
-  },
-  newsCardInfo: {
-    flex: 1,
-  },
-  newsCardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  newsCardDescription: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 6,
-    lineHeight: 18,
-  },
-  newsCardTime: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-
-  // Next Match
+  // Next Match Card
   nextMatchCard: {
     backgroundColor: 'white',
     borderRadius: 20,
     padding: 20,
     marginHorizontal: 16,
-    marginBottom: 24,
+    marginTop: 24,
+    marginBottom: 16,
     borderWidth: 2,
     borderColor: '#16a34a',
     shadowColor: '#16a34a',
@@ -1217,6 +1377,112 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
+  // Quick Actions
+  quickActions: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  quickActionButton: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  quickActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+    flex: 1,
+  },
+
+  // Announcement Card
+  announcementCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  announcementHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  announcementIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dismissButton: {
+    padding: 4,
+  },
+  announcementTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 6,
+  },
+  announcementMessage: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  announcementAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  announcementActionText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'white',
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+  },
+
   // Section
   section: {
     marginBottom: 24,
@@ -1227,11 +1493,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     marginBottom: 12,
-  },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1256,6 +1517,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#16a34a',
     fontWeight: '600',
+  },
+
+  // Action Card
+  actionCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  actionSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
   },
 
   // Match Card
@@ -1362,6 +1660,50 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
 
+  // News Card
+  newsCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  newsIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  newsEmoji: {
+    fontSize: 24,
+  },
+  newsContent: {
+    flex: 1,
+  },
+  newsTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  newsDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  newsTime: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+
   // Empty State
   emptyState: {
     alignItems: 'center',
@@ -1400,41 +1742,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Quick Actions
-  quickActions: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    marginBottom: 24,
-  },
-  quickActionButton: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  quickActionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quickActionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1F2937',
-    flex: 1,
-  },
-
   // Skeleton
   skeletonContainer: {
     overflow: 'hidden',
@@ -1452,4 +1759,3 @@ const styles = StyleSheet.create({
     height: 20,
   },
 });
-

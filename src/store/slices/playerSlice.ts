@@ -52,37 +52,6 @@ const initialState: PlayerState = {
 // ============================================
 
 /**
- * Register new player
- */
-export const registerPlayer = createAsyncThunk<
-  IPlayer,
-  {
-    email: string;
-    name: string;
-    surname: string;
-    phone?: string;
-    favoriteSports?: SportType[];
-    profilePhoto?: string;
-  },
-  { rejectValue: string }
->(
-  'player/registerPlayer',
-  async (data, { rejectWithValue }) => {
-    try {
-      const result = await PlayerService.registerPlayer(data);
-      
-      if (!result.success || !result.data) {
-        return rejectWithValue(result.error?.message || 'Failed to register player');
-      }
-      
-      return result.data;
-    } catch (error: any) {
-      return rejectWithValue(error.message || 'Failed to register player');
-    }
-  }
-);
-
-/**
  * Fetch player profile
  */
 export const fetchPlayerProfile = createAsyncThunk<
@@ -490,21 +459,6 @@ const playerSlice = createSlice({
     resetPlayerState: () => initialState,
   },
   extraReducers: (builder) => {
-    // Register Player
-    builder
-      .addCase(registerPlayer.pending, (state) => {
-        state.loading.action = true;
-        state.error = null;
-      })
-      .addCase(registerPlayer.fulfilled, (state, action) => {
-        state.loading.action = false;
-        state.currentPlayer = action.payload;
-      })
-      .addCase(registerPlayer.rejected, (state, action) => {
-        state.loading.action = false;
-        state.error = action.payload || 'Unknown error';
-      });
-
     // Fetch Player Profile
     builder
       .addCase(fetchPlayerProfile.pending, (state) => {

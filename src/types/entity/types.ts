@@ -306,6 +306,245 @@ export interface ILeague {
 }
 
 // ============================================
+// 17. LEAGUE SETTINGS (league_settings collection)
+// ============================================
+
+/**
+ * COLLECTION: league_settings
+ * AÇIKLAMA: Lig özel ayarları ve kuralları
+ * İLİŞKİLER: league (id = leagueId)
+ * CACHE: Yok
+ */
+export interface ILeagueSettings {
+  id: string;                   // leagueId ile aynı
+  leagueId: string;
+
+  // ============================================
+  // GENEL KURALLAR
+  // ============================================
+  rules: {
+    lateArrivalPenalty?: number;        // Geç gelme cezası (TL)
+    absentWithoutNoticePenalty?: number; // Haber vermeden gelmeme cezası
+    yellowCardFine?: number;
+    redCardFine?: number;
+    minAttendanceRate?: number;         // Min katılım oranı (%)
+  };
+
+  // ============================================
+  // MAÇ KURALLARI
+  // ============================================
+  matchRules: {
+    allowGuestPlayers: boolean;
+    maxGuestPlayersPerMatch: number;
+    guestPlayerPriceMultiplier: number; // 1.5 = %50 fazla
+    autoAssignTeams: boolean;           // Algoritma ile otomatik takım kur
+    teamBalanceAlgorithm: 'random' | 'rating' | 'position';
+  };
+
+  // ============================================
+  // KAYIT KURALLARI
+  // ============================================
+  registration: {
+    allowLateRegistration: boolean;          // Geç kayıt izinli mi
+    lateRegistrationDeadlineHours: number;   // Maçtan kaç saat önceye kadar izinli 
+    requirePaymentForRegistration: boolean;  // Kayıt için ödeme zorunlu mu
+    autoConfirmPayment: boolean;             // Manuel onay gerektirme
+    cancellationDeadlineHours: number;     // Maçtan kaç saat önce iptal edilebilir
+  };
+
+  // ============================================
+  // SKOR & İSTATİSTİK KURALLARI
+  // ============================================
+  scoring: {
+    requireScoreConfirmation: boolean;  // Skor girişi onay gerektirir mi
+    scoreConfirmationTimeoutHours: number; // Onay için süre (saat)
+    allowPlayerSelfReporting: boolean;  // Oyuncular kendi gollerini girebilir mi
+  };
+
+  // ============================================
+  // RATING KURALLARI
+  // ============================================
+  rating: {
+    enabled: boolean;
+    mandatory: boolean;                 // Zorunlu mu
+    anonymous: boolean;                 // Anonim mi
+    ratingDeadlineHours: number;
+    minRatingsForMVP: number;           // MVP için min rating sayısı
+    allowCategoryRating: boolean;       // Kategorik puanlama
+  };
+
+  // ============================================
+  // YORUM KURALLARI
+  // ============================================
+  comments: {
+    enabled: boolean;
+    requireApproval: boolean;
+    allowLikes: boolean;
+    maxLength: number;
+  };
+
+  // ============================================
+  // ÖDEME AYARLARI
+  // ============================================
+  payment: {
+    defaultIban?: string;
+    defaultAccountName?: string;
+    defaultPricePerPlayer: number;
+    currency: 'TRY' | 'USD' | 'EUR';
+    allowInstallment: boolean;
+    paymentMethods: ('cash' | 'bank_transfer' | 'credit_card')[];
+  };
+
+  // ============================================
+  // WEBHOOK & INTEGRATIONS
+  // ============================================
+  integrations?: {
+    googleCalendar: boolean;
+    googleSheets: boolean;
+    whatsapp: boolean;
+    slack: boolean;
+  };
+
+  // ============================================
+  // META
+  // ============================================
+  updatedAt: string;
+  updatedBy: string;
+}
+
+
+/**
+ * COLLECTION: league_invitations
+ * AÇIKLAMA: Lig davet kodları ve linkleri
+ * İLİŞKİLER: leagues, players (invitation_uses)
+ * CACHE: usedCount, isActive
+ */
+export interface ILeagueInvitation {
+  id: string;
+  leagueId: string;
+
+  // ============================================
+  // DAVET KODU
+  // ============================================
+  code: string;                 // "ABC123XY" - 8 haneli unique code
+  inviteLink: string;           // "app://join-league/ABC123XY" deep link
+
+  // ============================================
+  // YARATICI & ZAMAN
+  // ============================================
+  createdBy: string;            // Admin ID
+  createdAt: string;
+  expiresAt?: string;           // Opsiyonel - null ise süresiz
+
+  // ============================================
+  // KULLANIM LİMİTLERİ
+  // ============================================
+  maxUses?: number;             // Opsiyonel - null ise sınırsız
+  usedCount: number;            // Kaç kez kullanıldı (CACHE)
+  isActive: boolean;            // Manuel olarak devre dışı bırakılabilir
+
+  // ============================================
+  // METADATA
+  // ============================================
+  metadata: {
+    description?: string;        // "Sezon başı davet", "Özel turnuva"
+    tags?: string[];             // ["season-1", "premium", "trial"]
+    assignRole?: 'member' | 'premium' | 'direct';  // Katılan kişiye otomatik rol
+  };
+
+  // ============================================
+  // İSTATİSTİKLER
+  // ============================================
+  stats: {
+    totalViews: number;          // Kaç kez link görüntülendi
+    totalAttempts: number;       // Kaç kez kullanılmaya çalışıldı
+    successfulJoins: number;     // Başarılı katılım sayısı
+    lastUsedAt?: string;         // Son kullanım tarihi
+  };
+
+  // ============================================
+  // META
+  // ============================================
+  updatedAt?: string;
+}
+
+/**
+ * SUB-COLLECTION: league_invitation_uses (league_invitations/{leagueInvitationId}/uses)
+ * AÇIKLAMA: Her kod kullanımının kaydı
+ */
+export interface ILeagueInvitationUse {
+  id: string;
+  leagueInvitationId: string;
+  leagueId: string;
+
+  // ============================================
+  // KULLANICI BİLGİSİ
+  // ============================================
+  userId: string;               // Katılan oyuncu ID
+  joinedAt: string;
+
+  // ============================================
+  // CIHAZ & PLATFORM
+  // ============================================
+  device: {
+    platform: 'ios' | 'android' | 'web';
+    model?: string;
+    osVersion?: string;
+  };
+
+  // ============================================
+  // ROL ATAMASI
+  // ============================================
+  assignedRole?: 'member' | 'premium' | 'direct';  // Otomatik atanan rol
+}
+
+/**
+ * Invite Code Generation Options
+ */
+export interface IGenerateInviteOptions {
+  leagueId: string;
+  creatorId: string;
+  description?: string;
+  tags?: string[];
+  assignRole?: 'member' | 'premium' | 'direct';
+  expiresInDays?: number;       // null = süresiz
+  maxUses?: number;             // null = sınırsız
+}
+
+/**
+ * Join League with Code Request
+ */
+export interface IJoinLeagueRequest {
+  code: string;                 // Davet kodu
+  userId: string;               // Katılacak oyuncu
+  device?: {
+    platform: 'ios' | 'android' | 'web';
+    model?: string;
+    osVersion?: string;
+  };
+}
+
+/**
+ * Invite Code Validation Result
+ */
+export interface IInviteValidation {
+  valid: boolean;
+  invitation?: ILeagueInvitation;
+  error?: {
+    code: 'INVALID_CODE' | 'EXPIRED' | 'MAX_USES_REACHED' | 'INACTIVE' | 'ALREADY_MEMBER';
+    message: string;
+  };
+  league?: {
+    id: string;
+    title: string;
+    sportType: string;
+    logo?: string;
+    memberCount: number;
+  };
+}
+
+
+// ============================================
 // 5. SEASON (seasons collection)
 // ============================================
 
@@ -570,7 +809,7 @@ export interface IMatch {
   // ============================================
   permissions: {
     organizers: string[];       // Maç organizatörleri
-    teamBuilders: string[];     // Takım kurma yetkisi olanlar
+    teamBuilders?: string[];     // Takım kurma yetkisi olanlar
   };
 
   // ============================================
@@ -905,11 +1144,11 @@ export interface IMatchRating {
 }
 
 // ============================================
-// 11. MATCH COMMENT (comments collection)
+// 11. MATCH COMMENT (match_comments collection)
 // ============================================
 
 /**
- * COLLECTION: comments
+ * COLLECTION: match_comments
  * AÇIKLAMA: Maç yorumları (Genel yorumlar, oyuncu özelinde değil)
  * İLİŞKİLER: match, player
  * CACHE: playerName, playerPhoto (gösterim için)
@@ -949,11 +1188,11 @@ export interface IMatchComment {
 }
 
 // ============================================
-// 12. MATCH INVITATION (invitations collection)
+// 12. MATCH INVITATION (match_invitations collection)
 // ============================================
 
 /**
- * COLLECTION: invitations
+ * COLLECTION: match_invitations
  * AÇIKLAMA: Maça davet sistemi
  * İLİŞKİLER: match, inviter, invitee
  * CACHE: inviterName, inviteeName (gösterim için)
@@ -1324,112 +1563,6 @@ export interface IUserSettings {
   updatedAt?: string;
 }
 
-// ============================================
-// 17. LEAGUE SETTINGS (league_settings collection)
-// ============================================
-
-/**
- * COLLECTION: league_settings
- * AÇIKLAMA: Lig özel ayarları ve kuralları
- * İLİŞKİLER: league (id = leagueId)
- * CACHE: Yok
- */
-export interface ILeagueSettings {
-  id: string;                   // leagueId ile aynı
-  leagueId: string;
-
-  // ============================================
-  // GENEL KURALLAR
-  // ============================================
-  rules: {
-    lateArrivalPenalty?: number;        // Geç gelme cezası (TL)
-    absentWithoutNoticePenalty?: number; // Haber vermeden gelmeme cezası
-    yellowCardFine?: number;
-    redCardFine?: number;
-    minAttendanceRate?: number;         // Min katılım oranı (%)
-  };
-
-  // ============================================
-  // MAÇ KURALLARI
-  // ============================================
-  matchRules: {
-    allowGuestPlayers: boolean;
-    maxGuestPlayersPerMatch: number;
-    guestPlayerPriceMultiplier: number; // 1.5 = %50 fazla
-    autoAssignTeams: boolean;           // Algoritma ile otomatik takım kur
-    teamBalanceAlgorithm: 'random' | 'rating' | 'position';
-  };
-
-  // ============================================
-  // KAYIT KURALLARI
-  // ============================================
-  registration: {
-    allowLateRegistration: boolean;
-    lateRegistrationDeadlineHours: number;
-    requirePaymentForRegistration: boolean;
-    autoConfirmPayment: boolean;        // Manuel onay gerektirme
-    cancellationDeadlineHours: number;
-  };
-
-  // ============================================
-  // SKOR & İSTATİSTİK KURALLARI
-  // ============================================
-  scoring: {
-    requireScoreConfirmation: boolean;  // Skor girişi onay gerektirir mi
-    scoreConfirmationTimeoutHours: number;
-    allowPlayerSelfReporting: boolean;  // Oyuncular kendi gollerini girebilir mi
-  };
-
-  // ============================================
-  // RATING KURALLARI
-  // ============================================
-  rating: {
-    enabled: boolean;
-    mandatory: boolean;                 // Zorunlu mu
-    anonymous: boolean;                 // Anonim mi
-    ratingDeadlineHours: number;
-    minRatingsForMVP: number;           // MVP için min rating sayısı
-    allowCategoryRating: boolean;       // Kategorik puanlama
-  };
-
-  // ============================================
-  // YORUM KURALLARI
-  // ============================================
-  comments: {
-    enabled: boolean;
-    requireApproval: boolean;
-    allowLikes: boolean;
-    maxLength: number;
-  };
-
-  // ============================================
-  // ÖDEME AYARLARI
-  // ============================================
-  payment: {
-    defaultIban?: string;
-    defaultAccountName?: string;
-    defaultPricePerPlayer: number;
-    currency: 'TRY' | 'USD' | 'EUR';
-    allowInstallment: boolean;
-    paymentMethods: ('cash' | 'bank_transfer' | 'credit_card')[];
-  };
-
-  // ============================================
-  // WEBHOOK & INTEGRATIONS
-  // ============================================
-  integrations?: {
-    googleCalendar: boolean;
-    googleSheets: boolean;
-    whatsapp: boolean;
-    slack: boolean;
-  };
-
-  // ============================================
-  // META
-  // ============================================
-  updatedAt: string;
-  updatedBy: string;
-}
 
 // ============================================
 // 18. SYSTEM LOG (system_logs collection)

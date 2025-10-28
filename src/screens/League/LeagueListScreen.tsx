@@ -1,4 +1,4 @@
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -25,17 +25,13 @@ import {
   ILeague,
   SportType,
   SPORT_CONFIGS,
-  getSportIcon,
-  getSportColor,
-} from '../../types/types';
-import { leagueService } from '../../services/leagueService';
+} from '../../types/entity/types';
+import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
-// import { CustomHeader } from '../../components/CustomHeader';
 
 export const LeagueListScreen: React.FC = () => {
   const { user } = useAuth();
-
   const [leagues, setLeagues] = useState<ILeague[]>([]);
   const [filteredLeagues, setFilteredLeagues] = useState<ILeague[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +45,7 @@ export const LeagueListScreen: React.FC = () => {
   // Stats
   const [stats, setStats] = useState({
     myLeagues: 0,
-    activeLeagues: 0,
+    totalLeagues: 0,
     totalPlayers: 0,
   });
 
@@ -68,33 +64,28 @@ export const LeagueListScreen: React.FC = () => {
       setLoading(true);
 
       // Kullanıcının liglerini getir
-      const myLeagues = await leagueService.getLeaguesByPlayer(user.id);
+      const myLeaguesResponse = await LeagueService.getPlayerLeagues(user.id);
+      const myLeagues = myLeaguesResponse.success && myLeaguesResponse.data 
+        ? myLeaguesResponse.data 
+        : [];
 
-      // Aktif ligleri getir
-      const activeLeagues = await leagueService.getActiveLeagues();
-
-      // Tüm ligleri birleştir ve tekrarları kaldır
-      const allLeagues = [...myLeagues, ...activeLeagues];
-      const uniqueLeagues = allLeagues.filter(
-        (league, index, self) => index === self.findIndex((l) => l.id === league.id)
-      );
-
-      setLeagues(uniqueLeagues);
+      setLeagues(myLeagues);
 
       // İstatistikleri hesapla
-      const totalPlayers = uniqueLeagues.reduce(
-        (sum, league) => sum + league.playerIds.length,
+      const totalPlayers = myLeagues.reduce(
+        (sum, league) => sum + league.members.all.length,
         0
       );
 
       setStats({
         myLeagues: myLeagues.length,
-        activeLeagues: activeLeagues.length,
+        totalLeagues: myLeagues.length,
         totalPlayers,
       });
 
     } catch (error) {
       console.error('Error loading leagues:', error);
+      Alert.alert('Hata', 'Ligler yüklenirken bir hata oluştu');
     } finally {
       setLoading(false);
     }
@@ -115,12 +106,8 @@ export const LeagueListScreen: React.FC = () => {
       filtered = filtered.filter((league) => league.sportType === selectedSport);
     }
 
-    // Sort by active status and date
+    // Sort by date
     filtered.sort((a, b) => {
-      const aActive = new Date(a.seasonEndDate) > new Date();
-      const bActive = new Date(b.seasonEndDate) > new Date();
-
-      if (aActive !== bActive) return aActive ? -1 : 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
@@ -137,16 +124,24 @@ export const LeagueListScreen: React.FC = () => {
     setSearchQuery('');
   };
 
-  const isLeagueActive = (league: ILeague) => {
-    return new Date(league.seasonEndDate) > new Date();
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('tr-TR', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
     });
+  };
+
+  const getSportIcon = (sport: SportType) => {
+    return SPORT_CONFIGS[sport]?.emoji || '⚽';
+  };
+
+  const handleCreateLeague = () => {
+    NavigationService.navigateToCreateLeague();
+  };
+
+  const handleLeaguePress = (league: ILeague) => {
+    NavigationService.navigateToLeagueDetail(league.id!);
   };
 
   const sportTypes: Array<SportType | 'all'> = [
@@ -242,98 +237,103 @@ export const LeagueListScreen: React.FC = () => {
         </ScrollView>
       )}
 
-      {/* Stats Cards */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Trophy size={20} color="#16a34a" strokeWidth={2} />
-          <Text style={styles.statValue}>{stats.myLeagues}</Text>
-          <Text style={styles.statLabel}>Ligim</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <Calendar size={20} color="#F59E0B" strokeWidth={2} />
-          <Text style={styles.statValue}>{stats.activeLeagues}</Text>
-          <Text style={styles.statLabel}>Aktif</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <Users size={20} color="#2563EB" strokeWidth={2} />
-          <Text style={styles.statValue}>{stats.totalPlayers}</Text>
-          <Text style={styles.statLabel}>Oyuncu</Text>
-        </View>
-      </View>
-
       {/* League List */}
       <ScrollView
         style={styles.leagueList}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            colors={['#16a34a']}
+            tintColor="#16a34a"
+          />
         }
       >
+        {/* Stats Cards */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <Trophy size={20} color="#16a34a" strokeWidth={2} />
+            <Text style={styles.statValue}>{stats.myLeagues}</Text>
+            <Text style={styles.statLabel}>Ligim</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Calendar size={20} color="#F59E0B" strokeWidth={2} />
+            <Text style={styles.statValue}>{stats.totalLeagues}</Text>
+            <Text style={styles.statLabel}>Toplam</Text>
+          </View>
+
+          <View style={styles.statCard}>
+            <Users size={20} color="#2563EB" strokeWidth={2} />
+            <Text style={styles.statValue}>{stats.totalPlayers}</Text>
+            <Text style={styles.statLabel}>Oyuncu</Text>
+          </View>
+        </View>
+
         {filteredLeagues.length > 0 ? (
           <>
             {/* My Leagues Section */}
-            {filteredLeagues.some((l) => l.playerIds.includes(user?.id || '')) && (
+            {filteredLeagues.some((l) => l.members.all.includes(user?.id || '')) && (
               <>
                 <Text style={styles.sectionTitle}>Liglerim</Text>
                 {filteredLeagues
-                  .filter((l) => l.playerIds.includes(user?.id || ''))
+                  .filter((l) => l.members.all.includes(user?.id || ''))
                   .map((league) => (
                     <LeagueCard
                       key={league.id}
                       league={league}
-                      isActive={isLeagueActive(league)}
                       isMember={true}
-                      onPress={() =>
-                        NavigationService.navigateToLeague(league.id)
-                      }
+                      isAdmin={league.members.admins.includes(user?.id || '')}
+                      onPress={() => handleLeaguePress(league)}
                       formatDate={formatDate}
+                      getSportIcon={getSportIcon}
                     />
                   ))}
               </>
             )}
 
             {/* Other Leagues Section */}
-            {filteredLeagues.some((l) => !l.playerIds.includes(user?.id || '')) && (
+            {filteredLeagues.some((l) => !l.members.all.includes(user?.id || '')) && (
               <>
                 <Text style={styles.sectionTitle}>Diğer Ligler</Text>
                 {filteredLeagues
-                  .filter((l) => !l.playerIds.includes(user?.id || ''))
+                  .filter((l) => !l.members.all.includes(user?.id || ''))
                   .map((league) => (
                     <LeagueCard
                       key={league.id}
                       league={league}
-                      isActive={isLeagueActive(league)}
                       isMember={false}
-                      onPress={() =>
-                        NavigationService.navigateToLeague(league.id)
-                      }
+                      isAdmin={false}
+                      onPress={() => handleLeaguePress(league)}
                       formatDate={formatDate}
+                      getSportIcon={getSportIcon}
                     />
                   ))}
               </>
             )}
+
+            <View style={styles.bottomSpacing} />
           </>
         ) : (
           <View style={styles.emptyState}>
-            <Trophy size={64} color="#D1D5DB" strokeWidth={1.5} />
-            <Text style={styles.emptyStateTitle}>Lig bulunamadı</Text>
+            <Text style={styles.emptyEmoji}>🏆</Text>
+            <Text style={styles.emptyStateTitle}>
+              {searchQuery.trim() ? 'Lig Bulunamadı' : 'Henüz Lig Yok'}
+            </Text>
             <Text style={styles.emptyStateText}>
-              {searchQuery
-                ? 'Arama kriterlerinize uygun lig bulunamadı'
-                : 'Henüz bir lig bulunmuyor'}
+              {searchQuery.trim()
+                ? 'Aradığınız kriterlere uygun lig bulunamadı'
+                : 'Yeni bir lig oluşturarak başlayın'}
             </Text>
           </View>
         )}
-
-        <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Floating Add Button */}
+      {/* Create League FAB */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => NavigationService.navigateToCreateLeague()}
+        onPress={handleCreateLeague}
         activeOpacity={0.8}
       >
         <Plus size={28} color="white" strokeWidth={2.5} />
@@ -342,42 +342,42 @@ export const LeagueListScreen: React.FC = () => {
   );
 };
 
-// League Card Component
+// ============================================
+// LEAGUE CARD COMPONENT
+// ============================================
 interface LeagueCardProps {
   league: ILeague;
-  isActive: boolean;
   isMember: boolean;
+  isAdmin: boolean;
   onPress: () => void;
   formatDate: (date: string) => string;
+  getSportIcon: (sport: SportType) => string;
 }
 
 const LeagueCard: React.FC<LeagueCardProps> = ({
   league,
-  isActive,
   isMember,
+  isAdmin,
   onPress,
   formatDate,
+  getSportIcon,
 }) => {
-  const sportColor = getSportColor(league.sportType);
+  const sportConfig = SPORT_CONFIGS[league.sportType];
+  const sportColor = sportConfig?.color || '#16a34a';
 
   return (
     <TouchableOpacity
       style={[
         styles.leagueCard,
-        !isActive && styles.leagueCardInactive,
         isMember && styles.leagueCardMember,
       ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
+      {/* Header */}
       <View style={styles.leagueCardHeader}>
         <View style={styles.leagueCardLeft}>
-          <View
-            style={[
-              styles.sportIcon,
-              { backgroundColor: sportColor + '20' },
-            ]}
-          >
+          <View style={[styles.sportIcon, { backgroundColor: sportColor + '20' }]}>
             <Text style={styles.sportEmoji}>{getSportIcon(league.sportType)}</Text>
           </View>
 
@@ -388,7 +388,9 @@ const LeagueCard: React.FC<LeagueCardProps> = ({
               </Text>
               {isMember && (
                 <View style={styles.memberBadge}>
-                  <Text style={styles.memberBadgeText}>Üye</Text>
+                  <Text style={styles.memberBadgeText}>
+                    {isAdmin ? 'YÖNETİCİ' : 'ÜYE'}
+                  </Text>
                 </View>
               )}
             </View>
@@ -396,14 +398,18 @@ const LeagueCard: React.FC<LeagueCardProps> = ({
             <View style={styles.leagueCardMeta}>
               <View style={styles.metaItem}>
                 <Users size={14} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.metaText}>{league.playerIds.length} oyuncu</Text>
+                <Text style={styles.metaText}>{league.totalMembers} üye</Text>
               </View>
 
-              {!isActive && (
-                <View style={styles.inactiveBadge}>
-                  <Text style={styles.inactiveBadgeText}>Pasif</Text>
-                </View>
-              )}
+              <View style={styles.metaItem}>
+                <Calendar size={14} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.metaText}>{league.totalSeasons} sezon</Text>
+              </View>
+
+              <View style={styles.metaItem}>
+                <Trophy size={14} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.metaText}>{league.totalMatches} maç</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -411,25 +417,26 @@ const LeagueCard: React.FC<LeagueCardProps> = ({
         <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
       </View>
 
+      {/* Description */}
+      {league.description && (
+        <Text style={styles.leagueDescription} numberOfLines={2}>
+          {league.description}
+        </Text>
+      )}
+
+      {/* Footer */}
       <View style={styles.leagueCardFooter}>
         <Text style={styles.leagueCardDate}>
-          {formatDate(league.seasonStartDate)} - {formatDate(league.seasonEndDate)}
+          Oluşturulma: {formatDate(league.createdAt)}
         </Text>
-        {isActive && (
-          <View
-            style={[
-              styles.activeDot,
-              { backgroundColor: sportColor },
-            ]}
-          />
+        {league.currentSeasonId && (
+          <View style={[styles.activeBadge, { backgroundColor: sportColor + '20' }]}>
+            <Text style={[styles.activeBadgeText, { color: sportColor }]}>
+              Aktif Sezon
+            </Text>
+          </View>
         )}
       </View>
-
-      {league.spreadSheetId && (
-        <View style={styles.sheetBadge}>
-          <Text style={styles.sheetBadgeText}>📊 Sheet Bağlı</Text>
-        </View>
-      )}
     </TouchableOpacity>
   );
 };
@@ -487,34 +494,27 @@ const styles = StyleSheet.create({
   },
   filtersContainer: {
     backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingVertical: 12,      // 👈 Üst-alt padding
-    gap: 8,
-
   },
   filtersContent: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-    paddingTop: 0, // 👈 Padding'i kaldır veya azalt
+    paddingTop: 8,
+    paddingBottom: 8,
   },
   filterChip: {
-    paddingHorizontal: Platform.OS === 'ios' ? 14 : 12,
-    paddingVertical: Platform.OS === 'ios' ? 7 : 6,
-    borderRadius: Platform.OS === 'ios' ? 18 : 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
     backgroundColor: '#F3F4F6',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     marginRight: 8,
-    height: 32,              // 👈 Sabit yükseklik
-
+    height: 32,
   },
   filterChipText: {
-    fontSize: Platform.OS === 'ios' ? 13 : 12,
+    fontSize: 13,
     fontWeight: '600',
     color: '#6B7280',
-    lineHeight: Platform.OS === 'ios' ? 18 : 16,
+    lineHeight: 18,
   },
   filterChipActive: {
     backgroundColor: '#DCFCE7',
@@ -528,14 +528,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: 'white',
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
   },
   statCard: {
     flex: 1,
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
-    padding: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     alignItems: 'center',
     gap: 4,
   },
@@ -572,9 +576,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  leagueCardInactive: {
-    opacity: 0.7,
-  },
   leagueCardMember: {
     borderWidth: 2,
     borderColor: '#16a34a',
@@ -609,7 +610,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   leagueCardTitle: {
     fontSize: 16,
@@ -620,11 +621,11 @@ const styles = StyleSheet.create({
   memberBadge: {
     backgroundColor: '#16a34a',
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   memberBadgeText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
     color: 'white',
   },
@@ -639,20 +640,15 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   metaText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
     fontWeight: '500',
   },
-  inactiveBadge: {
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  inactiveBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#DC2626',
+  leagueDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+    marginBottom: 12,
   },
   leagueCardFooter: {
     flexDirection: 'row',
@@ -667,34 +663,28 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
-  activeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  sheetBadge: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    backgroundColor: '#EEF2FF',
+  activeBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  sheetBadgeText: {
-    fontSize: 11,
-    color: '#4F46E5',
-    fontWeight: '600',
+  activeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
     paddingHorizontal: 32,
   },
+  emptyEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
   emptyStateTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1F2937',
-    marginTop: 16,
     marginBottom: 8,
   },
   emptyStateText: {
@@ -723,3 +713,5 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
 });
+
+export default LeagueListScreen;

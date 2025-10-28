@@ -58,6 +58,9 @@ export type LeaguesStackParamList = {
   fixtureDetail: { fixtureId: string };
   createFixture: { leagueId: string };
   editFixture: { fixtureId: string };
+  joinLeague: undefined;
+  manageLeagueInvitations: { leagueId: string; leagueTitle: string };
+  createLeagueInvitation: { leagueId: string; leagueTitle: string };
 };
 
 // ============================================
@@ -169,6 +172,9 @@ export type FixtureListRouteProp = RouteProp<LeaguesStackParamList, 'fixtureList
 export type FixtureDetailRouteProp = RouteProp<LeaguesStackParamList, 'fixtureDetail'>;
 export type CreateFixtureRouteProp = RouteProp<LeaguesStackParamList, 'createFixture'>;
 export type EditFixtureRouteProp = RouteProp<LeaguesStackParamList, 'editFixture'>;
+export type ManageLeagueInvitationsRouteProp = RouteProp<LeaguesStackParamList, 'manageLeagueInvitations'>;
+export type CreateLeagueInvitationRouteProp = RouteProp<LeaguesStackParamList, 'createLeagueInvitation'>; 
+export type JoinLeagueRouteProp = RouteProp<LeaguesStackParamList, 'joinLeague'>;
 
 // Match Routes
 export type MatchListRouteProp = RouteProp<MatchesStackParamList, 'matchList'>;

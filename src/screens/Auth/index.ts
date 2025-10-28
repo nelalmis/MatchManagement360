@@ -1,4 +1,8 @@
 // screens/Auth/index.ts
-export { LoginScreen } from './LoginScreen';
-export { RegisterScreen } from './RegisterScreen';
-export { PhoneVerificationScreen } from './PhoneVerificationScreen';
+export { CompleteProfileScreen } from './CompleteProfileScreen';
+export { SplashScreen } from './SplashScreen';
+export { WelcomeScreen } from './WelcomeScreen';
+export * from './Email'; 
+export * from './Phone';
+
+

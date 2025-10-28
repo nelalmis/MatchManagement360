@@ -120,6 +120,37 @@ export const NavigationService = {
     });
   },
 
+  navigateToManageLeagueInvitations(leagueId: string, leagueTitle: string): void {
+    safeNavigate('leaguesTab', {
+      screen: 'manageLeagueInvitations',
+      params: { leagueId, leagueTitle },
+    });
+  },
+  navigateToJoinLeague(): void {
+    safeNavigate('leaguesTab', {
+      screen: 'joinLeague',
+      // params: { },
+    });
+  },
+  navigateToCreateLeagueInvitation(leagueId: string, leagueTitle: string): void {
+    safeNavigate('leaguesTab', {
+      screen: 'createLeagueInvitation',
+      params: { leagueId, leagueTitle },
+    });
+  },
+
+  navigateToLeagueSettings(leagueId: string): void {
+    safeNavigate('leaguesTab', {
+      screen: 'leagueSettings',
+      params: { leagueId },
+    });
+  },
+  navigateToManageLeagueMembers(leagueId: string): void {
+    safeNavigate('leaguesTab', {
+      screen: 'manageLeagueMembers',
+      params: { leagueId },
+    });
+  },
   // ============================================
   // FIXTURE NAVIGATION
   // ============================================
@@ -396,7 +427,7 @@ export const NavigationService = {
   // ============================================
   // ALIASES (BACKWARD COMPATIBILITY)
   // ============================================
-  
+
   navigateToFixturesTab(): void {
     this.navigateToMatchesTab();
   },
