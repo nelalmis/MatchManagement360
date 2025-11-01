@@ -8,6 +8,9 @@ import { playerAPI } from '../../api/apiLayer/playerAPI';
 import { ApiResponse } from '../../api/base/BaseAPI';
 import { IFixture, PlayerListConfig, ILeague } from '../../types/entity/types';
 import { ApiLogger } from '../../api/base/ApiLogger';
+import { RecurringPattern, validatePattern } from '../../types/entity/recurringPattern';
+import { PatternCalculator } from '../../helper/FixturePatternCalculator';
+import { RegistrationSchedule, validateRegistrationSchedule } from '../../types/entity/registrationScheduleType';
 
 export class FixtureService {
     // ============================================
@@ -23,11 +26,11 @@ export class FixtureService {
         title: string;
         description?: string;
         schedule: {
-            registrationStartTime: string;
             matchStartTime: string;
             matchDuration: number;
+            registrationSchedule: RegistrationSchedule;  // 👈 ADD
             isRecurring: boolean;
-            pattern?: IFixture['schedule']['pattern'];
+            pattern?: RecurringPattern;
         };
         squad: {
             totalPlayers: number;
@@ -36,8 +39,14 @@ export class FixtureService {
         };
         venue: IFixture['venue'];
         inheritPlayerLists?: boolean; // true = inherit from league, false = custom
-        customPremiumPlayers?: string[];
-        customDirectPlayers?: string[];
+        players?: {  // 👈 Changed from separate flags
+            premium: PlayerListConfig;
+            direct: PlayerListConfig;
+        };
+        permissions?: {  // 👈 ADD
+            organizers?: string[];
+            teamBuilders?: string[];
+        };
     }): Promise<ApiResponse<IFixture>> {
         try {
             ApiLogger.log('FixtureService', 'createFixture', {
@@ -59,8 +68,6 @@ export class FixtureService {
                 };
             }
 
-            const league = leagueResult.data;
-
             // Check if user is organizer
             const isOrganizerCheck = await leagueAPI.isAdmin(data.leagueId, data.organizerId);
             if (!isOrganizerCheck.success || !isOrganizerCheck.data) {
@@ -75,21 +82,18 @@ export class FixtureService {
             }
 
             // Validate schedule times
-            const validateSchedule = this.validateScheduleTimes(
-                data.schedule.registrationStartTime,
-                data.schedule.matchStartTime
-            );
-
-            if (!validateSchedule.valid) {
+            const validateRegSchedule = validateRegistrationSchedule(data.schedule.registrationSchedule);
+            if (!validateRegSchedule.valid) {
                 return {
                     success: false,
                     error: {
-                        code: 'INVALID_SCHEDULE',
-                        message: validateSchedule.error || 'Geçersiz zamanlama',
+                        code: 'INVALID_REGISTRATION_SCHEDULE',
+                        message: validateRegSchedule.error || 'Geçersiz kayıt zamanlaması',
                         statusCode: 400,
                     },
                 };
             }
+
 
             // Validate squad numbers
             if (data.squad.minPlayersToStart > data.squad.totalPlayers) {
@@ -103,7 +107,7 @@ export class FixtureService {
                 };
             }
 
-            // Validate recurring pattern if provided
+            // ✅ Keep pattern validation but use updated validateRecurringPattern
             if (data.schedule.isRecurring && data.schedule.pattern) {
                 const validatePattern = this.validateRecurringPattern(data.schedule.pattern);
                 if (!validatePattern.valid) {
@@ -127,57 +131,33 @@ export class FixtureService {
                 }
             }
 
-            // Prepare player lists
-            const premiumConfig: PlayerListConfig = data.inheritPlayerLists !== false
-                ? {
-                    mode: 'auto',
-                    inherited: league.defaultPlayers.premium || [],
+            // 🆕 Prepare player lists
+            // 🆕 Validate custom player lists
+            if (data.players?.premium?.mode === 'custom' && data.players?.premium?.overrides && data.players?.premium?.overrides.length > 0) {
+                const validatePremium = await this.validatePlayerIds(data.players.premium.overrides);
+                if (!validatePremium.valid) {
+                    return {
+                        success: false,
+                        error: {
+                            code: 'INVALID_PREMIUM_PLAYERS',
+                            message: validatePremium.error || 'Geçersiz premium oyuncular',
+                            statusCode: 400,
+                        },
+                    };
                 }
-                : {
-                    mode: 'custom',
-                    inherited: league.defaultPlayers.premium || [],
-                    overrides: data.customPremiumPlayers || [],
-                };
+            }
 
-            const directConfig: PlayerListConfig = data.inheritPlayerLists !== false
-                ? {
-                    mode: 'auto',
-                    inherited: league.defaultPlayers.direct || [],
-                }
-                : {
-                    mode: 'custom',
-                    inherited: league.defaultPlayers.direct || [],
-                    overrides: data.customDirectPlayers || [],
-                };
-
-            // Validate custom players if provided
-            if (data.inheritPlayerLists === false) {
-                if (data.customPremiumPlayers && data.customPremiumPlayers.length > 0) {
-                    const validatePremium = await this.validatePlayerIds(data.customPremiumPlayers);
-                    if (!validatePremium.valid) {
-                        return {
-                            success: false,
-                            error: {
-                                code: 'INVALID_PREMIUM_PLAYERS',
-                                message: validatePremium.error || 'Geçersiz premium oyuncular',
-                                statusCode: 400,
-                            },
-                        };
-                    }
-                }
-
-                if (data.customDirectPlayers && data.customDirectPlayers.length > 0) {
-                    const validateDirect = await this.validatePlayerIds(data.customDirectPlayers);
-                    if (!validateDirect.valid) {
-                        return {
-                            success: false,
-                            error: {
-                                code: 'INVALID_DIRECT_PLAYERS',
-                                message: validateDirect.error || 'Geçersiz direkt oyuncular',
-                                statusCode: 400,
-                            },
-                        };
-                    }
+            if (data.players?.direct?.mode === 'custom' && data.players?.direct?.overrides && data.players?.direct?.overrides.length > 0) {
+                const validateDirect = await this.validatePlayerIds(data.players.direct.overrides);
+                if (!validateDirect.valid) {
+                    return {
+                        success: false,
+                        error: {
+                            code: 'INVALID_DIRECT_PLAYERS',
+                            message: validateDirect.error || 'Geçersiz direkt oyuncular',
+                            statusCode: 400,
+                        },
+                    };
                 }
             }
 
@@ -189,13 +169,13 @@ export class FixtureService {
                 schedule: data.schedule,
                 squad: data.squad,
                 venue: data.venue,
-                players: {
-                    premium: premiumConfig,
-                    direct: directConfig,
+                players: data.players || {
+                    premium: { mode: 'custom', overrides: [], inherited: [] },
+                    direct: { mode: 'custom', overrides: [], inherited: [] },
                 },
                 permissions: {
-                    organizers: [data.organizerId],
-                    teamBuilders: [data.organizerId],
+                    organizers: data.permissions?.organizers || [data.organizerId],
+                    teamBuilders: data.permissions?.teamBuilders || [data.organizerId],
                 },
                 totalMatches: 0,
                 nextMatchDate,
@@ -368,11 +348,11 @@ export class FixtureService {
         fixtureId: string,
         userId: string,
         schedule: {
-            registrationStartTime?: string;
             matchStartTime?: string;
             matchDuration?: number;
+            registrationSchedule?: RegistrationSchedule;
             isRecurring?: boolean;
-            pattern?: IFixture['schedule']['pattern'];
+            pattern?: RecurringPattern;
         }
     ): Promise<ApiResponse<IFixture>> {
         try {
@@ -413,19 +393,51 @@ export class FixtureService {
                 ...schedule,
             };
 
-            // Validate schedule times if both are provided
+            // 🆕 Validate registration schedule if provided
+            if (schedule.registrationSchedule) {
+                const validateRegSchedule = validateRegistrationSchedule(schedule.registrationSchedule);
+                if (!validateRegSchedule.valid) {
+                    return {
+                        success: false,
+                        error: {
+                            code: 'INVALID_REGISTRATION_SCHEDULE',
+                            message: validateRegSchedule.error || 'Geçersiz kayıt zamanlaması',
+                            statusCode: 400,
+                        },
+                    };
+                }
+            }
+
+            // ❌ REMOVE OLD VALIDATION
+            /*
             if (newSchedule.registrationStartTime && newSchedule.matchStartTime) {
                 const validateSchedule = this.validateScheduleTimes(
                     newSchedule.registrationStartTime,
                     newSchedule.matchStartTime
                 );
-
+    
                 if (!validateSchedule.valid) {
                     return {
                         success: false,
                         error: {
                             code: 'INVALID_SCHEDULE',
                             message: validateSchedule.error || 'Geçersiz zamanlama',
+                            statusCode: 400,
+                        },
+                    };
+                }
+            }
+            */
+
+            // Validate recurring pattern if provided
+            if (schedule.pattern) {
+                const validatePattern = this.validateRecurringPattern(schedule.pattern);
+                if (!validatePattern.valid) {
+                    return {
+                        success: false,
+                        error: {
+                            code: 'INVALID_PATTERN',
+                            message: validatePattern.error || 'Geçersiz tekrar deseni',
                             statusCode: 400,
                         },
                     };
@@ -468,7 +480,6 @@ export class FixtureService {
             };
         }
     }
-
     /**
      * Update fixture squad settings
      */
@@ -601,6 +612,8 @@ export class FixtureService {
             };
         }
     }
+
+
 
     // ============================================
     // 3. PLAYER LIST MANAGEMENT
@@ -1467,8 +1480,21 @@ export class FixtureService {
     // 7. QUERY & READ OPERATIONS
     // ============================================
 
+    /**
+  * Use in getFixture if needed
+  */
     static async getFixture(fixtureId: string): Promise<ApiResponse<IFixture>> {
-        return fixtureAPI.getById(fixtureId);
+        const result = await fixtureAPI.getById(fixtureId);
+
+        if (result.success && result.data) {
+            // Migrate if old structure
+            if (!result.data.schedule.registrationSchedule) {
+                result.data = this.migrateFixtureToNewStructure(result.data);
+                await fixtureAPI.update(fixtureId, result.data);
+            }
+        }
+
+        return result;
     }
 
     static async getLeagueFixtures(leagueId: string): Promise<ApiResponse<IFixture[]>> {
@@ -1623,214 +1649,128 @@ export class FixtureService {
     // ============================================
 
     /**
-     * Validate schedule times
-     */
-    private static validateScheduleTimes(
-        registrationStartTime: string,
-        matchStartTime: string
-    ): { valid: boolean; error?: string } {
-        // Parse times (format: "HH:MM")
-        const regParts = registrationStartTime.split(':');
-        const matchParts = matchStartTime.split(':');
-
-        if (regParts.length !== 2 || matchParts.length !== 2) {
-            return {
-                valid: false,
-                error: 'Saat formatı geçersiz (HH:MM olmalı)',
-            };
-        }
-
-        const regHour = parseInt(regParts[0]);
-        const regMin = parseInt(regParts[1]);
-        const matchHour = parseInt(matchParts[0]);
-        const matchMin = parseInt(matchParts[1]);
-
-        if (isNaN(regHour) || isNaN(regMin) || isNaN(matchHour) || isNaN(matchMin)) {
-            return {
-                valid: false,
-                error: 'Saat değerleri sayı olmalı',
-            };
-        }
-
-        if (regHour < 0 || regHour > 23 || matchHour < 0 || matchHour > 23) {
-            return {
-                valid: false,
-                error: 'Saat 0-23 arasında olmalı',
-            };
-        }
-
-        if (regMin < 0 || regMin > 59 || matchMin < 0 || matchMin > 59) {
-            return {
-                valid: false,
-                error: 'Dakika 0-59 arasında olmalı',
-            };
-        }
-
-        // Registration must be before match start
-        const regTotalMin = regHour * 60 + regMin;
-        const matchTotalMin = matchHour * 60 + matchMin;
-
-        if (regTotalMin >= matchTotalMin) {
-            return {
-                valid: false,
-                error: 'Kayıt başlangıç saati maç başlangıç saatinden önce olmalı',
-            };
-        }
-
-        return { valid: true };
-    }
-
-    /**
      * Validate recurring pattern
      */
     private static validateRecurringPattern(
-        pattern: IFixture['schedule']['pattern']
+        pattern: RecurringPattern
     ): { valid: boolean; error?: string } {
         if (!pattern) {
             return { valid: true };
         }
 
+        // Use type-safe validation
+        const result = validatePattern(pattern);
+
+        if (!result.valid) {
+            return {
+                valid: false,
+                error: result.error || 'Geçersiz tekrar deseni',
+            };
+        }
+
+        // Additional business logic validations
         switch (pattern.type) {
             case 'weekly':
             case 'biweekly':
-                if (pattern.dayOfWeek === undefined) {
+                if (!pattern.daysOfWeek || pattern.daysOfWeek.length === 0) {
                     return {
                         valid: false,
-                        error: 'Haftanın günü belirtilmeli',
-                    };
-                }
-                if (pattern.dayOfWeek < 0 || pattern.dayOfWeek > 6) {
-                    return {
-                        valid: false,
-                        error: 'Haftanın günü 0-6 arasında olmalı',
+                        error: 'Haftalık desenler için en az bir gün seçilmeli',
                     };
                 }
                 break;
 
             case 'monthly':
-                if (pattern.dayOfMonth === undefined) {
+                if (!pattern.dayOfMonth) {
                     return {
                         valid: false,
-                        error: 'Ayın günü belirtilmeli',
-                    };
-                }
-                if (pattern.dayOfMonth < 1 || pattern.dayOfMonth > 31) {
-                    return {
-                        valid: false,
-                        error: 'Ayın günü 1-31 arasında olmalı',
+                        error: 'Aylık desenler için ayın günü belirtilmeli',
                     };
                 }
                 break;
 
             case 'custom':
-                if (pattern.interval === undefined) {
+                if (!pattern.interval || pattern.interval < 1) {
                     return {
                         valid: false,
-                        error: 'Gün aralığı belirtilmeli',
-                    };
-                }
-                if (pattern.interval < 1) {
-                    return {
-                        valid: false,
-                        error: 'Gün aralığı en az 1 olmalı',
+                        error: 'Özel desenler için geçerli bir aralık belirtilmeli',
                     };
                 }
                 break;
-
-            default:
-                return {
-                    valid: false,
-                    error: 'Geçersiz tekrar tipi',
-                };
         }
 
-        // Validate endsAt if provided
-        if (pattern.endsAt) {
-            const endsAt = new Date(pattern.endsAt);
-            if (isNaN(endsAt.getTime())) {
-                return {
-                    valid: false,
-                    error: 'Bitiş tarihi geçersiz',
-                };
+        // Validate end condition
+        if (pattern.endCondition) {
+            if (pattern.endCondition.type === 'date' && pattern.endCondition.endDate) {
+                const endDate = new Date(pattern.endCondition.endDate);
+                if (isNaN(endDate.getTime())) {
+                    return {
+                        valid: false,
+                        error: 'Geçersiz bitiş tarihi',
+                    };
+                }
+                if (endDate < new Date()) {
+                    return {
+                        valid: false,
+                        error: 'Bitiş tarihi geçmişte olamaz',
+                    };
+                }
             }
-            if (endsAt < new Date()) {
-                return {
-                    valid: false,
-                    error: 'Bitiş tarihi geçmişte olamaz',
-                };
+
+            if (pattern.endCondition.type === 'count') {
+                if (!pattern.endCondition.occurrenceCount || pattern.endCondition.occurrenceCount < 1) {
+                    return {
+                        valid: false,
+                        error: 'Geçerli bir tekrar sayısı belirtilmeli',
+                    };
+                }
             }
         }
 
         return { valid: true };
     }
-
     /**
      * Calculate next date based on pattern
      */
     private static calculateNextDate(
         from: Date,
-        pattern: IFixture['schedule']['pattern']
+        pattern: RecurringPattern
     ): Date | null {
         if (!pattern) return null;
 
-        let nextDate: Date | null = null;
+        // Use PatternCalculator
+        return PatternCalculator.calculateNextDate(from, pattern);
+    }
 
-        switch (pattern.type) {
-            case 'weekly':
-                nextDate = this.getNextWeeklyDate(from, pattern.dayOfWeek!);
-                break;
-            case 'biweekly':
-                nextDate = this.getNextBiweeklyDate(from, pattern.dayOfWeek!);
-                break;
-            case 'monthly':
-                nextDate = this.getNextMonthlyDate(from, pattern.dayOfMonth!);
-                break;
-            case 'custom':
-                nextDate = this.getNextCustomDate(from, pattern.interval!);
-                break;
+    static async generatePreviewDates(
+        pattern: RecurringPattern,
+        count: number = 5
+    ): Promise<ApiResponse<string[]>> {
+        try {
+
+            const dates = PatternCalculator.generateFutureDates(
+                new Date(),
+                pattern,
+                count
+            );
+
+            return {
+                success: true,
+                data: dates.map(d => d.toISOString()),
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                error: {
+                    code: 'GENERATE_PREVIEW_ERROR',
+                    message: error.message || 'Önizleme oluşturulamadı',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
         }
-
-        // Check if pattern has ended
-        if (pattern.endsAt && nextDate) {
-            const endsAt = new Date(pattern.endsAt);
-            if (nextDate > endsAt) {
-                return null;
-            }
-        }
-
-        return nextDate;
     }
 
-    private static getNextWeeklyDate(from: Date, dayOfWeek: number): Date {
-        const result = new Date(from);
-        const currentDay = result.getDay();
-        const daysUntilNext = (dayOfWeek + 7 - currentDay) % 7 || 7;
-        result.setDate(result.getDate() + daysUntilNext);
-        return result;
-    }
-
-    private static getNextBiweeklyDate(from: Date, dayOfWeek: number): Date {
-        const nextWeekly = this.getNextWeeklyDate(from, dayOfWeek);
-        nextWeekly.setDate(nextWeekly.getDate() + 7);
-        return nextWeekly;
-    }
-
-    private static getNextMonthlyDate(from: Date, dayOfMonth: number): Date {
-        const result = new Date(from);
-        result.setDate(dayOfMonth);
-
-        if (result <= from) {
-            result.setMonth(result.getMonth() + 1);
-        }
-
-        return result;
-    }
-
-    private static getNextCustomDate(from: Date, intervalDays: number): Date {
-        const result = new Date(from);
-        result.setDate(result.getDate() + intervalDays);
-        return result;
-    }
 
     /**
      * Validate player IDs
@@ -1853,6 +1793,69 @@ export class FixtureService {
         }
 
         return { valid: true };
+    }
+
+    /**
+ * Migrate old fixture structure to new structure
+ */
+    static migrateFixtureToNewStructure(oldFixture: any): IFixture {
+        // If already has new structure, return as is
+        if (oldFixture.schedule.registrationSchedule) {
+            return oldFixture as IFixture;
+        }
+
+        // Convert old registrationStartTime to new RegistrationSchedule
+        const registrationSchedule: RegistrationSchedule = {
+            opening: {
+                type: 'hours_before',
+                value: 1, // Default to 1 hour before
+            },
+            closing: {
+                type: 'at_match_start',
+            },
+        };
+
+        // Try to calculate timing from old times
+        if (oldFixture.schedule.registrationStartTime && oldFixture.schedule.matchStartTime) {
+            try {
+                const regParts = oldFixture.schedule.registrationStartTime.split(':');
+                const matchParts = oldFixture.schedule.matchStartTime.split(':');
+
+                const regMinutes = parseInt(regParts[0]) * 60 + parseInt(regParts[1]);
+                const matchMinutes = parseInt(matchParts[0]) * 60 + parseInt(matchParts[1]);
+
+                const diffHours = (matchMinutes - regMinutes) / 60;
+
+                if (diffHours > 0 && diffHours < 24) {
+                    registrationSchedule.opening = {
+                        type: 'hours_before',
+                        value: Math.round(diffHours),
+                    };
+                }
+            } catch (error) {
+                // Use default
+            }
+        }
+
+        // Convert pattern if needed
+        const pattern: RecurringPattern | undefined = oldFixture.schedule.pattern
+            ? {
+                type: oldFixture.schedule.pattern.type || 'weekly',
+                interval: oldFixture.schedule.pattern.interval || 7,
+                daysOfWeek: oldFixture.schedule.pattern.daysOfWeek || [2], // Default Tuesday
+            }
+            : undefined;
+
+        return {
+            ...oldFixture,
+            schedule: {
+                matchStartTime: oldFixture.schedule.matchStartTime,
+                matchDuration: oldFixture.schedule.matchDuration,
+                registrationSchedule,
+                isRecurring: oldFixture.schedule.isRecurring,
+                pattern,
+            },
+        };
     }
 }
 

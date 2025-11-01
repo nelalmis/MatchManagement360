@@ -1,110 +1,124 @@
-import React, { useState, useEffect } from 'react';
+// src/screens/Fixture/FixtureListScreen.tsx
+
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
   RefreshControl,
+  ActivityIndicator,
   Alert,
+  TextInput,
 } from 'react-native';
 import {
-  Search,
-  Filter,
-  X,
+  ArrowLeft,
+  Plus,
+  ListOrdered,
   Calendar,
   MapPin,
-  Users,
   DollarSign,
-  ChevronRight,
-  Plus,
-  Clock,
   Repeat,
-  AlertCircle,
+  ChevronRight,
+  Trophy,
+  Clock,
+  Search,
+  X,
+  Filter,
+  Users,
+  TrendingUp,
 } from 'lucide-react-native';
-import {
-  IMatchFixture,
-  ILeague,
-  SportType,
-  SPORT_CONFIGS,
-  getSportIcon,
-  getSportColor,
-} from '../../types/types';
-import { matchFixtureService } from '../../services/matchFixtureService';
-import { leagueService } from '../../services/leagueService';
-import { FixtureListRouteProp, NavigationService } from '../../navigation';
 import { useRoute } from '@react-navigation/native';
+import { FixtureListRouteProp, NavigationService } from '../../navigation';
 import { useAuth } from '../../hooks';
+import { IFixture, ILeague } from '../../types/entity/types';
+import { FixtureService } from '../../services/serviceLayer/fixtureService';
+import { LeagueService } from '../../services/serviceLayer/leagueService';
+import { getSportPrimaryColor } from '../../utils/theme';
+
+type TabType = 'active' | 'inactive';
+type SortType = 'nextMatch' | 'name' | 'totalMatches';
 
 export const FixtureListScreen: React.FC = () => {
-  const { user } = useAuth();
-
   const route = useRoute<FixtureListRouteProp>();
-  const { leagueId } = route.params || {};
+  const { user } = useAuth();
+  const leagueId = route.params.leagueId;
 
+  // State
   const [league, setLeague] = useState<ILeague | null>(null);
-  const [fixtures, setFixtures] = useState<IMatchFixture[]>([]);
-  const [filteredFixtures, setFilteredFixtures] = useState<IMatchFixture[]>([]);
+  const [fixtures, setFixtures] = useState<IFixture[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('active');
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'Aktif' | 'Pasif'>('all');
+  const [sortBy, setSortBy] = useState<SortType>('nextMatch');
 
-  // Stats
-  const [stats, setStats] = useState({
-    totalFixtures: 0,
-    activeFixtures: 0,
-    myFixtures: 0,
-  });
+  // Permissions
+  const isAdmin = league?.members?.admins.includes(user?.id || '') || false;
 
   useEffect(() => {
     loadData();
   }, [leagueId]);
 
-  useEffect(() => {
-    filterFixtures();
-  }, [searchQuery, selectedStatus, fixtures]);
+  // Filtered and sorted fixtures
+  const filteredFixtures = useMemo(() => {
+    let filtered = fixtures.filter(f => f.status === activeTab);
 
-  const loadData = async () => {
-    if (!leagueId) {
-      Alert.alert('Hata', 'Lig ID bulunamadı');
-      NavigationService.goBack();
-      return;
+    // Apply search
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        f =>
+          f.title.toLowerCase().includes(query) ||
+          f.description?.toLowerCase().includes(query) ||
+          f.venue.location.toLowerCase().includes(query)
+      );
     }
 
+    // Apply sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'nextMatch':
+          // Sort by next match date (earliest first)
+          if (!a.nextMatchDate && !b.nextMatchDate) return 0;
+          if (!a.nextMatchDate) return 1;
+          if (!b.nextMatchDate) return -1;
+          return new Date(a.nextMatchDate).getTime() - new Date(b.nextMatchDate).getTime();
+        
+        case 'name':
+          return a.title.localeCompare(b.title);
+        
+        case 'totalMatches':
+          return b.totalMatches - a.totalMatches;
+        
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [fixtures, activeTab, searchQuery, sortBy]);
+
+  const loadData = async () => {
     try {
       setLoading(true);
 
-      const [leagueData, fixturesData] = await Promise.all([
-        leagueService.getById(leagueId),
-        matchFixtureService.getFixturesByLeague(leagueId),
+      const [leagueResponse, fixturesResponse] = await Promise.all([
+        LeagueService.getLeague(leagueId),
+        FixtureService.getLeagueFixtures(leagueId),
       ]);
 
-      if (!leagueData) {
-        Alert.alert('Hata', 'Lig bulunamadı');
-        NavigationService.goBack();
-        return;
+      if (leagueResponse.success && leagueResponse.data) {
+        setLeague(leagueResponse.data);
       }
 
-      setLeague(leagueData);
-      setFixtures(fixturesData);
-
-      // Calculate stats
-      const activeCount = fixturesData.filter(f => f.status === 'Aktif').length;
-      const myCount = fixturesData.filter(f =>
-        f.organizerPlayerIds.includes(user?.id || '')
-      ).length;
-
-      setStats({
-        totalFixtures: fixturesData.length,
-        activeFixtures: activeCount,
-        myFixtures: myCount,
-      });
+      if (fixturesResponse.success && fixturesResponse.data) {
+        setFixtures(fixturesResponse.data);
+      }
     } catch (error) {
       console.error('Error loading fixtures:', error);
       Alert.alert('Hata', 'Fikstürler yüklenirken bir hata oluştu');
@@ -113,77 +127,170 @@ export const FixtureListScreen: React.FC = () => {
     }
   };
 
-  const filterFixtures = () => {
-    let filtered = [...fixtures];
-
-    // Search filter
-    if (searchQuery.trim()) {
-      filtered = filtered.filter((fixture) =>
-        fixture.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        fixture.location.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Status filter
-    if (selectedStatus !== 'all') {
-      filtered = filtered.filter((fixture) => fixture.status === selectedStatus);
-    }
-
-    // Sort: Active first, then by match start time
-    filtered.sort((a, b) => {
-      if (a.status !== b.status) {
-        return a.status === 'Aktif' ? -1 : 1;
-      }
-      return new Date(b.matchStartTime).getTime() - new Date(a.matchStartTime).getTime();
-    });
-
-    setFilteredFixtures(filtered);
-  };
-
-  const onRefresh = async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
   };
 
-  const clearSearch = () => {
-    setSearchQuery('');
+  const handleCreateFixture = () => {
+    NavigationService.navigateToCreateFixture(leagueId);
   };
 
-  const isOrganizer = (fixture: IMatchFixture) => {
-    return fixture.organizerPlayerIds.includes(user?.id || '');
+  const handleFixturePress = (fixtureId: string) => {
+    NavigationService.navigateToFixtureDetail(fixtureId);
   };
 
-  const formatTime = (date: Date) => {
-    return new Date(date).toLocaleTimeString('tr-TR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  // ============================================
+  // HELPER FUNCTIONS
+  // ============================================
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = date.getTime() - now.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInDays === 0) {
+      return `Bugün ${date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
+    } else if (diffInDays === 1) {
+      return `Yarın ${date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
+    } else if (diffInDays > 0 && diffInDays < 7) {
+      const dayNames = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+      return `${dayNames[date.getDay()]} ${date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+      return date.toLocaleDateString('tr-TR', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
   };
 
-  const formatDay = (date: Date) => {
-    const days = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
-    return days[new Date(date).getDay()];
+  const getTimeUntilMatch = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = date.getTime() - now.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+
+    if (diffInDays > 0) {
+      return `${diffInDays} gün`;
+    } else if (diffInHours > 0) {
+      return `${diffInHours} saat`;
+    } else {
+      return 'Yakında';
+    }
+  };
+
+  const getPatternText = (pattern?: IFixture['schedule']['pattern']) => {
+    if (!pattern) return '';
+    switch (pattern.type) {
+      case 'weekly':
+        return 'Haftalık';
+      case 'biweekly':
+        return 'İki haftada bir';
+      case 'monthly':
+        return 'Aylık';
+      case 'custom':
+        return `${pattern.interval} günde bir`;
+      default:
+        return '';
+    }
+  };
+
+  const isOrganizer = (fixture: IFixture): boolean => {
+    return fixture.permissions.organizers.includes(user?.id || '');
   };
 
   if (loading || !league) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Fikstürler yükleniyor...</Text>
+        <Text style={styles.loadingText}>Yükleniyor...</Text>
       </View>
     );
   }
 
-  const sportColor = getSportColor(league.sportType);
+  const sportColor = getSportPrimaryColor(league.sportType);
+  const activeFixtures = fixtures.filter(f => f.status === 'active');
+  const inactiveFixtures = fixtures.filter(f => f.status === 'inactive');
+
+  // Stats
+  const myFixtures = fixtures.filter(f => isOrganizer(f));
+  const upcomingFixtures = activeFixtures.filter(f => f.nextMatchDate);
 
   return (
     <View style={styles.container}>
-      {/* <CustomHeader showDrawer={true} /> */}
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => NavigationService.goBack()}
+          style={styles.backButton}
+          activeOpacity={0.7}
+        >
+          <ArrowLeft size={24} color="#1F2937" strokeWidth={2} />
+        </TouchableOpacity>
+
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Fikstürler</Text>
+          <View style={styles.headerSubtitleRow}>
+            <Trophy size={14} color={sportColor} strokeWidth={2} />
+            <Text style={styles.headerSubtitle}>{league.title}</Text>
+          </View>
+        </View>
+
+        {isAdmin && (
+          <TouchableOpacity
+            onPress={handleCreateFixture}
+            style={styles.createButton}
+            activeOpacity={0.7}
+          >
+            <Plus size={24} color={sportColor} strokeWidth={2.5} />
+          </TouchableOpacity>
+        )}
+
+        {!isAdmin && <View style={styles.headerRight} />}
+      </View>
+
+      {/* Quick Stats */}
+      <View style={styles.quickStats}>
+        <View style={[styles.quickStatCard, { borderLeftColor: sportColor }]}>
+          <View style={[styles.quickStatIconContainer, { backgroundColor: sportColor + '20' }]}>
+            <ListOrdered size={20} color={sportColor} strokeWidth={2.5} />
+          </View>
+          <View style={styles.quickStatContent}>
+            <Text style={styles.quickStatValue}>{activeFixtures.length}</Text>
+            <Text style={styles.quickStatLabel}>Aktif Fikstür</Text>
+          </View>
+        </View>
+
+        <View style={[styles.quickStatCard, { borderLeftColor: '#F59E0B' }]}>
+          <View style={[styles.quickStatIconContainer, { backgroundColor: '#F59E0B20' }]}>
+            <Clock size={20} color="#F59E0B" strokeWidth={2.5} />
+          </View>
+          <View style={styles.quickStatContent}>
+            <Text style={styles.quickStatValue}>{upcomingFixtures.length}</Text>
+            <Text style={styles.quickStatLabel}>Yaklaşan Maç</Text>
+          </View>
+        </View>
+
+        <View style={[styles.quickStatCard, { borderLeftColor: '#3B82F6' }]}>
+          <View style={[styles.quickStatIconContainer, { backgroundColor: '#3B82F620' }]}>
+            <Users size={20} color="#3B82F6" strokeWidth={2.5} />
+          </View>
+          <View style={styles.quickStatContent}>
+            <Text style={styles.quickStatValue}>{myFixtures.length}</Text>
+            <Text style={styles.quickStatLabel}>Yönettiğim</Text>
+          </View>
+        </View>
+      </View>
+
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
-          <Search size={20} color="#9CA3AF" strokeWidth={2} />
+          <Search size={18} color="#9CA3AF" strokeWidth={2} />
           <TextInput
             style={styles.searchInput}
             placeholder="Fikstür ara..."
@@ -192,14 +299,21 @@ export const FixtureListScreen: React.FC = () => {
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={clearSearch} activeOpacity={0.7}>
-              <X size={20} color="#9CA3AF" strokeWidth={2} />
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              style={styles.clearButton}
+              activeOpacity={0.7}
+            >
+              <X size={16} color="#9CA3AF" strokeWidth={2} />
             </TouchableOpacity>
           )}
         </View>
 
         <TouchableOpacity
-          style={styles.filterButton}
+          style={[
+            styles.filterButton,
+            showFilters && { backgroundColor: sportColor + '20' },
+          ]}
           onPress={() => setShowFilters(!showFilters)}
           activeOpacity={0.7}
         >
@@ -213,257 +327,333 @@ export const FixtureListScreen: React.FC = () => {
 
       {/* Filters */}
       {showFilters && (
-        <View style={styles.filtersContainer}>
-          {(['all', 'Aktif', 'Pasif'] as const).map((status) => {
-            const isSelected = selectedStatus === status;
-            return (
-              <TouchableOpacity
-                key={status}
-                style={[
-                  styles.filterChip,
-                  isSelected && { ...styles.filterChipActive, borderColor: sportColor, backgroundColor: sportColor + '20' },
-                ]}
-                onPress={() => setSelectedStatus(status)}
-                activeOpacity={0.7}
-              >
-                <Text
+        <View style={styles.filtersPanel}>
+          <Text style={styles.filterTitle}>Sıralama</Text>
+          <View style={styles.filterOptions}>
+            {[
+              { value: 'nextMatch' as SortType, label: 'Sonraki Maç', icon: Calendar },
+              { value: 'name' as SortType, label: 'İsim', icon: ListOrdered },
+              { value: 'totalMatches' as SortType, label: 'Maç Sayısı', icon: TrendingUp },
+            ].map(option => {
+              const Icon = option.icon;
+              const isSelected = sortBy === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value}
                   style={[
-                    styles.filterChipText,
-                    isSelected && { ...styles.filterChipTextActive, color: sportColor },
+                    styles.filterOption,
+                    isSelected && {
+                      backgroundColor: sportColor + '20',
+                      borderColor: sportColor,
+                    },
                   ]}
+                  onPress={() => setSortBy(option.value)}
+                  activeOpacity={0.7}
                 >
-                  {status === 'all' ? '🌐 Tümü' : status === 'Aktif' ? '✅ Aktif' : '⏸️ Pasif'}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+                  <Icon
+                    size={18}
+                    color={isSelected ? sportColor : '#6B7280'}
+                    strokeWidth={2}
+                  />
+                  <Text
+                    style={[
+                      styles.filterOptionText,
+                      isSelected && { color: sportColor, fontWeight: '700' },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
       )}
 
-      {/* Stats Cards */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Calendar size={20} color={sportColor} strokeWidth={2} />
-          <Text style={styles.statValue}>{stats.totalFixtures}</Text>
-          <Text style={styles.statLabel}>Toplam</Text>
-        </View>
+      {/* Tab Navigation */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeTab === 'active' && [
+              styles.tabActive,
+              { borderBottomColor: sportColor },
+            ],
+          ]}
+          onPress={() => setActiveTab('active')}
+          activeOpacity={0.7}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === 'active' && [
+                styles.tabTextActive,
+                { color: sportColor },
+              ],
+            ]}
+          >
+            Aktif
+          </Text>
+          <View
+            style={[
+              styles.tabBadge,
+              activeTab === 'active' && { backgroundColor: sportColor },
+            ]}
+          >
+            <Text
+              style={[
+                styles.tabBadgeText,
+                activeTab === 'active' && styles.tabBadgeTextActive,
+              ]}
+            >
+              {activeFixtures.length}
+            </Text>
+          </View>
+        </TouchableOpacity>
 
-        <View style={styles.statCard}>
-          <Clock size={20} color="#10B981" strokeWidth={2} />
-          <Text style={styles.statValue}>{stats.activeFixtures}</Text>
-          <Text style={styles.statLabel}>Aktif</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <Users size={20} color="#3B82F6" strokeWidth={2} />
-          <Text style={styles.statValue}>{stats.myFixtures}</Text>
-          <Text style={styles.statLabel}>Yönettiğim</Text>
-        </View>
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeTab === 'inactive' && [
+              styles.tabActive,
+              { borderBottomColor: '#6B7280' },
+            ],
+          ]}
+          onPress={() => setActiveTab('inactive')}
+          activeOpacity={0.7}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === 'inactive' && styles.tabTextActive,
+            ]}
+          >
+            Pasif
+          </Text>
+          <View
+            style={[
+              styles.tabBadge,
+              activeTab === 'inactive' && { backgroundColor: '#6B7280' },
+            ]}
+          >
+            <Text
+              style={[
+                styles.tabBadgeText,
+                activeTab === 'inactive' && styles.tabBadgeTextActive,
+              ]}
+            >
+              {inactiveFixtures.length}
+            </Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
-      {/* Fixtures List */}
+      {/* Content */}
       <ScrollView
-        style={styles.fixtureList}
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[sportColor]}
+            tintColor={sportColor}
+          />
         }
       >
         {filteredFixtures.length > 0 ? (
-          <>
-            {/* My Fixtures */}
-            {filteredFixtures.some(f => isOrganizer(f)) && (
-              <>
-                <Text style={styles.sectionTitle}>Yönettiğim Fikstürler</Text>
-                {filteredFixtures
-                  .filter(f => isOrganizer(f))
-                  .map((fixture) => (
-                    <FixtureCard
-                      key={fixture.id}
-                      fixture={fixture}
-                      isOrganizer={true}
-                      sportColor={sportColor}
-                      onPress={() =>
-                        NavigationService.navigateToFixture(fixture.id)
-                      }
-                      formatTime={formatTime}
-                      formatDay={formatDay}
-                    />
-                  ))}
-              </>
-            )}
-
-            {/* Other Fixtures */}
-            {filteredFixtures.some(f => !isOrganizer(f)) && (
-              <>
-                <Text style={styles.sectionTitle}>Diğer Fikstürler</Text>
-                {filteredFixtures
-                  .filter(f => !isOrganizer(f))
-                  .map((fixture) => (
-                    <FixtureCard
-                      key={fixture.id}
-                      fixture={fixture}
-                      isOrganizer={false}
-                      sportColor={sportColor}
-                      onPress={() =>
-                        NavigationService.navigateToFixture(fixture.id)
-                      }
-                      formatTime={formatTime}
-                      formatDay={formatDay}
-                    />
-                  ))}
-              </>
-            )}
-          </>
+          filteredFixtures.map(fixture => (
+            <FixtureCard
+              key={fixture.id}
+              fixture={fixture}
+              sportColor={sportColor}
+              isOrganizer={isOrganizer(fixture)}
+              onPress={() => handleFixturePress(fixture.id)}
+              formatDate={formatDate}
+              getTimeUntilMatch={getTimeUntilMatch}
+              getPatternText={getPatternText}
+            />
+          ))
         ) : (
           <View style={styles.emptyState}>
-            <Calendar size={64} color="#D1D5DB" strokeWidth={1.5} />
-            <Text style={styles.emptyStateTitle}>Fikstür bulunamadı</Text>
-            <Text style={styles.emptyStateText}>
+            <ListOrdered size={64} color="#D1D5DB" strokeWidth={2} />
+            <Text style={styles.emptyTitle}>
               {searchQuery
-                ? 'Arama kriterlerinize uygun fikstür bulunamadı'
-                : 'Henüz bir fikstür oluşturulmamış'}
+                ? 'Arama sonucu bulunamadı'
+                : activeTab === 'active'
+                ? 'Aktif fikstür yok'
+                : 'Pasif fikstür yok'}
             </Text>
+            <Text style={styles.emptyDescription}>
+              {searchQuery
+                ? 'Farklı anahtar kelimeler deneyin'
+                : activeTab === 'active'
+                ? isAdmin
+                  ? 'Yeni bir fikstür oluşturarak başlayın'
+                  : 'Henüz aktif fikstür bulunmuyor'
+                : 'Devre dışı bırakılmış fikstür yok'}
+            </Text>
+            {isAdmin && activeTab === 'active' && !searchQuery && (
+              <TouchableOpacity
+                style={[styles.emptyButton, { backgroundColor: sportColor }]}
+                onPress={handleCreateFixture}
+                activeOpacity={0.7}
+              >
+                <Plus size={20} color="white" strokeWidth={2.5} />
+                <Text style={styles.emptyButtonText}>Fikstür Oluştur</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
-
-      {/* Floating Add Button */}
-      {league.createdBy === user?.id && (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: sportColor }]}
-          onPress={() => NavigationService.navigateToCreateFixture(league.id)}
-          activeOpacity={0.8}
-        >
-          <Plus size={28} color="white" strokeWidth={2.5} />
-        </TouchableOpacity>
-      )}
     </View>
   );
 };
 
-// Fixture Card Component
+// ============================================
+// FIXTURE CARD COMPONENT
+// ============================================
+
 interface FixtureCardProps {
-  fixture: IMatchFixture;
-  isOrganizer: boolean;
+  fixture: IFixture;
   sportColor: string;
+  isOrganizer: boolean;
   onPress: () => void;
-  formatTime: (date: Date) => string;
-  formatDay: (date: Date) => string;
+  formatDate: (date: string) => string;
+  getTimeUntilMatch: (date: string) => string;
+  getPatternText: (pattern?: IFixture['schedule']['pattern']) => string;
 }
 
 const FixtureCard: React.FC<FixtureCardProps> = ({
   fixture,
-  isOrganizer,
   sportColor,
+  isOrganizer,
   onPress,
-  formatTime,
-  formatDay,
+  formatDate,
+  getTimeUntilMatch,
+  getPatternText,
 }) => {
   return (
     <TouchableOpacity
       style={[
         styles.fixtureCard,
-        fixture.status === 'Pasif' && styles.fixtureCardInactive,
-        isOrganizer && styles.fixtureCardOrganizer,
+        isOrganizer && { borderColor: sportColor, borderWidth: 2 },
       ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={styles.fixtureCardHeader}>
-        <View style={styles.fixtureCardLeft}>
+      {/* Header */}
+      <View style={styles.fixtureHeader}>
+        <View style={styles.fixtureTitleRow}>
           <View
-            style={[
-              styles.fixtureIcon,
-              { backgroundColor: sportColor + '20' },
-            ]}
+            style={[styles.fixtureIcon, { backgroundColor: sportColor + '20' }]}
           >
-            <Calendar size={20} color={sportColor} strokeWidth={2} />
+            <ListOrdered size={18} color={sportColor} strokeWidth={2} />
           </View>
-
-          <View style={styles.fixtureCardInfo}>
-            <View style={styles.fixtureCardTitleRow}>
-              <Text style={styles.fixtureCardTitle} numberOfLines={1}>
-                {fixture.title}
-              </Text>
-              {isOrganizer && (
-                <View style={[styles.organizerBadge, { backgroundColor: sportColor }]}>
-                  <Text style={styles.organizerBadgeText}>Organizatör</Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.fixtureCardMeta}>
-              <View style={styles.metaItem}>
-                <Clock size={14} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.metaText}>
-                  {formatDay(fixture.matchStartTime)} {formatTime(fixture.matchStartTime)}
-                </Text>
+          <View style={styles.fixtureTitleContainer}>
+            <Text style={styles.fixtureTitle} numberOfLines={1}>
+              {fixture.title}
+            </Text>
+            {isOrganizer && (
+              <View
+                style={[styles.organizerBadge, { backgroundColor: sportColor }]}
+              >
+                <Text style={styles.organizerBadgeText}>Organizatör</Text>
               </View>
-
-              {fixture.status === 'Pasif' && (
-                <View style={styles.inactiveBadge}>
-                  <Text style={styles.inactiveBadgeText}>Pasif</Text>
-                </View>
-              )}
-            </View>
+            )}
           </View>
         </View>
-
         <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
       </View>
 
-      <View style={styles.fixtureCardBody}>
-        <View style={styles.fixtureDetailRow}>
+      {/* Description */}
+      {fixture.description && (
+        <Text style={styles.fixtureDescription} numberOfLines={2}>
+          {fixture.description}
+        </Text>
+      )}
+
+      {/* Next Match - Prominent Display */}
+      {fixture.nextMatchDate ? (
+        <View style={styles.nextMatchContainer}>
+          <View style={styles.nextMatchHeader}>
+            <Clock size={14} color={sportColor} strokeWidth={2} />
+            <Text style={[styles.nextMatchLabel, { color: sportColor }]}>
+              Sonraki Maç
+            </Text>
+          </View>
+          <View style={styles.nextMatchBody}>
+            <Text style={styles.nextMatchDate}>
+              {formatDate(fixture.nextMatchDate)}
+            </Text>
+            <View
+              style={[
+                styles.nextMatchBadge,
+                { backgroundColor: sportColor + '20' },
+              ]}
+            >
+              <Text style={[styles.nextMatchBadgeText, { color: sportColor }]}>
+                {getTimeUntilMatch(fixture.nextMatchDate)} kaldı
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.noMatchContainer}>
+          <Calendar size={14} color="#9CA3AF" strokeWidth={2} />
+          <Text style={styles.noMatchText}>Maç planlanmadı</Text>
+        </View>
+      )}
+
+      {/* Location */}
+      {fixture.venue.location && (
+        <View style={styles.fixtureInfoRow}>
           <MapPin size={14} color="#6B7280" strokeWidth={2} />
-          <Text style={styles.fixtureDetailText} numberOfLines={1}>
-            {fixture.location}
+          <Text style={styles.fixtureInfoText} numberOfLines={1}>
+            {fixture.venue.location}
           </Text>
         </View>
+      )}
 
-        <View style={styles.fixtureDetailRow}>
-          <Users size={14} color="#6B7280" strokeWidth={2} />
-          <Text style={styles.fixtureDetailText}>
-            {fixture.staffPlayerCount} + {fixture.reservePlayerCount} yedek
-          </Text>
+      {/* Stats Footer */}
+      <View style={styles.fixtureFooter}>
+        <View style={styles.fixtureStatItem}>
+          <Calendar size={12} color="#9CA3AF" strokeWidth={2} />
+          <Text style={styles.fixtureStatText}>{fixture.totalMatches} maç</Text>
         </View>
 
-        <View style={styles.fixtureDetailRow}>
-          <DollarSign size={14} color="#6B7280" strokeWidth={2} />
-          <Text style={styles.fixtureDetailText}>
-            {fixture.pricePerPlayer} TL
-          </Text>
-        </View>
-      </View>
-
-      {/* Badges */}
-      <View style={styles.fixtureCardFooter}>
-        {fixture.isPeriodic && (
-          <View style={styles.periodicBadge}>
+        {fixture.schedule.isRecurring && (
+          <View style={styles.fixtureStatItem}>
             <Repeat size={12} color="#8B5CF6" strokeWidth={2} />
-            <Text style={styles.periodicBadgeText}>
-              Her {fixture.periodDayCount} gün
+            <Text style={[styles.fixtureStatText, { color: '#8B5CF6' }]}>
+              {getPatternText(fixture.schedule.pattern)}
             </Text>
           </View>
         )}
 
-        <View
-          style={[
-            styles.statusDot,
-            { backgroundColor: fixture.status === 'Aktif' ? sportColor : '#DC2626' },
-          ]}
-        />
+        <View style={styles.fixtureStatItem}>
+          <DollarSign size={12} color="#9CA3AF" strokeWidth={2} />
+          <Text style={styles.fixtureStatText}>
+            {fixture.venue.pricePerPlayer} TL
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
 };
 
+// ============================================
+// STYLES
+// ============================================
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+    paddingTop: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -477,15 +667,103 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
-  searchContainer: {
+
+  // Header
+  header: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    gap: 12,
+    paddingVertical: 12,
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  headerSubtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  createButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerRight: {
+    width: 40,
+  },
+
+  // Quick Stats
+  quickStats: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: 'white',
+  },
+  quickStatCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+    borderLeftWidth: 3,
+  },
+  quickStatIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickStatContent: {
+    flex: 1,
+  },
+  quickStatValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1F2937',
+    lineHeight: 24,
+  },
+  quickStatLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+
+  // Search
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'white',
   },
   searchBar: {
     flex: 1,
@@ -494,14 +772,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 12,
     paddingHorizontal: 12,
-    height: 44,
+    paddingVertical: 10,
     gap: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     color: '#1F2937',
-    paddingVertical: 0,
+    padding: 0,
+  },
+  clearButton: {
+    padding: 4,
   },
   filterButton: {
     width: 44,
@@ -511,121 +792,137 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  filtersContainer: {
+
+  // Filters Panel
+  filtersPanel: {
+    backgroundColor: 'white',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  filterTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  filterOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  filterOptionText: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+
+  // Tabs
+  tabContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
   },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  filterChipActive: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#16a34a',
-  },
-  filterChipText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  filterChipTextActive: {
-    color: '#16a34a',
-    fontWeight: '700',
-  },
-  statsContainer: {
+  tab: {
+    flex: 1,
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: 'white',
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 12,
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
+  tabActive: {
+    borderBottomWidth: 2,
   },
-  statLabel: {
-    fontSize: 11,
+  tabText: {
+    fontSize: 15,
+    fontWeight: '600',
     color: '#6B7280',
-    fontWeight: '500',
   },
-  fixtureList: {
+  tabTextActive: {
+    fontWeight: '700',
+  },
+  tabBadge: {
+    backgroundColor: '#E5E7EB',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  tabBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  tabBadgeTextActive: {
+    color: 'white',
+  },
+
+  // Content
+  content: {
     flex: 1,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 12,
+  contentContainer: {
+    padding: 16,
   },
+
+  // Fixture Card
   fixtureCard: {
     backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginBottom: 12,
     borderRadius: 16,
     padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
-  fixtureCardInactive: {
-    opacity: 0.6,
-  },
-  fixtureCardOrganizer: {
-    borderWidth: 2,
-    borderColor: '#16a34a',
-  },
-  fixtureCardHeader: {
+  fixtureHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 12,
   },
-  fixtureCardLeft: {
+  fixtureTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
     flex: 1,
-    marginRight: 12,
   },
   fixtureIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
-  fixtureCardInfo: {
+  fixtureTitleContainer: {
     flex: 1,
-  },
-  fixtureCardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
   },
-  fixtureCardTitle: {
+  fixtureTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#1F2937',
@@ -633,7 +930,7 @@ const styles = StyleSheet.create({
   },
   organizerBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   organizerBadgeText: {
@@ -641,108 +938,140 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'white',
   },
-  fixtureCardMeta: {
+  fixtureDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+
+  // Next Match Container - Prominent
+  nextMatchContainer: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  nextMatchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  nextMatchLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  nextMatchBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  nextMatchDate: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1F2937',
+    flex: 1,
+  },
+  nextMatchBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  nextMatchBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // No Match
+  noMatchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
+  noMatchText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+
+  // Info Row
+  fixtureInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  fixtureInfoText: {
+    fontSize: 13,
+    color: '#6B7280',
+    flex: 1,
+  },
+
+  // Footer
+  fixtureFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  inactiveBadge: {
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  inactiveBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  fixtureCardBody: {
-    gap: 8,
-    marginBottom: 12,
+    marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
   },
-  fixtureDetailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  fixtureDetailText: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-    flex: 1,
-  },
-  fixtureCardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  periodicBadge: {
+  fixtureStatItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F3E8FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
   },
-  periodicBadgeText: {
+  fixtureStatText: {
     fontSize: 11,
+    color: '#6B7280',
     fontWeight: '600',
-    color: '#8B5CF6',
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
+
+  // Empty State
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
     paddingHorizontal: 32,
   },
-  emptyStateTitle: {
+  emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1F2937',
     marginTop: 16,
     marginBottom: 8,
   },
-  emptyStateText: {
+  emptyDescription: {
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 20,
   },
-  bottomSpacing: {
-    height: 80,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
+  emptyButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 24,
+  },
+  emptyButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'white',
+  },
+
+  bottomSpacing: {
+    height: 20,
   },
 });

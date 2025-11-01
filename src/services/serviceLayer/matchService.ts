@@ -21,6 +21,7 @@ import {
   IPlayer
 } from '../../types/entity/types';
 import { ApiLogger } from '../../api/base/ApiLogger';
+import { calculateRegistrationCloseTime, calculateRegistrationOpenTime } from '../../types/entity/registrationScheduleType';
 
 export class MatchService {
   // ============================================
@@ -105,12 +106,16 @@ export class MatchService {
       const matchEnd = new Date(matchStart);
       matchEnd.setMinutes(matchEnd.getMinutes() + fixture.schedule.matchDuration);
 
-      const registrationStart = new Date(matchStart);
-      const [regHours, regMinutes] = fixture.schedule.registrationStartTime.split(':');
-      registrationStart.setHours(parseInt(regHours), parseInt(regMinutes), 0, 0);
+      // 🆕 Calculate registration times using RegistrationSchedule
+      const registrationStart = calculateRegistrationOpenTime(
+        matchStart,
+        fixture.schedule.registrationSchedule
+      );
 
-      const registrationEnd = new Date(matchStart);
-      registrationEnd.setMinutes(registrationEnd.getMinutes() - 30);
+      const registrationEnd = calculateRegistrationCloseTime(
+        matchStart,
+        fixture.schedule.registrationSchedule
+      );
 
       // Create match data
       const matchData: Omit<IMatch, 'id'> = {
@@ -1802,6 +1807,10 @@ export class MatchService {
 
   static async getLeagueMatches(leagueId: string): Promise<ApiResponse<IMatch[]>> {
     return matchAPI.getByLeague(leagueId);
+  }
+
+  static async getFixtureMatches(fixtureId: string): Promise<ApiResponse<IMatch[]>> {
+    return matchAPI.getByFixture(fixtureId);
   }
 
   static async getMatchesByStatus(status: MatchStatus): Promise<ApiResponse<IMatch[]>> {

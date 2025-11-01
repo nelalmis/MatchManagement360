@@ -7,7 +7,7 @@ import { ApiLogger } from '../base/ApiLogger';
 
 export class LeagueSettingsAPI extends BaseAPI<ILeagueSettings> {
   constructor() {
-    super('leagueSettings');
+    super('league_settings');
   }
 
   // ============================================
@@ -69,6 +69,7 @@ export class LeagueSettingsAPI extends BaseAPI<ILeagueSettings> {
           requirePaymentForRegistration: false,
           autoConfirmPayment: false,
           cancellationDeadlineHours: 24,
+          requireOrganizerApprovalForSquad: false,
         },
         scoring: {
           requireScoreConfirmation: false,
@@ -106,10 +107,7 @@ export class LeagueSettingsAPI extends BaseAPI<ILeagueSettings> {
       };
 
       // Use league ID as settings ID
-      const result = await this.create({
-        ...defaultSettings,
-        id: leagueId,
-      } as any);
+      const result = await this.createWithId(leagueId, defaultSettings);
 
       ApiLogger.success('leagueSettings', 'createDefaultSettings', { leagueId });
 

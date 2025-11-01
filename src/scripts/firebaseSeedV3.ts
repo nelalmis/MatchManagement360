@@ -270,6 +270,7 @@ export const generateLeagueSettings = (league: ILeague): ILeagueSettings => {
       requirePaymentForRegistration: randomBoolean(),
       autoConfirmPayment: randomBoolean(),
       cancellationDeadlineHours: randomInt(24, 72),
+      requireOrganizerApprovalForSquad: randomBoolean(),
     },
     scoring: {
       requireScoreConfirmation: true,

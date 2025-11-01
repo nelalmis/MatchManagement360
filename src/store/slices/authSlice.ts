@@ -54,7 +54,7 @@ export const loginUser = createAsyncThunk(
       );
 
       // PlayerService ile kullanıcı bilgilerini getir
-      const playerResult = await PlayerService.getPlayer('player_1761610022065_2rzy6my8s');
+      const playerResult = await PlayerService.getPlayer('player_1761610022065_1o4bhrbrb');
 
       let userData: IPlayer = null as any;
 

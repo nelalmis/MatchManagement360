@@ -13,6 +13,7 @@ import {
   Modal,
   Share,
   Platform,
+  SectionList,
 } from 'react-native';
 import {
   Users,
@@ -45,6 +46,11 @@ import {
   Archive,
   AlertCircle,
   LogOut,
+  CalendarClock,
+  CalendarDays,
+  ListOrdered,
+  Repeat,
+  DollarSign,
 } from 'lucide-react-native';
 import { RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
 import { useAuth } from '../../hooks';
@@ -60,12 +66,14 @@ import {
   IStandings,
   ILeagueInvitation,
   SportType,
+  IPlayer,
 } from '../../types/entity/types';
 import {
   getSportEmoji,
   getSportPrimaryColor,
 } from '../../utils/theme';
 import * as Clipboard from 'expo-clipboard';
+import PlayerService from '../../services/serviceLayer/playerService';
 
 // ============================================
 // TYPES
@@ -79,7 +87,7 @@ type LeagueDetailRouteProp = RouteProp<
 interface LeagueStats {
   totalMembers: number;
   totalFixtures: number;
-  upcomingMatches: number;
+  totalMatches: number;
   premiumPlayers: number;
   directPlayers: number;
   totalSeasons: number;
@@ -111,7 +119,7 @@ export const LeagueDetailScreen: React.FC = () => {
   const [stats, setStats] = useState<LeagueStats>({
     totalMembers: 0,
     totalFixtures: 0,
-    upcomingMatches: 0,
+    totalMatches: 0,
     premiumPlayers: 0,
     directPlayers: 0,
     totalSeasons: 0,
@@ -131,6 +139,7 @@ export const LeagueDetailScreen: React.FC = () => {
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [playerModalType, setPlayerModalType] = useState<'premium' | 'direct'>('premium');
   const [creatingInvite, setCreatingInvite] = useState(false);
+  const [leagueMembers, setLeagueMembers] = useState<Record<string, IPlayer>>({});
 
   // ============================================
   // DATA LOADING
@@ -150,10 +159,12 @@ export const LeagueDetailScreen: React.FC = () => {
 
       // Load league
       const leagueResult = await LeagueService.getLeague(leagueId);
+      if (!leagueResult.success || !leagueResult.data) {
+        Alert.alert('Hata', 'Lig bilgileri yüklenemedi');
+        return;
+      }
       if (leagueResult.success && leagueResult.data) {
         setLeague(leagueResult.data);
-        calculatePermissions(leagueResult.data);
-        calculateStats(leagueResult.data);
       }
 
       // Load fixtures
@@ -180,6 +191,23 @@ export const LeagueDetailScreen: React.FC = () => {
       if (invitationsResult.success && invitationsResult.data) {
         setInvitations(invitationsResult.data);
       }
+
+      // Map player IDs to their names
+      const playersResult = await PlayerService.getPlayersByIds(leagueResult.data.members.all);
+      if (!playersResult.success || !playersResult.data) {
+        Alert.alert('Hata', 'Oyuncu bilgileri yüklenemedi');
+        return;
+      }
+
+      const playersMap: Record<string, IPlayer> = {};
+      playersResult.data.forEach(player => {
+        playersMap[player.id] = player;
+      });
+      setLeagueMembers(playersMap);
+
+      // Calculate permissions and stats
+      calculatePermissions(leagueResult.data);
+      calculateStats(leagueResult.data, fixturesResult.data || []);
     } catch (error) {
       console.error('Error loading league data:', error);
       Alert.alert('Hata', 'Lig bilgileri yüklenirken bir hata oluştu');
@@ -205,13 +233,13 @@ export const LeagueDetailScreen: React.FC = () => {
     });
   };
 
-  const calculateStats = (leagueData: ILeague) => {
+  const calculateStats = (leagueData: ILeague, fixtures: IFixture[]) => {
     const activeFixtures = fixtures.filter(f => f.status === 'active').length;
 
     setStats({
       totalMembers: leagueData.members.all.length,
       totalFixtures: activeFixtures,           // ✅ Aktif fixture sayısı
-      upcomingMatches: leagueData.totalMatches || 0,  // ✅ League'den gelen total matches
+      totalMatches: leagueData.totalMatches || 0,  // ✅ League'den gelen total matches
       premiumPlayers: leagueData.defaultPlayers.premium.length,
       directPlayers: leagueData.defaultPlayers.direct.length,
       totalSeasons: leagueData.totalSeasons || 1,
@@ -363,19 +391,18 @@ export const LeagueDetailScreen: React.FC = () => {
     if (!permissions.isAdmin || !user?.id || playerIds.length === 0) return;
 
     try {
-      const playerId = playerIds[0]; // İlk seçili oyuncuyu al
 
       const result =
         playerModalType === 'premium'
-          ? await LeagueService.addPremiumPlayer(leagueId, user.id, playerId)
-          : await LeagueService.addDirectPlayer(leagueId, user.id, playerId);
+          ? await LeagueService.addMultiplePremiumPlayers(leagueId, user.id, playerIds)
+          : await LeagueService.addMultipleDirectPlayers(leagueId, user.id, playerIds);
 
       if (result.success) {
-        Alert.alert('✅ Eklendi', 'Oyuncu başarıyla eklendi');
+        Alert.alert('✅ Eklendi', 'Oyuncular başarıyla eklendi');
         setShowPlayerModal(false);
         await loadLeagueData();
       } else {
-        Alert.alert('Hata', result.error?.message || 'Oyuncu eklenemedi');
+        Alert.alert('Hata', result.error?.message || 'Oyuncular eklenemedi');
       }
     } catch (error) {
       console.error('Error adding player:', error);
@@ -536,7 +563,7 @@ export const LeagueDetailScreen: React.FC = () => {
         {/* Fixtures */}
         <View style={[styles.statCard, { borderLeftColor: '#2563EB' }]}>
           <View style={[styles.statIconContainer, { backgroundColor: '#2563EB20' }]}>
-            <Calendar size={20} color="#2563EB" strokeWidth={2.5} />
+            <ListOrdered size={20} color="#2563EB" strokeWidth={2.5} />
           </View>
           <Text style={styles.statValue}>{stats.totalFixtures}</Text>
           <Text style={styles.statLabel}>Fikstür</Text>
@@ -545,10 +572,10 @@ export const LeagueDetailScreen: React.FC = () => {
         {/* Upcoming Matches */}
         <View style={[styles.statCard, { borderLeftColor: '#F59E0B' }]}>
           <View style={[styles.statIconContainer, { backgroundColor: '#F59E0B20' }]}>
-            <Clock size={20} color="#F59E0B" strokeWidth={2.5} />
+            <Calendar size={20} color="#F59E0B" strokeWidth={2.5} />
           </View>
-          <Text style={styles.statValue}>{stats.upcomingMatches}</Text>
-          <Text style={styles.statLabel}>Yaklaşan</Text>
+          <Text style={styles.statValue}>{stats.totalMatches}</Text>
+          <Text style={styles.statLabel}>Toplam Maç</Text>
         </View>
 
         {/* Premium Players */}
@@ -755,6 +782,11 @@ export const LeagueDetailScreen: React.FC = () => {
 
     const sportColor = getSportPrimaryColor(league.sportType);
 
+    // Get only active fixtures
+    const activeFixtures = fixtures.filter(f => f.status === 'active');
+    const displayFixtures = activeFixtures.slice(0, 5); // Show max 5
+    const hasMore = activeFixtures.length > 5;
+
     return (
       <View style={styles.tabContent}>
         {permissions.isAdmin && (
@@ -768,54 +800,118 @@ export const LeagueDetailScreen: React.FC = () => {
           </TouchableOpacity>
         )}
 
-        {fixtures.length > 0 ? (
-          fixtures.map(fixture => (
+        {/* Active Fixtures Section */}
+        {displayFixtures.length > 0 ? (
+          <>
+            <View style={styles.fixtureSectionHeader}>
+              <Text style={styles.fixtureSectionTitle}>Aktif Fikstürler</Text>
+              <Text style={styles.fixtureSectionCount}>
+                {activeFixtures.length} fikstür
+              </Text>
+            </View>
+
+            {displayFixtures.map(fixture => (
+              <TouchableOpacity
+                key={fixture.id}
+                style={styles.fixtureCard}
+                onPress={() =>
+                  NavigationService.navigateToFixtureDetail(fixture.id!)
+                }
+                activeOpacity={0.7}
+              >
+                <View style={styles.fixtureHeader}>
+                  <View style={styles.fixtureTitleRow}>
+                    <ListOrdered size={18} color={sportColor} strokeWidth={2} />
+                    <Text style={styles.fixtureTitle}>{fixture.title}</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.fixtureStatusBadge,
+                      styles.fixtureStatusActive,
+                    ]}
+                  >
+                    <Text style={styles.fixtureStatusText}>Aktif</Text>
+                  </View>
+                </View>
+
+                {/* Next Match Date */}
+                {fixture.nextMatchDate ? (
+                  <View style={styles.fixtureInfo}>
+                    <Calendar size={16} color="#6B7280" strokeWidth={2} />
+                    <Text style={styles.fixtureInfoText}>
+                      Sonraki Maç: {formatDate(fixture.nextMatchDate)}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.fixtureInfo}>
+                    <Calendar size={16} color="#9CA3AF" strokeWidth={2} />
+                    <Text style={[styles.fixtureInfoText, { color: '#9CA3AF' }]}>
+                      Maç planlanmadı
+                    </Text>
+                  </View>
+                )}
+
+                {/* Location */}
+                {fixture.venue.location && (
+                  <View style={styles.fixtureInfo}>
+                    <MapPin size={16} color="#6B7280" strokeWidth={2} />
+                    <Text style={styles.fixtureInfoText}>
+                      {fixture.venue.location}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Stats Row */}
+                <View style={styles.fixtureStatsRow}>
+                  <View style={styles.fixtureStatItem}>
+                    <Calendar size={14} color="#9CA3AF" strokeWidth={2} />
+                    <Text style={styles.fixtureStatText}>
+                      {fixture.totalMatches} maç
+                    </Text>
+                  </View>
+                  {fixture.schedule.isRecurring && (
+                    <View style={styles.fixtureStatItem}>
+                      <Repeat size={14} color="#9CA3AF" strokeWidth={2} />
+                      <Text style={styles.fixtureStatText}>
+                        {fixture.schedule.pattern?.type === 'weekly' && 'Haftalık'}
+                        {fixture.schedule.pattern?.type === 'biweekly' && 'İki haftada bir'}
+                        {fixture.schedule.pattern?.type === 'monthly' && 'Aylık'}
+                        {fixture.schedule.pattern?.type === 'custom' && 'Özel'}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.fixtureStatItem}>
+                    <DollarSign size={14} color="#9CA3AF" strokeWidth={2} />
+                    <Text style={styles.fixtureStatText}>
+                      {fixture.venue.pricePerPlayer} TL
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            {/* View All Fixtures Button */}
             <TouchableOpacity
-              key={fixture.id}
-              style={styles.fixtureCard}
+              style={styles.viewAllButton}
               onPress={() =>
-                NavigationService.navigateToFixtureDetail(fixture.id!)
+                NavigationService.navigateToFixtureList(league.id)
               }
               activeOpacity={0.7}
             >
-              <View style={styles.fixtureHeader}>
-                <Text style={styles.fixtureTitle}>{fixture.title}</Text>
-                <View
-                  style={[
-                    styles.fixtureStatusBadge,
-                    fixture.status === 'active' && styles.fixtureStatusScheduled,
-                    fixture.status === 'inactive' && styles.fixtureStatusCancelled,
-                  ]}
-                >
-                  <Text style={styles.fixtureStatusText}>
-                    {fixture.status === 'active' && 'Aktif'}
-                    {fixture.status === 'inactive' && 'Pasif'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.fixtureInfo}>
-                <Calendar size={16} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.fixtureDate}>
-                  {fixture.nextMatchDate
-                    ? `Sonraki Maç: ${formatDate(fixture.nextMatchDate)}`
-                    : 'Maç planlanmadı'}
-                </Text>
-              </View>
-              {fixture.venue.location && (
-                <View style={styles.fixtureInfo}>
-                  <MapPin size={16} color="#6B7280" strokeWidth={2} />
-                  <Text style={styles.fixtureLocation}>{fixture.venue.location}</Text>
-                </View>
-              )}
+              <Text style={styles.viewAllButtonText}>
+                Tüm Fikstürleri Gör
+                {hasMore && ` (${activeFixtures.length})`}
+              </Text>
+              <ChevronRight size={20} color={sportColor} strokeWidth={2.5} />
             </TouchableOpacity>
-          ))
+          </>
         ) : (
           <View style={styles.emptyState}>
-            <Calendar size={48} color="#D1D5DB" strokeWidth={2} />
+            <ListOrdered size={48} color="#D1D5DB" strokeWidth={2} />
             <Text style={styles.emptyText}>Henüz fikstür oluşturulmamış</Text>
             {permissions.isAdmin && (
               <Text style={styles.emptyHint}>
-                Hızlı işlemlerden yeni fikstür oluşturabilirsiniz
+                Düzenli maçlar için fikstür oluşturun
               </Text>
             )}
           </View>
@@ -948,7 +1044,7 @@ export const LeagueDetailScreen: React.FC = () => {
                 <View style={[styles.playerIcon, { backgroundColor: '#2563EB20' }]}>
                   <Users size={16} color="#2563EB" strokeWidth={2} />
                 </View>
-                <Text style={styles.playerName}>{playerId}</Text>
+                <Text style={styles.playerName}>{leagueMembers[playerId]?.displayName || playerId}</Text>
               </View>
               {league.members.admins.includes(playerId) && (
                 <View style={styles.adminBadge}>
@@ -1293,9 +1389,8 @@ export const LeagueDetailScreen: React.FC = () => {
                         if (!user?.id) return;
 
                         try {
-                          const result = await LeagueService.removeMember(
+                          const result = await LeagueService.leaveLeague(
                             leagueId,
-                            user.id,
                             user.id
                           );
 
@@ -1303,7 +1398,10 @@ export const LeagueDetailScreen: React.FC = () => {
                             Alert.alert('✅ Ayrıldınız', 'Ligden başarıyla ayrıldınız', [
                               {
                                 text: 'Tamam',
-                                onPress: () => NavigationService.navigateToLeaguesTab(),
+                                onPress: () => {
+                                  loadLeagueData();
+                                  NavigationService.navigateToLeaguesTab();
+                                },
                               },
                             ]);
                           } else {
@@ -1499,13 +1597,14 @@ export const LeagueDetailScreen: React.FC = () => {
     );
   }
 
-  const renderPlayerSelectorModal = () => {
+  const renderPlayerSelectorModal = async () => {
     if (!league) return null;
     if (!showPlayerModal) return null;
-    // Prepare player list from league members
+
     const availablePlayers = league.members.all.map(playerId => ({
       id: playerId,
-      name: playerId, // TODO: Fetch actual player names from playerAPI
+      name: leagueMembers[playerId]?.name || 'Bilinmeyen Oyuncu',
+      avatarUrl: leagueMembers[playerId]?.profilePhoto,
       isPremium: league.defaultPlayers.premium.includes(playerId),
       isDirect: league.defaultPlayers.direct.includes(playerId),
       isAdmin: league.members.admins.includes(playerId),
@@ -1535,11 +1634,19 @@ export const LeagueDetailScreen: React.FC = () => {
     );
   };
 
+  // 🎯 SECTIONLIST YAPISI
+  const sections = [
+    {
+      title: 'content',
+      data: [activeTab], // Tek item - aktif tab
+    },
+  ];
+
   return (
     <View style={styles.container}>
       {renderHeader()}
 
-      <ScrollView
+      {/* <ScrollView
         style={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         showsVerticalScrollIndicator={false}
@@ -1551,7 +1658,36 @@ export const LeagueDetailScreen: React.FC = () => {
         {activeTab === 'standings' && renderStandingsTab()}
         {activeTab === 'players' && renderPlayersTab()}
         {activeTab === 'settings' && renderSettingsTab()}
-      </ScrollView>
+      </ScrollView> */}
+
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item}
+        renderItem={({ item }) => {
+          // Tab'a göre içerik render et
+          switch (item) {
+            case 'overview':
+              return renderOverviewTab();
+            case 'fixtures':
+              return renderFixturesTab();
+            case 'standings':
+              return renderStandingsTab();
+            case 'players':
+              return renderPlayersTab();
+            case 'settings':
+              return renderSettingsTab();
+            default:
+              return null;
+          }
+        }}
+        renderSectionHeader={() => renderTabBar()} // 👈 STICKY TAB BAR
+        stickySectionHeadersEnabled={true} // 👈 MAGIC!
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.sectionListContent}
+      />
 
       {renderInviteModal()}
       {renderPlayerSelectorModal()}
@@ -1652,7 +1788,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 12,
   },
-
   // Content
   content: {
     flex: 1,
@@ -1702,12 +1837,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
+  // sectionTitle: {
+  //   fontSize: 16,
+  //   fontWeight: '800',
+  //   color: '#1F2937',
+  //   marginBottom: 12,
+  // },
   quickActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1745,11 +1880,16 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
 
-  // Tab Bar
+  // 🎯 STICKY TAB BAR STYLES
   tabContainer: {
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 3, // Android shadow
   },
   tabRow: {
     flexDirection: 'row',
@@ -1776,6 +1916,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#6B7280',
     textAlign: 'center',
+  },
+
+  // SectionList Content
+  sectionListContent: {
+    flexGrow: 1,
+  },
+  tabContentWrapper: {
+    padding: 16,
+    minHeight: 600, // Scroll çalışması için minimum height
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 16,
   },
 
   // Tab Content
@@ -1838,65 +1993,124 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 
-  // Fixtures
-  fixtureCard: {
+  // Fixtures Section
+  fixtureSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  fixtureSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  fixtureSectionCount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+
+  // Fixture Card Updates
+  fixtureTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  fixtureStatusActive: {
+    backgroundColor: '#DCFCE7',
+  },
+  fixtureInfoText: {
+    fontSize: 13,
+    color: '#6B7280',
+    flex: 1,
+  },
+
+  // Fixture Stats Row
+  fixtureStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  fixtureStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  fixtureStatText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+
+  // View All Button
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
     backgroundColor: 'white',
     borderRadius: 12,
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderStyle: 'dashed',
+    gap: 8,
+  },
+  viewAllButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#374151',
+  },
+
+  // Fixture Card Styles
+  fixtureCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowRadius: 4,
     elevation: 2,
   },
   fixtureHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 12,
   },
   fixtureTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1F2937',
     flex: 1,
-    marginRight: 12,
+    marginRight: 8,
   },
   fixtureStatusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
-  },
-  fixtureStatusScheduled: {
-    backgroundColor: '#DBEAFE',
-  },
-  fixtureStatusCompleted: {
-    backgroundColor: '#D1FAE5',
-  },
-  fixtureStatusCancelled: {
-    backgroundColor: '#FEE2E2',
+    borderRadius: 8,
   },
   fixtureStatusText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#1F2937',
+    color: '#16a34a',
   },
   fixtureInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  fixtureDate: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  fixtureLocation: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
+    gap: 8,
+    marginBottom: 6,
   },
 
   // Standings

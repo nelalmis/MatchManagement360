@@ -158,7 +158,10 @@ export const EditLeagueScreen: React.FC = () => {
 
   const handleSaveBasicInfo = async () => {
     if (!user?.id || !league) return;
-
+    if(!hasChanges){
+      setCurrentStep(2);
+      return;
+    }
     if (!validateBasicInfo()) return;
 
     try {
@@ -186,7 +189,10 @@ export const EditLeagueScreen: React.FC = () => {
 
   const handleSaveSeasonSettings = async () => {
     if (!user?.id || !league) return;
-
+    if(!hasChanges){
+      setCurrentStep(3);
+      return;
+    }
     if (!validateSeasonSettings()) return;
 
     try {
@@ -216,6 +222,10 @@ export const EditLeagueScreen: React.FC = () => {
 
   const handleSaveGeneralSettings = async () => {
     if (!user?.id || !league) return;
+    if (!hasChanges) {
+      NavigationService.goBack();
+      return;
+    }
 
     try {
       setSaving(true);
@@ -547,7 +557,7 @@ export const EditLeagueScreen: React.FC = () => {
       <TouchableOpacity
         style={[styles.primaryButton, { backgroundColor: sportColor }]}
         onPress={handleSaveBasicInfo}
-        disabled={saving || !hasChanges}
+        disabled={saving}
         activeOpacity={0.8}
       >
         {saving ? (
@@ -751,7 +761,7 @@ export const EditLeagueScreen: React.FC = () => {
         <TouchableOpacity
           style={[styles.primaryButton, { backgroundColor: sportColor, flex: 1 }]}
           onPress={handleSaveGeneralSettings}
-          disabled={saving || !hasChanges}
+          disabled={saving}
           activeOpacity={0.8}
         >
           {saving ? (

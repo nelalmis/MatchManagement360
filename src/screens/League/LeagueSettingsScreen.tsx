@@ -519,6 +519,15 @@ export const LeagueSettingsScreen: React.FC = () => {
                     )}
 
                     <SettingRow
+                        label="Kadroya Girmek İçin Organizör Onayı Gerekli"
+                        value={settings.registration.requireOrganizerApprovalForSquad}
+                        onValueChange={(value) =>
+                            updateSettings('registration', { requireOrganizerApprovalForSquad: value })
+                        }
+                        type="switch"
+                    />
+
+                    <SettingRow
                         label="Kayıt İçin Ödeme Zorunlu"
                         value={settings.registration.requirePaymentForRegistration}
                         onValueChange={(value) =>

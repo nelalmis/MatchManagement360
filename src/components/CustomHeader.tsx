@@ -295,7 +295,7 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: Platform.OS === 'ios' ? 50 : 40,
+    paddingTop: Platform.OS === 'ios' ? 40 : 30,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

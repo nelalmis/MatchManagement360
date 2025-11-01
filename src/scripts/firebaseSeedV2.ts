@@ -998,6 +998,7 @@ export class FirebaseSeedV2 {
         requirePaymentForRegistration: false,
         autoConfirmPayment: false,
         cancellationDeadlineHours: 24,
+        requireOrganizerApprovalForSquad: false,
       },
       scoring: {
         requireScoreConfirmation: true,

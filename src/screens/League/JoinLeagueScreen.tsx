@@ -17,11 +17,12 @@ import {
   AlertCircle,
   ArrowRight,
 } from 'lucide-react-native';
-import { IInviteValidation } from '../../types/entity/types';
+import { IInviteValidation, SportType } from '../../types/entity/types';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { getSportIcon, getSportColor } from '../../types/types';
 import LeagueInvitationService from '../../services/serviceLayer/LeagueInvitationService';
+import { getSportDisplayName, getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 
 interface JoinLeagueScreenProps {
   initialCode?: string; // Deep link'ten gelen kod
@@ -169,88 +170,92 @@ export const JoinLeagueScreen: React.FC<JoinLeagueScreenProps> = ({ initialCode 
   // RENDER LEAGUE PREVIEW
   // ============================================
   const renderLeaguePreview = () => {
-    if (!validation?.valid || !validation.league) return null;
+  if (!validation?.valid || !validation.league) return null;
 
-    const SportIcon = getSportIcon(validation.league.sportType as any);
-    const sportColor = getSportColor(validation.league.sportType as any);
+  const sportEmoji = getSportEmoji(validation.league.sportType as SportType); // ✅ Emoji
+  const sportColor = getSportPrimaryColor(validation.league.sportType as SportType); // ✅ Color
 
-    return (
-      <View style={styles.previewSection}>
-        <View style={styles.previewHeader}>
+  return (
+    <View style={styles.previewSection}>
+      <View style={styles.previewHeader}>
+        {/* League Logo or Sport Icon */}
+        {validation.league.logo ? (
           <View style={[styles.previewIcon, { backgroundColor: `${sportColor}20` }]}>
-            {validation.league.logo ? (
-              <Image source={{ uri: validation.league.logo }} style={styles.leagueLogo} />
-            ) : (
-              React.createElement(SportIcon, {
-                size: 40,
-                color: sportColor,
-                strokeWidth: 2,
-              })
-            )}
+            <Image 
+              source={{ uri: validation.league.logo }} 
+              style={styles.leagueLogo} 
+            />
           </View>
-        </View>
-
-        <Text style={styles.previewTitle}>{validation.league.title}</Text>
-        <Text style={styles.previewSport}>{validation.league.sportType}</Text>
-
-        <View style={styles.previewStats}>
-          <View style={styles.statItem}>
-            <Users size={20} color="#6B7280" strokeWidth={2} />
-            <Text style={styles.statValue}>{validation.league.memberCount}</Text>
-            <Text style={styles.statLabel}>Üye</Text>
-          </View>
-        </View>
-
-        {validation.invitation?.metadata.assignRole && (
-          <View style={styles.roleInfo}>
-            <Trophy size={16} color="#16a34a" strokeWidth={2} />
-            <Text style={styles.roleInfoText}>
-              {validation.invitation.metadata.assignRole === 'premium'
-                ? 'Premium Oyuncu olarak katılacaksınız'
-                : validation.invitation.metadata.assignRole === 'direct'
-                ? 'Direkt Oyuncu olarak katılacaksınız'
-                : 'Üye olarak katılacaksınız'}
-            </Text>
+        ) : (
+          <View style={[styles.previewIcon, { backgroundColor: sportColor + '20' }]}>
+            <Text style={styles.sportEmoji}>{sportEmoji}</Text>
           </View>
         )}
-
-        {validation.invitation?.metadata.description && (
-          <View style={styles.descriptionBox}>
-            <Text style={styles.descriptionText}>
-              {validation.invitation.metadata.description}
-            </Text>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.joinButton, joining && styles.buttonDisabled]}
-          onPress={handleJoinLeague}
-          disabled={joining}
-          activeOpacity={0.7}
-        >
-          {joining ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <>
-              <Text style={styles.joinButtonText}>Lige Katıl</Text>
-              <ArrowRight size={20} color="white" strokeWidth={2.5} />
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => {
-            setCode('');
-            setValidation(null);
-          }}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.backButtonText}>Farklı Kod Dene</Text>
-        </TouchableOpacity>
       </View>
-    );
-  };
+
+      <Text style={styles.previewTitle}>{validation.league.title}</Text>
+      <Text style={styles.previewSport}>
+        {sportEmoji} {getSportDisplayName(validation.league.sportType as SportType)}
+      </Text>
+
+      <View style={styles.previewStats}>
+        <View style={styles.statItem}>
+          <Users size={20} color="#6B7280" strokeWidth={2} />
+          <Text style={styles.statValue}>{validation.league.memberCount}</Text>
+          <Text style={styles.statLabel}>Üye</Text>
+        </View>
+      </View>
+
+      {validation.invitation?.metadata.assignRole && (
+        <View style={styles.roleInfo}>
+          <Trophy size={16} color="#16a34a" strokeWidth={2} />
+          <Text style={styles.roleInfoText}>
+            {validation.invitation.metadata.assignRole === 'premium'
+              ? '👑 Premium Oyuncu olarak katılacaksınız'
+              : validation.invitation.metadata.assignRole === 'direct'
+                ? '🛡️ Direkt Oyuncu olarak katılacaksınız'
+                : '👤 Üye olarak katılacaksınız'}
+          </Text>
+        </View>
+      )}
+
+      {validation.invitation?.metadata.description && (
+        <View style={styles.descriptionBox}>
+          <Text style={styles.descriptionText}>
+            {validation.invitation.metadata.description}
+          </Text>
+        </View>
+      )}
+
+      <TouchableOpacity
+        style={[styles.joinButton, { backgroundColor: sportColor }, joining && styles.buttonDisabled]}
+        onPress={handleJoinLeague}
+        disabled={joining}
+        activeOpacity={0.7}
+      >
+        {joining ? (
+          <ActivityIndicator size="small" color="white" />
+        ) : (
+          <>
+            <Text style={styles.joinButtonText}>Lige Katıl</Text>
+            <ArrowRight size={20} color="white" strokeWidth={2.5} />
+          </>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => {
+          setCode('');
+          setValidation(null);
+        }}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.backButtonText}>Farklı Kod Dene</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
   // ============================================
   // RENDER ERROR
@@ -410,56 +415,20 @@ const styles = StyleSheet.create({
     color: '#1E40AF',
     lineHeight: 18,
   },
-  previewSection: {
-    flex: 1,
+
+   statItem: {
     alignItems: 'center',
-    paddingTop: 40,
-  },
-  previewHeader: {
-    marginBottom: 24,
-  },
-  previewIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  leagueLogo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
-  previewTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#1F2937',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  previewSport: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 24,
-  },
-  previewStats: {
-    flexDirection: 'row',
-    gap: 24,
-    marginBottom: 24,
-  },
-  statItem: {
-    alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   statValue: {
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#1F2937',
   },
   statLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#6B7280',
+    fontWeight: '500',
   },
   roleInfo: {
     flexDirection: 'row',
@@ -467,26 +436,25 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: '#DCFCE7',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
     marginBottom: 16,
   },
   roleInfoText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#16a34a',
+    color: '#166534',
+    flex: 1,
   },
   descriptionBox: {
     backgroundColor: '#F3F4F6',
-    borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
-    width: '100%',
+    borderRadius: 12,
+    marginBottom: 20,
   },
   descriptionText: {
     fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
+    color: '#4B5563',
     lineHeight: 20,
   },
   joinButton: {
@@ -495,10 +463,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 16,
-    paddingHorizontal: 32,
     borderRadius: 12,
-    backgroundColor: '#16a34a',
-    width: '100%',
     marginBottom: 12,
   },
   joinButtonText: {
@@ -508,9 +473,10 @@ const styles = StyleSheet.create({
   },
   backButton: {
     paddingVertical: 12,
+    alignItems: 'center',
   },
   backButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#6B7280',
   },
@@ -553,4 +519,61 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'white',
   },
+  sportIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  previewSection: {
+    padding: 20,
+  },
+  previewHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  previewIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  leagueLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  sportEmoji: {
+    fontSize: 40, // ✅ Bigger emoji
+    textAlign: 'center',
+  },
+  previewTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  previewSport: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  previewStats: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 32,
+    marginBottom: 20,
+  },
+ 
 });

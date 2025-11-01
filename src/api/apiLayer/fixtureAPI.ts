@@ -6,6 +6,7 @@ import { IFixture, PlayerListConfig } from '../../types/entity/types';
 import { ApiLogger } from '../base/ApiLogger';
 import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../../config/firebase.config';
+import { PatternCalculator } from '../../helper/FixturePatternCalculator';
 
 export class FixtureAPI extends BaseAPI<IFixture> {
   constructor() {
@@ -783,110 +784,6 @@ export class FixtureAPI extends BaseAPI<IFixture> {
     }
   }
 
-  /**
-   * Calculate next match date based on pattern
-   */
-  async calculateNextMatchDate(fixtureId: string): Promise<ApiResponse<string | null>> {
-    try {
-      const fixtureResult = await this.getById(fixtureId);
-
-      if (!fixtureResult.success || !fixtureResult.data) {
-        return {
-          success: false,
-          error: fixtureResult.error || {
-            code: 'NOT_FOUND',
-            message: 'Fixture not found',
-            statusCode: 404,
-          },
-        };
-      }
-
-      const fixture = fixtureResult.data;
-
-      if (!fixture.schedule.isRecurring || !fixture.schedule.pattern) {
-        return {
-          success: true,
-          data: null,
-        };
-      }
-
-      const now = new Date();
-      let nextDate: Date | null = null;
-
-      switch (fixture.schedule.pattern.type) {
-        case 'weekly':
-          nextDate = this.getNextWeeklyDate(now, fixture.schedule.pattern.dayOfWeek!);
-          break;
-        case 'biweekly':
-          nextDate = this.getNextBiweeklyDate(now, fixture.schedule.pattern.dayOfWeek!);
-          break;
-        case 'monthly':
-          nextDate = this.getNextMonthlyDate(now, fixture.schedule.pattern.dayOfMonth!);
-          break;
-        case 'custom':
-          nextDate = this.getNextCustomDate(now, fixture.schedule.pattern.interval!);
-          break;
-      }
-
-      // Check if pattern has ended
-      if (fixture.schedule.pattern.endsAt) {
-        const endsAt = new Date(fixture.schedule.pattern.endsAt);
-        if (nextDate && nextDate > endsAt) {
-          return {
-            success: true,
-            data: null,
-          };
-        }
-      }
-
-      return {
-        success: true,
-        data: nextDate?.toISOString() || null,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: {
-          code: 'CALCULATE_DATE_ERROR',
-          message: error.message || 'Failed to calculate next match date',
-          details: error,
-          statusCode: 500,
-        },
-      };
-    }
-  }
-
-  // Helper methods for date calculation
-  private getNextWeeklyDate(from: Date, dayOfWeek: number): Date {
-    const result = new Date(from);
-    const currentDay = result.getDay();
-    const daysUntilNext = (dayOfWeek + 7 - currentDay) % 7 || 7;
-    result.setDate(result.getDate() + daysUntilNext);
-    return result;
-  }
-
-  private getNextBiweeklyDate(from: Date, dayOfWeek: number): Date {
-    const nextWeekly = this.getNextWeeklyDate(from, dayOfWeek);
-    nextWeekly.setDate(nextWeekly.getDate() + 7); // Add one more week
-    return nextWeekly;
-  }
-
-  private getNextMonthlyDate(from: Date, dayOfMonth: number): Date {
-    const result = new Date(from);
-    result.setDate(dayOfMonth);
-
-    if (result <= from) {
-      result.setMonth(result.getMonth() + 1);
-    }
-
-    return result;
-  }
-
-  private getNextCustomDate(from: Date, intervalDays: number): Date {
-    const result = new Date(from);
-    result.setDate(result.getDate() + intervalDays);
-    return result;
-  }
 
   /**
    * Update recurring pattern
@@ -922,6 +819,51 @@ export class FixtureAPI extends BaseAPI<IFixture> {
         error: {
           code: 'UPDATE_PATTERN_ERROR',
           message: error.message || 'Failed to update pattern',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  async calculateNextMatchDate(fixtureId: string): Promise<ApiResponse<string | null>> {
+    try {
+      const fixtureResult = await this.getById(fixtureId);
+
+      if (!fixtureResult.success || !fixtureResult.data) {
+        return {
+          success: false,
+          error: fixtureResult.error || {
+            code: 'NOT_FOUND',
+            message: 'Fixture not found',
+            statusCode: 404,
+          },
+        };
+      }
+
+      const fixture = fixtureResult.data;
+
+      if (!fixture.schedule.isRecurring || !fixture.schedule.pattern) {
+        return {
+          success: true,
+          data: null,
+        };
+      }
+
+      // Use PatternCalculator
+      const now = new Date();
+      const nextDate = PatternCalculator.calculateNextDate(now, fixture.schedule.pattern);
+
+      return {
+        success: true,
+        data: nextDate?.toISOString() || null,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'CALCULATE_DATE_ERROR',
+          message: error.message || 'Failed to calculate next match date',
           details: error,
           statusCode: 500,
         },

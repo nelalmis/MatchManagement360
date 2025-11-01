@@ -16,6 +16,7 @@ import {
   WhereFilterOp,
   OrderByDirection
 } from 'firebase/firestore';
+import { FixtureSchedule } from './registrationScheduleType';
 
 export type FirestoreTimestamp = Timestamp;
 export type FirestoreFieldValue = FieldValue;
@@ -348,8 +349,10 @@ export interface ILeagueSettings {
     allowLateRegistration: boolean;          // Geç kayıt izinli mi
     lateRegistrationDeadlineHours: number;   // Maçtan kaç saat önceye kadar izinli 
     requirePaymentForRegistration: boolean;  // Kayıt için ödeme zorunlu mu
-    autoConfirmPayment: boolean;             // Manuel onay gerektirme
-    cancellationDeadlineHours: number;     // Maçtan kaç saat önce iptal edilebilir
+    autoConfirmPayment: boolean;             // Ödeme için manuel onay gerektirme!
+    cancellationDeadlineHours: number;       // Maçtan kaç saat önce iptal edilebilir.
+    //Kadroya girmek için organizatör onayı gerekli mi? for squad management
+    requireOrganizerApprovalForSquad: boolean;
   };
 
   // ============================================
@@ -643,21 +646,7 @@ export interface IFixture {
   // ============================================
   // ZAMANLAMA
   // ============================================
-  schedule: {
-    registrationStartTime: string;  // Kayıt başlangıç saati ("18:00")
-    matchStartTime: string;         // Maç başlangıç saati ("19:00")
-    matchDuration: number;          // Maç süresi (dakika)
-
-    // Periyodik ayarlar
-    isRecurring: boolean;           // Tekrarlayan mı, tek seferlik mi
-    pattern?: {
-      type: 'weekly' | 'biweekly' | 'monthly' | 'custom';
-      dayOfWeek?: number;           // 0-6 (Pazar-Cumartesi)
-      dayOfMonth?: number;          // 1-31 (monthly için)
-      interval?: number;            // custom için: her X günde bir
-      endsAt?: string;              // Tekrarın bitiş tarihi (optional)
-    };
-  };
+  schedule: FixtureSchedule
 
   // ============================================
   // KADRO AYARLARI
@@ -671,14 +660,7 @@ export interface IFixture {
   // ============================================
   // LOKASYON VE ÖDEME
   // ============================================
-  venue: {
-    location: string;               // Saha adresi
-    pricePerPlayer: number;         // Kişi başı ücret
-    payment: {
-      iban: string;                 // IBAN
-      accountName: string;          // Hesap sahibi
-    };
-  };
+  venue: Venue;
 
   // ============================================
   // OYUNCU LİSTELERİ (Hybrid sistem)
@@ -714,6 +696,7 @@ export interface IFixture {
   createdAt: string;
   updatedAt?: string;
 }
+
 
 // ============================================
 // 7. MATCH (matches collection)
@@ -816,14 +799,7 @@ export interface IMatch {
   // LOKASYON VE ÖDEME
   // Fixture'dan farklı olabilir (maça özel özelleştirme)
   // ============================================
-  venue?: {
-    location: string;
-    pricePerPlayer: number;
-    payment: {
-      iban: string;
-      accountName: string;
-    };
-  };
+  venue?: Venue;
 
   // ============================================
   // SKOR
@@ -2087,6 +2063,15 @@ export const TimestampHelpers = {
 
   delete: () => deleteField()
 };
+
+export interface Venue {
+  location: string;               // Saha adresi
+  pricePerPlayer: number;         // Kişi başı ücret
+  payment?: {
+    iban?: string;                 // IBAN
+    accountName?: string;          // Hesap sahibi
+  };
+}
 
 // ============================================
 // ADDITIONAL ENUMS

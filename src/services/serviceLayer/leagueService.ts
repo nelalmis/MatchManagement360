@@ -1659,6 +1659,198 @@ export class LeagueService {
         }
     }
 
+    /**
+ * Leave league (member voluntarily leaves)
+ */
+    static async leaveLeague(
+        leagueId: string,
+        memberId: string
+    ): Promise<ApiResponse<ILeague>> {
+        try {
+            ApiLogger.log('LeagueService', 'leaveLeague', {
+                leagueId,
+                memberId,
+            });
+
+            // Get league data
+            const leagueResult = await leagueAPI.getById(leagueId);
+
+            if (!leagueResult.success || !leagueResult.data) {
+                return {
+                    success: false,
+                    error: leagueResult.error || {
+                        code: 'LEAGUE_NOT_FOUND',
+                        message: 'Lig bulunamadı',
+                        statusCode: 404,
+                    },
+                };
+            }
+
+            const league = leagueResult.data;
+
+            // Cannot leave if creator
+            if (league.createdBy === memberId) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'CREATOR_CANNOT_LEAVE',
+                        message: 'Lig kurucusu ligden ayrılamaz. Önce ligi başka birine devretmelisiniz.',
+                        statusCode: 400,
+                    },
+                };
+            }
+
+            // Check if member exists in league
+            if (!league.members.all.includes(memberId)) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'NOT_A_MEMBER',
+                        message: 'Bu ligin üyesi değilsiniz',
+                        statusCode: 400,
+                    },
+                };
+            }
+
+            // If last admin (and not creator), warn them
+            const isAdmin = league.members.admins.includes(memberId);
+            if (isAdmin && league.members.admins.length === 1 && league.createdBy !== memberId) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'LAST_ADMIN',
+                        message: 'Son admin olarak ligden ayrılamazsınız. Önce başka bir admin atamalısınız.',
+                        statusCode: 400,
+                    },
+                };
+            }
+
+            // Remove member
+            const result = await leagueAPI.removeMember(leagueId, memberId);
+
+            if (result.success) {
+                // Update total members cache
+                const updatedLeague = await leagueAPI.getById(leagueId);
+                if (updatedLeague.success && updatedLeague.data) {
+                    await leagueAPI.update(leagueId, {
+                        totalMembers: updatedLeague.data.members.all.length,
+                    } as Partial<Omit<ILeague, 'id'>>);
+                }
+
+                ApiLogger.success('LeagueService', 'leaveLeague', {
+                    leagueId,
+                    memberId,
+                });
+            }
+
+            return result;
+        } catch (error: any) {
+            ApiLogger.error('LeagueService', 'leaveLeague', error);
+            return {
+                success: false,
+                error: {
+                    code: 'LEAVE_LEAGUE_ERROR',
+                    message: error.message || 'Ligden ayrılırken hata oluştu',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
+        }
+    }
+
+    // ============================================
+    // BONUS: Transfer Ownership Method
+    // ============================================
+
+    /**
+     * Transfer league ownership to another admin
+     * (Required before creator can leave)
+     * Sadece lig sahibi sahipliği devredebilir
+     */
+    static async transferOwnership(
+        leagueId: string,
+        currentOwnerId: string,
+        newOwnerId: string
+    ): Promise<ApiResponse<ILeague>> {
+        try {
+            ApiLogger.log('LeagueService', 'transferOwnership', {
+                leagueId,
+                currentOwnerId,
+                newOwnerId,
+            });
+
+            // Get league
+            const leagueResult = await leagueAPI.getById(leagueId);
+
+            if (!leagueResult.success || !leagueResult.data) {
+                return {
+                    success: false,
+                    error: leagueResult.error || {
+                        code: 'LEAGUE_NOT_FOUND',
+                        message: 'Lig bulunamadı',
+                        statusCode: 404,
+                    },
+                };
+            }
+
+            const league = leagueResult.data;
+
+            // Check if requester is current owner
+            if (league.createdBy !== currentOwnerId) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'NOT_OWNER',
+                        message: 'Sadece lig sahibi sahipliği devredebilir',
+                        statusCode: 403,
+                    },
+                };
+            }
+
+            // Check if new owner is a member
+            if (!league.members.all.includes(newOwnerId)) {
+                return {
+                    success: false,
+                    error: {
+                        code: 'NOT_A_MEMBER',
+                        message: 'Yeni sahip lig üyesi olmalıdır',
+                        statusCode: 400,
+                    },
+                };
+            }
+
+            // Make new owner an admin if not already
+            if (!league.members.admins.includes(newOwnerId)) {
+                await leagueAPI.addAdmin(leagueId, newOwnerId);
+            }
+
+            // Transfer ownership
+            const result = await leagueAPI.update(leagueId, {
+                createdBy: newOwnerId,
+            } as Partial<Omit<ILeague, 'id'>>);
+
+            if (result.success) {
+                ApiLogger.success('LeagueService', 'transferOwnership', {
+                    leagueId,
+                    from: currentOwnerId,
+                    to: newOwnerId,
+                });
+            }
+
+            return result;
+        } catch (error: any) {
+            ApiLogger.error('LeagueService', 'transferOwnership', error);
+            return {
+                success: false,
+                error: {
+                    code: 'TRANSFER_OWNERSHIP_ERROR',
+                    message: error.message || 'Sahiplik devredilirken hata oluştu',
+                    details: error,
+                    statusCode: 500,
+                },
+            };
+        }
+    }
     // ============================================
     // 5. SEASON MANAGEMENT
     // ============================================

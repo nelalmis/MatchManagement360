@@ -1,3 +1,6 @@
+// src/screens/Fixture/FixtureDetailScreen.tsx
+// 🎯 MODERN SPORTS APP - Balanced & Informative Design
+
 import React, { useState, useEffect } from 'react';
 import {
     View,
@@ -11,7 +14,7 @@ import {
     Platform,
 } from 'react-native';
 import {
-    ChevronLeft,
+    ArrowLeft,
     Edit,
     MapPin,
     Calendar,
@@ -22,75 +25,83 @@ import {
     Repeat,
     Trophy,
     Settings,
-    AlertCircle,
+    ChevronRight,
+    Copy,
+    BarChart3,
+    CheckCircle,
+    XCircle,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import {
-    IMatchFixture,
-    IMatch,
-    ILeague,
-    IPlayer,
-    getSportIcon,
-    getSportColor,
-} from '../../types/types';
-import { matchFixtureService } from '../../services/matchFixtureService';
-import { matchService } from '../../services/matchService';
-import { leagueService } from '../../services/leagueService';
-import { playerService } from '../../services/playerService';
-import { NavigationService } from '../../navigation/NavigationService';
-import { CopyableText } from '../../components/CopyableText';
+import { FixtureDetailRouteProp, NavigationService } from '../../navigation';
 import { useAuth } from '../../hooks';
+import { IFixture, ILeague, IMatch, MatchStatus } from '../../types/entity/types';
+import { FixtureService } from '../../services/serviceLayer/fixtureService';
+import { LeagueService } from '../../services/serviceLayer/leagueService';
+import { MatchService } from '../../services/serviceLayer/matchService';
+import { PlayerService } from '../../services/serviceLayer/playerService';
+import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
+import * as Clipboard from 'expo-clipboard';
+import { getPatternDisplayName } from '../../types/entity/recurringPattern';
+import { calculateRegistrationCloseTime, calculateRegistrationOpenTime, getRegistrationStatusColor, getRegistrationStatusText, getRegistrationTimingDescription } from '../../types/entity/registrationScheduleType';
 
 export const FixtureDetailScreen: React.FC = () => {
-    const route: any = useRoute();
+    const route = useRoute<FixtureDetailRouteProp>();
     const { user } = useAuth();
-    const fixtureId = route.params?.fixtureId;
+    const fixtureId = route.params.fixtureId;
 
-    const [fixture, setFixture] = useState<IMatchFixture | null>(null);
+    // State
+    const [fixture, setFixture] = useState<IFixture | null>(null);
     const [league, setLeague] = useState<ILeague | null>(null);
     const [matches, setMatches] = useState<IMatch[]>([]);
-    const [organizers, setOrganizers] = useState<IPlayer[]>([]);
+    const [organizers, setOrganizers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
+    const isOrganizer = fixture?.permissions.organizers.includes(user?.id || '') || false;
+
     useEffect(() => {
         loadData();
-    }, [fixtureId, route.params?._refresh]);
+    }, [fixtureId]);
 
     const loadData = async () => {
-        if (!fixtureId) {
-            Alert.alert('Hata', 'Fikstür ID bulunamadı');
-            NavigationService.goBack();
-            return;
-        }
-
         try {
             setLoading(true);
 
-            const [fixtureData, matchesData] = await Promise.all([
-                matchFixtureService.getById(fixtureId),
-                matchService.getMatchesByFixture(fixtureId),
+            const [fixtureResponse, matchResponse] = await Promise.all([
+                FixtureService.getFixture(fixtureId),
+                MatchService.getFixtureMatches(fixtureId),
             ]);
 
-            if (!fixtureData) {
+            if (!fixtureResponse.success || !fixtureResponse.data) {
                 Alert.alert('Hata', 'Fikstür bulunamadı');
                 NavigationService.goBack();
                 return;
             }
 
-            setFixture(fixtureData);
-            setMatches(matchesData.sort((a, b) =>
-                new Date(b.matchStartTime).getTime() - new Date(a.matchStartTime).getTime()
-            ));
+            setFixture(fixtureResponse.data);
 
-            // Load league
-            const leagueData = await leagueService.getById(fixtureData.leagueId);
-            setLeague(leagueData);
+            const leagueResponse = await LeagueService.getLeague(fixtureResponse.data.leagueId);
+            if (leagueResponse.success && leagueResponse.data) {
+                setLeague(leagueResponse.data);
+            }
 
-            // Load organizers
-            if (fixtureData.organizerPlayerIds.length > 0) {
-                const organizersData = await playerService.getPlayersByIds(fixtureData.organizerPlayerIds);
-                setOrganizers(organizersData);
+            if (matchResponse.success && matchResponse.data) {
+                setMatches(
+                    matchResponse.data.sort(
+                        (a, b) =>
+                            new Date(b.schedule.matchStart).getTime() -
+                            new Date(a.schedule.matchStart).getTime()
+                    )
+                );
+            }
+
+            if (fixtureResponse.data.permissions.organizers.length > 0) {
+                const organizersResponse = await PlayerService.getPlayersByIds(
+                    fixtureResponse.data.permissions.organizers
+                );
+                if (organizersResponse.success && organizersResponse.data) {
+                    setOrganizers(organizersResponse.data);
+                }
             }
         } catch (error) {
             console.error('Error loading fixture:', error);
@@ -100,61 +111,52 @@ export const FixtureDetailScreen: React.FC = () => {
         }
     };
 
-    const onRefresh = async () => {
+    const handleRefresh = async () => {
         setRefreshing(true);
         await loadData();
         setRefreshing(false);
     };
 
-    const isOrganizer = () => {
-        if (!fixture || !user?.id) return false;
-        return fixture.organizerPlayerIds.includes(user.id);
-    };
-
-    const handleCreateMatch = () => {
-        // if (!fixture) return;
-        // NavigationService.navigate('createMatch', { fixtureId: fixture.id });
-    };
-
-    const handleEditFixture = () => {
+    const handleEdit = () => {
         if (!fixture) return;
-        NavigationService.navigateToCreateFixture(fixture.id);
+        NavigationService.navigateToEditFixture(fixtureId);
     };
 
     const handleToggleStatus = async () => {
-        if (!fixture) return;
+        if (!fixture || !user?.id) return;
 
-        const newStatus = fixture.status === 'Aktif' ? 'Pasif' : 'Aktif';
-        const action = newStatus === 'Aktif' ? 'aktifleştir' : 'pasifleştir';
+        const newStatus = fixture.status === 'active' ? 'inactive' : 'active';
+        const action = newStatus === 'active' ? 'aktifleştir' : 'pasifleştir';
 
-        Alert.alert(
-            'Fikstür Durumu',
-            `Fikstürü ${action}mek istediğinize emin misiniz?`,
-            [
-                { text: 'İptal', style: 'cancel' },
-                {
-                    text: 'Evet',
-                    onPress: async () => {
-                        try {
-                            await matchFixtureService.update(fixture.id, { status: newStatus });
-                            setFixture({ ...fixture, status: newStatus });
-                            Alert.alert('Başarılı', `Fikstür ${action}ldi`);
-                        } catch (error) {
-                            Alert.alert('Hata', 'İşlem başarısız oldu');
-                        }
+        Alert.alert('Fikstür Durumu', `Fikstürü ${action}mek istediğinize emin misiniz?`, [
+            { text: 'İptal', style: 'cancel' },
+            {
+                text: 'Evet',
+                onPress: async () => {
+                    try {
+                        await FixtureService.toggleStatus(fixtureId, user.id);
+                        setFixture({ ...fixture, status: newStatus });
+                        Alert.alert('Başarılı', `Fikstür ${action}ldi`);
+                    } catch (error) {
+                        Alert.alert('Hata', 'İşlem başarısız oldu');
                     }
-                }
-            ]
-        );
+                },
+            },
+        ]);
     };
 
-    const formatDate = (date: Date) => {
-        return new Date(date).toLocaleDateString('tr-TR', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-        });
+    const handleCreateMatch = () => {
+        if (!fixture) return;
+        // NavigationService.navigateToCreateMatch(fixtureId);
     };
+
+    const handleCopyIBAN = async () => {
+        if (!fixture?.venue.payment?.iban) return;
+        await Clipboard.setStringAsync(fixture.venue.payment.iban);
+        Alert.alert('✓ Kopyalandı', 'IBAN panoya kopyalandı');
+    };
+
+    const formatTime = (time: string) => time;
 
     const formatDateTime = (date: Date) => {
         return new Date(date).toLocaleDateString('tr-TR', {
@@ -165,17 +167,71 @@ export const FixtureDetailScreen: React.FC = () => {
         });
     };
 
-    const getMatchStatusColor = (status: IMatch['status']) => {
+    const formatFullDate = (date: string) => {
+        return new Date(date).toLocaleDateString('tr-TR', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
+
+    const getPatternText = () => {
+        if (!fixture?.schedule.isRecurring || !fixture.schedule.pattern) return null;
+        const pattern = fixture.schedule.pattern;
+
+        switch (pattern.type) {
+            case 'weekly':
+                return 'Her hafta';
+            case 'biweekly':
+                return 'İki haftada bir';
+            case 'monthly':
+                return 'Her ay';
+            case 'custom':
+                return `${pattern.interval} günde bir`;
+            default:
+                return null;
+        }
+    };
+
+    const getMatchStatusColor = (status: MatchStatus) => {
         switch (status) {
-            case 'Oluşturuldu': return '#9CA3AF';
-            case 'Kayıt Açık': return '#10B981';
-            case 'Kayıt Kapandı': return '#F59E0B';
-            case 'Takımlar Oluşturuldu': return '#2563EB';
-            case 'Oynanıyor': return '#8B5CF6';
-            case 'Skor Bekleniyor': return '#F59E0B';
-            case 'Tamamlandı': return '#16a34a';
-            case 'İptal Edildi': return '#DC2626';
-            default: return '#6B7280';
+            case MatchStatus.REGISTRATION_OPEN:
+                return '#10B981';
+            case MatchStatus.REGISTRATION_CLOSED:
+                return '#F59E0B';
+            case MatchStatus.IN_PROGRESS:
+                return '#8B5CF6';
+            case MatchStatus.COMPLETED:
+                return '#16a34a';
+            case MatchStatus.CANCELLED:
+                return '#EF4444';
+            default:
+                return '#6B7280';
+        }
+    };
+
+    const getMatchStatusText = (status: MatchStatus) => {
+        switch (status) {
+            case MatchStatus.CREATED:
+                return 'Oluşturuldu';
+            case MatchStatus.REGISTRATION_OPEN:
+                return 'Kayıt Açık';
+            case MatchStatus.REGISTRATION_CLOSED:
+                return 'Kayıt Kapandı';
+            case MatchStatus.TEAMS_SET:
+                return 'Takımlar Kuruldu';
+            case MatchStatus.IN_PROGRESS:
+                return 'Oynanıyor';
+            case MatchStatus.AWAITING_SCORE:
+                return 'Skor Bekleniyor';
+            case MatchStatus.COMPLETED:
+                return 'Tamamlandı';
+            case MatchStatus.CANCELLED:
+                return 'İptal';
+            default:
+                return status;
         }
     };
 
@@ -183,247 +239,361 @@ export const FixtureDetailScreen: React.FC = () => {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#16a34a" />
-                <Text style={styles.loadingText}>Fikstür yükleniyor...</Text>
+                <Text style={styles.loadingText}>Yükleniyor...</Text>
             </View>
         );
     }
 
-    const upcomingMatches = matches.filter(m =>
-        new Date(m.matchStartTime) > new Date() && m.status !== 'İptal Edildi'
+    const sportColor = getSportPrimaryColor(league.sportType);
+    const upcomingMatches = matches.filter(
+        (m) =>
+            new Date(m.schedule.matchStart) > new Date() && m.status !== MatchStatus.CANCELLED
     );
-    const pastMatches = matches.filter(m =>
-        new Date(m.matchStartTime) <= new Date() || m.status === 'Tamamlandı'
+    const pastMatches = matches.filter(
+        (m) =>
+            new Date(m.schedule.matchStart) <= new Date() || m.status === MatchStatus.COMPLETED
     );
-    const sportColor = getSportColor(fixture.sportType);
 
     return (
         <View style={styles.container}>
-            {/* Header */}
+            {/* Gradient Header */}
             <View style={[styles.header, { backgroundColor: sportColor }]}>
-                <TouchableOpacity
-                    onPress={() => NavigationService.goBack()}
-                    style={styles.headerButton}
-                    activeOpacity={0.7}
-                >
-                    <ChevronLeft size={24} color="white" strokeWidth={2} />
-                </TouchableOpacity>
-
-                <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>{fixture.title}</Text>
-                    <Text style={styles.headerSubtitle}>
-                        {getSportIcon(fixture.sportType)} {league.title}
-                    </Text>
-                </View>
-
-                {isOrganizer() && (
+                <View style={styles.headerTop}>
                     <TouchableOpacity
-                        onPress={handleEditFixture}
-                        style={styles.headerButton}
+                        onPress={() => NavigationService.goBack()}
+                        style={styles.backButton}
                         activeOpacity={0.7}
                     >
-                        <Edit size={22} color="white" strokeWidth={2} />
+                        <ArrowLeft size={24} color="white" strokeWidth={2.5} />
                     </TouchableOpacity>
-                )}
-            </View>
 
-            <ScrollView
-                style={styles.content}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                }
-            >
-                {/* Status Banner */}
-                <View style={[
-                    styles.statusBanner,
-                    { backgroundColor: fixture.status === 'Aktif' ? '#DCFCE7' : '#FEE2E2' }
-                ]}>
-                    <View style={[
-                        styles.statusDot,
-                        { backgroundColor: fixture.status === 'Aktif' ? '#16a34a' : '#DC2626' }
-                    ]} />
-                    <Text style={[
-                        styles.statusText,
-                        { color: fixture.status === 'Aktif' ? '#15803d' : '#991b1b' }
-                    ]}>
-                        {fixture.status === 'Aktif' ? 'Aktif Fikstür' : 'Pasif Fikstür'}
-                    </Text>
-                    {isOrganizer() && (
-                        <TouchableOpacity
-                            onPress={handleToggleStatus}
-                            style={styles.statusToggle}
-                            activeOpacity={0.7}
-                        >
-                            <Settings size={16} color={fixture.status === 'Aktif' ? '#15803d' : '#991b1b'} strokeWidth={2} />
+                    {isOrganizer && (
+                        <TouchableOpacity onPress={handleEdit} style={styles.editButton} activeOpacity={0.7}>
+                            <Edit size={20} color="white" strokeWidth={2.5} />
                         </TouchableOpacity>
                     )}
                 </View>
 
-                {/* Info Cards */}
-                <View style={styles.section}>
-                    {/* Location */}
-                    <View style={styles.infoCard}>
-                        <View style={[styles.iconContainer, { backgroundColor: sportColor + '20' }]}>
-                            <MapPin size={20} color={sportColor} strokeWidth={2} />
-                        </View>
-                        <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>Lokasyon</Text>
-                            <Text style={styles.infoValue}>{fixture.location}</Text>
-                        </View>
-                    </View>
+                <View style={styles.headerContent}>
+                    <Text style={styles.headerEmoji}>{getSportEmoji(league.sportType)}</Text>
+                    <Text style={styles.headerTitle}>{fixture.title}</Text>
+                    <Text style={styles.headerSubtitle}>{league.title}</Text>
 
-                    {/* Schedule */}
-                    <View style={styles.infoCard}>
-                        <View style={[styles.iconContainer, { backgroundColor: '#3B82F620' }]}>
-                            <Calendar size={20} color="#3B82F6" strokeWidth={2} />
-                        </View>
-                        <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>Maç Zamanı</Text>
-                            <Text style={styles.infoValue}>{formatDateTime(fixture.matchStartTime)}</Text>
-                        </View>
+                    {/* Status Badge */}
+                    <View
+                        style={[
+                            styles.statusBadge,
+                            {
+                                backgroundColor: fixture.status === 'active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                            },
+                        ]}
+                    >
+                        {fixture.status === 'active' ? (
+                            <CheckCircle size={14} color="white" strokeWidth={2.5} />
+                        ) : (
+                            <XCircle size={14} color="white" strokeWidth={2.5} />
+                        )}
+                        <Text style={styles.statusText}>{fixture.status === 'active' ? 'Aktif' : 'Pasif'}</Text>
+                        {isOrganizer && (
+                            <TouchableOpacity onPress={handleToggleStatus} style={styles.statusButton} activeOpacity={0.7}>
+                                <Settings size={12} color="white" strokeWidth={2.5} />
+                            </TouchableOpacity>
+                        )}
                     </View>
+                </View>
+            </View>
 
-                    {/* Duration */}
-                    <View style={styles.infoCard}>
-                        <View style={[styles.iconContainer, { backgroundColor: '#8B5CF620' }]}>
-                            <Clock size={20} color="#8B5CF6" strokeWidth={2} />
-                        </View>
-                        <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>Süre</Text>
-                            <Text style={styles.infoValue}>{fixture.matchTotalTimeInMinute} dakika</Text>
-                        </View>
+            <ScrollView
+                style={styles.content}
+                contentContainerStyle={styles.contentContainer}
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[sportColor]} />}
+            >
+                {/* Description */}
+                {fixture.description && (
+                    <View style={styles.card}>
+                        <Text style={styles.description}>{fixture.description}</Text>
                     </View>
+                )}
 
-                    {/* Squad */}
-                    <View style={styles.infoCard}>
-                        <View style={[styles.iconContainer, { backgroundColor: '#F59E0B20' }]}>
-                            <Users size={20} color="#F59E0B" strokeWidth={2} />
-                        </View>
-                        <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>Kadro</Text>
-                            <Text style={styles.infoValue}>
-                                {fixture.staffPlayerCount} + {fixture.reservePlayerCount} yedek
-                            </Text>
-                        </View>
-                    </View>
+                {/* Schedule Card - Combined */}
+                <View style={styles.card}>
+                    <View style={styles.cardHeader}>
+                        <Calendar size={20} color={sportColor} strokeWidth={2.5} />
+                        <Text style={styles.cardTitle}>Zamanlama</Text>
 
-                    {/* Price */}
-                    <View style={styles.infoCard}>
-                        <View style={[styles.iconContainer, { backgroundColor: '#10B98120' }]}>
-                            <DollarSign size={20} color="#10B981" strokeWidth={2} />
-                        </View>
-                        <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>Ücret</Text>
-                            <Text style={styles.infoValue}>{fixture.pricePerPlayer} TL</Text>
-                        </View>
-                    </View>
-
-                    {/* Periodic */}
-                    {fixture.isPeriodic && (
-                        <View style={styles.infoCard}>
-                            <View style={[styles.iconContainer, { backgroundColor: '#EC489920' }]}>
-                                <Repeat size={20} color="#EC4899" strokeWidth={2} />
-                            </View>
-                            <View style={styles.infoContent}>
-                                <Text style={styles.infoLabel}>Periyot</Text>
-                                <Text style={styles.infoValue}>
-                                    Her {fixture.periodDayCount} günde bir
+                        {/* Registration Status Badge */}
+                        {fixture.nextMatchDate && (
+                            <View
+                                style={[
+                                    styles.registrationStatusBadge,
+                                    {
+                                        backgroundColor: getRegistrationStatusColor(
+                                            fixture.schedule.registrationSchedule,
+                                            new Date(fixture.nextMatchDate)
+                                        ) + '20',
+                                        borderColor: getRegistrationStatusColor(
+                                            fixture.schedule.registrationSchedule,
+                                            new Date(fixture.nextMatchDate)
+                                        ),
+                                    },
+                                ]}
+                            >
+                                <Text
+                                    style={[
+                                        styles.registrationStatusBadgeText,
+                                        {
+                                            color: getRegistrationStatusColor(
+                                                fixture.schedule.registrationSchedule,
+                                                new Date(fixture.nextMatchDate)
+                                            ),
+                                        },
+                                    ]}
+                                >
+                                    {getRegistrationStatusText(
+                                        fixture.schedule.registrationSchedule,
+                                        new Date(fixture.nextMatchDate)
+                                    )}
                                 </Text>
                             </View>
+                        )}
+                    </View>
+
+                    <View style={styles.cardContent}>
+                        {/* Registration Timing */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoLeft}>
+                                <Clock size={16} color="#6B7280" strokeWidth={2} />
+                                <Text style={styles.infoLabel}>Kayıt Açılışı</Text>
+                            </View>
+                            <Text style={styles.infoValue}>
+                                {getRegistrationTimingDescription(fixture.schedule.registrationSchedule)}
+                            </Text>
                         </View>
-                    )}
+
+                        {/* If we have next match date, show calculated times */}
+                        {fixture.nextMatchDate && (
+                            <>
+                                <View style={styles.infoRow}>
+                                    <View style={styles.infoLeft}>
+                                        <Calendar size={16} color="#6B7280" strokeWidth={2} />
+                                        <Text style={styles.infoLabel}>Kayıt Başlar</Text>
+                                    </View>
+                                    <Text style={styles.infoValue}>
+                                        {calculateRegistrationOpenTime(
+                                            new Date(fixture.nextMatchDate),
+                                            fixture.schedule.registrationSchedule
+                                        ).toLocaleString('tr-TR', {
+                                            day: '2-digit',
+                                            month: 'short',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                        })}
+                                    </Text>
+                                </View>
+
+                                <View style={styles.infoRow}>
+                                    <View style={styles.infoLeft}>
+                                        <Calendar size={16} color="#6B7280" strokeWidth={2} />
+                                        <Text style={styles.infoLabel}>Kayıt Biter</Text>
+                                    </View>
+                                    <Text style={styles.infoValue}>
+                                        {calculateRegistrationCloseTime(
+                                            new Date(fixture.nextMatchDate),
+                                            fixture.schedule.registrationSchedule
+                                        ).toLocaleString('tr-TR', {
+                                            day: '2-digit',
+                                            month: 'short',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                        })}
+                                    </Text>
+                                </View>
+                            </>
+                        )}
+
+                        <View style={styles.divider} />
+
+                        {/* Match Timing */}
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoLeft}>
+                                <Clock size={16} color="#6B7280" strokeWidth={2} />
+                                <Text style={styles.infoLabel}>Maç Başlangıç</Text>
+                            </View>
+                            <Text style={styles.infoValue}>{fixture.schedule.matchStartTime}</Text>
+                        </View>
+
+                        <View style={styles.infoRow}>
+                            <View style={styles.infoLeft}>
+                                <Clock size={16} color="#6B7280" strokeWidth={2} />
+                                <Text style={styles.infoLabel}>Maç Süresi</Text>
+                            </View>
+                            <Text style={styles.infoValue}>{fixture.schedule.matchDuration} dakika</Text>
+                        </View>
+
+                        {/* Recurring Pattern */}
+                        {fixture.schedule.isRecurring && fixture.schedule.pattern && (
+                            <>
+                                <View style={styles.divider} />
+                                <View style={[styles.infoRow, styles.recurringRow]}>
+                                    <Repeat size={16} color={sportColor} strokeWidth={2} />
+                                    <Text style={[styles.infoValue, { color: sportColor, fontWeight: '600' }]}>
+                                        {getPatternDisplayName(fixture.schedule.pattern)}
+                                    </Text>
+                                </View>
+                            </>
+                        )}
+                    </View>
                 </View>
+
+                {/* Venue & Squad Card - Combined */}
+                <View style={styles.card}>
+                    <View style={styles.cardHeader}>
+                        <MapPin size={20} color="#3B82F6" strokeWidth={2.5} />
+                        <Text style={styles.cardTitle}>Saha & Kadro</Text>
+                    </View>
+
+                    <View style={styles.cardContent}>
+                        <View style={styles.venueInfo}>
+                            <Text style={styles.venueName}>{fixture.venue.location}</Text>
+                        </View>
+
+                        <View style={styles.divider} />
+
+                        <View style={styles.statsGrid}>
+                            <View style={styles.statItem}>
+                                <Users size={18} color="#6B7280" strokeWidth={2} />
+                                <Text style={styles.statValue}>
+                                    {fixture.squad.totalPlayers} + {fixture.squad.reservePlayers}
+                                </Text>
+                                <Text style={styles.statLabel}>Oyuncu + Yedek</Text>
+                            </View>
+
+                            <View style={styles.statDivider} />
+
+                            <View style={styles.statItem}>
+                                <DollarSign size={18} color="#6B7280" strokeWidth={2} />
+                                <Text style={styles.statValue}>{fixture.venue.pricePerPlayer} TL</Text>
+                                <Text style={styles.statLabel}>Kişi Başı</Text>
+                            </View>
+
+                            <View style={styles.statDivider} />
+
+                            <View style={styles.statItem}>
+                                <Clock size={18} color="#6B7280" strokeWidth={2} />
+                                <Text style={styles.statValue}>{fixture.schedule.matchDuration}</Text>
+                                <Text style={styles.statLabel}>Dakika</Text>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Stats Card - Horizontal */}
+                <View style={styles.card}>
+                    <View style={styles.cardHeader}>
+                        <BarChart3 size={20} color="#8B5CF6" strokeWidth={2.5} />
+                        <Text style={styles.cardTitle}>İstatistikler</Text>
+                    </View>
+
+                    <View style={styles.statsContainer}>
+                        <View style={styles.statBox}>
+                            <Trophy size={24} color={sportColor} strokeWidth={2} />
+                            <Text style={styles.statBoxValue}>{matches.length}</Text>
+                            <Text style={styles.statBoxLabel}>Toplam Maç</Text>
+                        </View>
+
+                        <View style={styles.statBox}>
+                            <Calendar size={24} color="#3B82F6" strokeWidth={2} />
+                            <Text style={styles.statBoxValue}>{upcomingMatches.length}</Text>
+                            <Text style={styles.statBoxLabel}>Yaklaşan</Text>
+                        </View>
+
+                        <View style={styles.statBox}>
+                            <Users size={24} color="#10B981" strokeWidth={2} />
+                            <Text style={styles.statBoxValue}>{fixture.squad.totalPlayers}</Text>
+                            <Text style={styles.statBoxLabel}>Kadro</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Payment Info */}
+                {fixture.venue.payment?.iban && (
+                    <View style={styles.card}>
+                        <View style={styles.cardHeader}>
+                            <DollarSign size={20} color="#10B981" strokeWidth={2.5} />
+                            <Text style={styles.cardTitle}>Ödeme Bilgileri</Text>
+                        </View>
+
+                        <View style={styles.cardContent}>
+                            <View style={styles.infoRow}>
+                                <Text style={styles.infoLabel}>Hesap Sahibi</Text>
+                                <Text style={styles.infoValue}>{fixture.venue.payment.accountName}</Text>
+                            </View>
+
+                            <TouchableOpacity onPress={handleCopyIBAN} style={styles.ibanRow} activeOpacity={0.7}>
+                                <View style={styles.ibanLeft}>
+                                    <Text style={styles.infoLabel}>IBAN</Text>
+                                    <Text style={styles.ibanValue}>{fixture.venue.payment.iban}</Text>
+                                </View>
+                                <View style={styles.copyButton}>
+                                    <Copy size={14} color="white" strokeWidth={2.5} />
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
 
                 {/* Organizers */}
                 {organizers.length > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Organizatörler</Text>
-                        <View style={styles.card}>
+                    <View style={styles.card}>
+                        <View style={styles.cardHeader}>
+                            <Users size={20} color="#F59E0B" strokeWidth={2.5} />
+                            <Text style={styles.cardTitle}>Organizatörler</Text>
+                        </View>
+
+                        <View style={styles.cardContent}>
                             {organizers.map((organizer, index) => (
-                                <View key={organizer.id} style={[
-                                    styles.organizerItem,
-                                    index !== organizers.length - 1 && styles.organizerItemBorder
-                                ]}>
-                                    <View style={styles.organizerAvatar}>
-                                        <Text style={styles.organizerInitial}>
-                                            {organizer.name?.[0]}{organizer.surname?.[0]}
-                                        </Text>
+                                <View key={organizer.id}>
+                                    <View style={styles.organizerRow}>
+                                        <View style={[styles.organizerAvatar, { backgroundColor: sportColor + '20' }]}>
+                                            <Text style={[styles.organizerInitial, { color: sportColor }]}>
+                                                {organizer.name?.[0]}
+                                                {organizer.surname?.[0]}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.organizerInfo}>
+                                            <Text style={styles.organizerName}>
+                                                {organizer.name} {organizer.surname}
+                                            </Text>
+                                            <Text style={styles.organizerPhone}>{organizer.phone}</Text>
+                                        </View>
                                     </View>
-                                    <View style={styles.organizerInfo}>
-                                        <Text style={styles.organizerName}>
-                                            {organizer.name} {organizer.surname}
-                                        </Text>
-                                        <Text style={styles.organizerPhone}>{organizer.phone}</Text>
-                                    </View>
+                                    {index < organizers.length - 1 && <View style={styles.divider} />}
                                 </View>
                             ))}
                         </View>
                     </View>
                 )}
 
-                {/* Payment Info */}
-                {fixture.peterFullName && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Ödeme Bilgileri</Text>
-                        <View style={styles.card}>
-                            <View style={styles.paymentRow}>
-                                <CopyableText
-                                    label='Alıcı'
-                                    value={fixture.peterFullName}
-                                />
-                                {/* <Text style={styles.paymentLabel}>Alıcı</Text>
-                                <Text style={styles.paymentValue}>{fixture.peterFullName}</Text> */}
-                            </View>
-                            {fixture.peterIban && (
-                                <View style={styles.paymentRow}>
-                                    <CopyableText
-                                        label="IBAN"
-                                        value={fixture.peterIban}
-                                        format={(iban) => iban.replace(/(.{4})/g, '$1 ').trim()}
-                                        successMessage="IBAN kopyalandı"
-                                    />
-                                    {/* <Text style={styles.paymentLabel}>IBAN</Text>
-                                    <Text style={styles.paymentValue}>{fixture.peterIban}</Text> */}
-                                </View>
-                            )}
-                        </View>
-                    </View>
-                )}
-
-                {/* Stats */}
-                <View style={styles.section}>
-                    <View style={styles.statsContainer}>
-                        <View style={styles.statCard}>
-                            <Trophy size={24} color={sportColor} strokeWidth={2} />
-                            <Text style={styles.statValue}>{matches.length}</Text>
-                            <Text style={styles.statLabel}>Toplam Maç</Text>
-                        </View>
-
-                        <View style={styles.statCard}>
-                            <Calendar size={24} color="#3B82F6" strokeWidth={2} />
-                            <Text style={styles.statValue}>{upcomingMatches.length}</Text>
-                            <Text style={styles.statLabel}>Yaklaşan</Text>
-                        </View>
-
-                        <View style={styles.statCard}>
-                            <Users size={24} color="#10B981" strokeWidth={2} />
-                            <Text style={styles.statValue}>{fixture.staffPlayerCount}</Text>
-                            <Text style={styles.statLabel}>Kadro</Text>
-                        </View>
-                    </View>
-                </View>
-
                 {/* Upcoming Matches */}
                 {upcomingMatches.length > 0 && (
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Yaklaşan Maçlar ({upcomingMatches.length})</Text>
-                        {upcomingMatches.map(match => (
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Yaklaşan Maçlar ({upcomingMatches.length})</Text>
+                            {upcomingMatches.length > 3 && (
+                                <TouchableOpacity onPress={() => NavigationService.navigateToMatchList({ fixtureId })} activeOpacity={0.7}>
+                                    <Text style={[styles.seeAllText, { color: sportColor }]}>Tümü</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        {upcomingMatches.slice(0, 3).map((match) => (
                             <MatchCard
                                 key={match.id}
                                 match={match}
                                 onPress={() => NavigationService.navigateToMatch(match.id)}
-                                getMatchStatusColor={getMatchStatusColor}
                                 formatDateTime={formatDateTime}
+                                getStatusColor={getMatchStatusColor}
+                                getStatusText={getMatchStatusText}
                             />
                         ))}
                     </View>
@@ -432,40 +602,35 @@ export const FixtureDetailScreen: React.FC = () => {
                 {/* Past Matches */}
                 {pastMatches.length > 0 && (
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Geçmiş Maçlar ({pastMatches.length})</Text>
-                        {pastMatches.slice(0, 5).map(match => (
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Geçmiş Maçlar ({pastMatches.length})</Text>
+                            {pastMatches.length > 3 && (
+                                <TouchableOpacity onPress={() => NavigationService.navigateToMatchList({ fixtureId })} activeOpacity={0.7}>
+                                    <Text style={[styles.seeAllText, { color: sportColor }]}>Tümü</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        {pastMatches.slice(0, 3).map((match) => (
                             <MatchCard
                                 key={match.id}
                                 match={match}
                                 onPress={() => NavigationService.navigateToMatch(match.id)}
-                                getMatchStatusColor={getMatchStatusColor}
                                 formatDateTime={formatDateTime}
+                                getStatusColor={getMatchStatusColor}
+                                getStatusText={getMatchStatusText}
                                 isPast
                             />
                         ))}
-                        {pastMatches.length > 5 && (
-                            <TouchableOpacity
-                                style={styles.showMoreButton}
-                                onPress={() => NavigationService.navigateToMatchList(fixture.id)}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={styles.showMoreText}>
-                                    Tüm Maçları Gör ({matches.length} maç)
-                                </Text>
-                            </TouchableOpacity>
-                        )}
                     </View>
                 )}
 
                 {/* Empty State */}
                 {matches.length === 0 && (
                     <View style={styles.emptyState}>
-                        <Calendar size={64} color="#D1D5DB" strokeWidth={1.5} />
-                        <Text style={styles.emptyStateTitle}>Henüz maç yok</Text>
-                        <Text style={styles.emptyStateText}>
-                            {isOrganizer()
-                                ? 'İlk maçı oluşturmak için aşağıdaki butona tıklayın'
-                                : 'Organizatör henüz maç oluşturmadı'}
+                        <Calendar size={64} color="#D1D5DB" strokeWidth={2} />
+                        <Text style={styles.emptyTitle}>Henüz maç yok</Text>
+                        <Text style={styles.emptyDescription}>
+                            {isOrganizer ? 'İlk maçı oluşturmak için aşağıdaki butona tıklayın' : 'Organizatör henüz maç oluşturmadı'}
                         </Text>
                     </View>
                 )}
@@ -473,75 +638,78 @@ export const FixtureDetailScreen: React.FC = () => {
                 <View style={styles.bottomSpacing} />
             </ScrollView>
 
-            {/* Create Match FAB */}
-            {isOrganizer() && fixture.status === 'Aktif' && (
-                <TouchableOpacity
-                    style={[styles.fab, { backgroundColor: sportColor }]}
-                    onPress={handleCreateMatch}
-                    activeOpacity={0.8}
-                >
-                    <Plus size={28} color="white" strokeWidth={2.5} />
-                </TouchableOpacity>
-            )}
+            {/* Bottom Action Bar */}
+            {/* {isOrganizer && fixture.status === 'active' && (
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            onPress={handleCreateMatch}
+            style={[styles.actionButton, styles.primaryButton, { backgroundColor: sportColor }]}
+            activeOpacity={0.8}
+          >
+            <Plus size={20} color="white" strokeWidth={2.5} />
+            <Text style={styles.primaryButtonText}>Yeni Maç</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => {}} style={[styles.actionButton, styles.secondaryButton]} activeOpacity={0.8}>
+            <BarChart3 size={20} color="#6B7280" strokeWidth={2.5} />
+            <Text style={styles.secondaryButtonText}>İstatistikler</Text>
+          </TouchableOpacity>
+        </View>
+      )} */}
         </View>
     );
 };
 
-// Match Card Component
+// ============================================
+// MATCH CARD COMPONENT
+// ============================================
+
 interface MatchCardProps {
     match: IMatch;
     onPress: () => void;
-    getMatchStatusColor: (status: IMatch['status']) => string;
     formatDateTime: (date: Date) => string;
+    getStatusColor: (status: MatchStatus) => string;
+    getStatusText: (status: MatchStatus) => string;
     isPast?: boolean;
 }
 
 const MatchCard: React.FC<MatchCardProps> = ({
     match,
     onPress,
-    getMatchStatusColor,
     formatDateTime,
+    getStatusColor,
+    getStatusText,
     isPast = false,
 }) => {
-    const statusColor = getMatchStatusColor(match.status);
+    const statusColor = getStatusColor(match.status);
 
     return (
-        <TouchableOpacity
-            style={[styles.matchCard, isPast && styles.matchCardPast]}
-            onPress={onPress}
-            activeOpacity={0.7}
-        >
-            <View style={styles.matchCardHeader}>
-                <View style={styles.matchCardLeft}>
-                    <Calendar size={18} color="#6B7280" strokeWidth={2} />
-                    <Text style={styles.matchCardDate}>{formatDateTime(match.matchStartTime)}</Text>
+        <TouchableOpacity style={[styles.matchCard, isPast && styles.matchCardPast]} onPress={onPress} activeOpacity={0.7}>
+            <View style={styles.matchHeader}>
+                <View style={styles.matchDateRow}>
+                    <Calendar size={14} color="#9CA3AF" strokeWidth={2} />
+                    <Text style={styles.matchDate}>{formatDateTime(match.schedule.matchStart)}</Text>
                 </View>
                 <View style={[styles.matchStatusBadge, { backgroundColor: statusColor + '20' }]}>
-                    <Text style={[styles.matchStatusText, { color: statusColor }]}>
-                        {match.status}
-                    </Text>
+                    <Text style={[styles.matchStatusText, { color: statusColor }]}>{getStatusText(match.status)}</Text>
                 </View>
             </View>
 
-            <Text style={styles.matchCardTitle}>{match.title}</Text>
-
-            <View style={styles.matchCardFooter}>
-                <View style={styles.matchCardInfo}>
-                    <Users size={16} color="#6B7280" strokeWidth={2} />
-                    <Text style={styles.matchCardInfoText}>
-                        {(match.registeredPlayerIds?.length || 0)} kayıtlı
-                    </Text>
-                </View>
-
-                {match.score && (
-                    <View style={styles.matchScore}>
-                        <Text style={styles.matchScoreText}>{match.score}</Text>
-                    </View>
-                )}
+            <View style={styles.matchBody}>
+                <Users size={14} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.matchInfo}>
+                    {match.players.registered?.length || 0} / {match.squad.totalPlayers} kayıtlı
+                </Text>
             </View>
+
+            <ChevronRight size={18} color="#D1D5DB" strokeWidth={2} style={styles.matchChevron} />
         </TouchableOpacity>
     );
 };
+
+// ============================================
+// STYLES
+// ============================================
 
 const styles = StyleSheet.create({
     container: {
@@ -558,73 +726,313 @@ const styles = StyleSheet.create({
         marginTop: 12,
         fontSize: 14,
         color: '#6B7280',
-        fontWeight: '500',
+        fontWeight: '600',
     },
+
+    // Header
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        paddingTop: Platform.OS === 'ios' ? 50 : 20,
+        paddingBottom: 24,
         paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'ios' ? 50 : 30,
-        paddingBottom: 16,
     },
-    headerButton: {
+    headerTop: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    backButton: {
         width: 40,
         height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.1)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    headerCenter: {
-        flex: 1,
+    editButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        justifyContent: 'center',
         alignItems: 'center',
     },
+    headerContent: {
+        alignItems: 'center',
+    },
+    headerEmoji: {
+        fontSize: 48,
+        marginBottom: 12,
+    },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 24,
+        fontWeight: '700',
+        color: 'white',
+        textAlign: 'center',
+        marginBottom: 4,
+    },
+    headerSubtitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: 'rgba(255,255,255,0.9)',
+        marginBottom: 16,
+    },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+    },
+    statusText: {
+        fontSize: 13,
         fontWeight: '700',
         color: 'white',
     },
-    headerSubtitle: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.9)',
-        marginTop: 2,
+    statusButton: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
+
+    registrationStatusBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+        borderWidth: 1,
+        marginLeft: 'auto',
+    },
+    registrationStatusBadgeText: {
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    infoLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#E5E7EB',
+        marginVertical: 12,
+    },
+ 
+
+    // Content
     content: {
         flex: 1,
     },
-    statusBanner: {
+    contentContainer: {
+        padding: 16,
+    },
+
+    // Card
+    card: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    cardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        gap: 8,
+        gap: 10,
+        marginBottom: 16,
     },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    },
-    statusText: {
-        fontSize: 14,
-        fontWeight: '700',
-        flex: 1,
-    },
-    statusToggle: {
-        padding: 4,
-    },
-    section: {
-        paddingHorizontal: 16,
-        marginTop: 20,
-    },
-    sectionTitle: {
-        fontSize: 18,
+    cardTitle: {
+        fontSize: 16,
         fontWeight: '700',
         color: '#1F2937',
-        marginBottom: 12,
     },
-    infoCard: {
+    cardContent: {
+        gap: 12,
+    },
+
+    // Description
+    description: {
+        fontSize: 14,
+        color: '#6B7280',
+        lineHeight: 20,
+    },
+
+    // Info Row
+    infoRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 8,
+    },
+    infoLabel: {
+        fontSize: 14,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+    infoValue: {
+        fontSize: 14,
+        color: '#1F2937',
+        fontWeight: '700',
+    },
+    recurringRow: {
+        backgroundColor: '#F9FAFB',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 8,
+        marginTop: 4,
+        gap: 8,
+    },
+
+    // Venue
+    venueInfo: {
+        paddingVertical: 4,
+    },
+    venueName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#1F2937',
+    },
+
+
+    // Stats Grid
+    statsGrid: {
+        flexDirection: 'row',
+        paddingTop: 8,
+    },
+    statItem: {
+        flex: 1,
+        alignItems: 'center',
+        gap: 6,
+    },
+    statDivider: {
+        width: 1,
+        backgroundColor: '#F3F4F6',
+        marginHorizontal: 8,
+    },
+    statValue: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1F2937',
+    },
+    statLabel: {
+        fontSize: 11,
+        color: '#9CA3AF',
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+
+    // Stats Container (Horizontal boxes)
+    statsContainer: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    statBox: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: 12,
+        backgroundColor: '#F9FAFB',
+        borderRadius: 12,
+    },
+    statBoxValue: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginTop: 8,
+    },
+    statBoxLabel: {
+        fontSize: 11,
+        color: '#6B7280',
+        fontWeight: '600',
+        marginTop: 4,
+    },
+
+    // IBAN
+    ibanRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 8,
+    },
+    ibanLeft: {
+        flex: 1,
+    },
+    ibanValue: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#1F2937',
+        marginTop: 4,
+        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    },
+    copyButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#10B981',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+
+    // Organizer
+    organizerRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        paddingVertical: 8,
+    },
+    organizerAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    organizerInitial: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    organizerInfo: {
+        flex: 1,
+    },
+    organizerName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#1F2937',
+        marginBottom: 2,
+    },
+    organizerPhone: {
+        fontSize: 12,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+
+    // Section
+    section: {
+        marginBottom: 16,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#1F2937',
+    },
+    seeAllText: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+
+    // Match Card
+    matchCard: {
         backgroundColor: 'white',
         borderRadius: 12,
         padding: 16,
@@ -634,239 +1042,116 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 2,
         elevation: 1,
-    },
-    iconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    infoContent: {
-        flex: 1,
-    },
-    infoLabel: {
-        fontSize: 12,
-        color: '#6B7280',
-        fontWeight: '500',
-        marginBottom: 2,
-    },
-    infoValue: {
-        fontSize: 15,
-        color: '#1F2937',
-        fontWeight: '600',
-    },
-    card: {
-        backgroundColor: 'white',
-        borderRadius: 16,
-        padding: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    organizerItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12,
-    },
-    organizerItemBorder: {
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
-    },
-    organizerAvatar: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: '#DCFCE7',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    organizerInitial: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#16a34a',
-    },
-    organizerInfo: {
-        flex: 1,
-    },
-    organizerName: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#1F2937',
-        marginBottom: 2,
-    },
-    organizerPhone: {
-        fontSize: 13,
-        color: '#6B7280',
-    },
-    paymentRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 8,
-    },
-    paymentLabel: {
-        fontSize: 14,
-        color: '#6B7280',
-        fontWeight: '500',
-    },
-    paymentValue: {
-        fontSize: 14,
-        color: '#1F2937',
-        fontWeight: '600',
-    },
-    statsContainer: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    statCard: {
-        flex: 1,
-        backgroundColor: 'white',
-        borderRadius: 16,
-        padding: 16,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    statValue: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#1F2937',
-        marginTop: 8,
-    },
-    statLabel: {
-        fontSize: 12,
-        color: '#6B7280',
-        fontWeight: '500',
-        marginTop: 4,
-    },
-    matchCard: {
-        backgroundColor: 'white',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
+        position: 'relative',
     },
     matchCardPast: {
-        opacity: 0.7,
+        opacity: 0.6,
     },
-    matchCardHeader: {
+    matchHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: 10,
     },
-    matchCardLeft: {
+    matchDateRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
     },
-    matchCardDate: {
-        fontSize: 13,
+    matchDate: {
+        fontSize: 12,
         color: '#6B7280',
-        fontWeight: '500',
+        fontWeight: '600',
     },
     matchStatusBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 6,
     },
     matchStatusText: {
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: '700',
     },
-    matchCardTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#1F2937',
-        marginBottom: 8,
-    },
-    matchCardFooter: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    matchCardInfo: {
+    matchBody: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
     },
-    matchCardInfoText: {
+    matchInfo: {
         fontSize: 13,
         color: '#6B7280',
-        fontWeight: '500',
+        fontWeight: '600',
     },
-    matchScore: {
-        backgroundColor: '#F3F4F6',
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 8,
+    matchChevron: {
+        position: 'absolute',
+        right: 16,
+        top: '50%',
+        marginTop: -9,
     },
-    matchScoreText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#1F2937',
-    },
-    showMoreButton: {
-        backgroundColor: 'white',
-        borderRadius: 12,
-        padding: 16,
-        alignItems: 'center',
-        marginTop: 4,
-        borderWidth: 2,
-        borderColor: '#E5E7EB',
-        borderStyle: 'dashed',
-    },
-    showMoreText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#6B7280',
-    },
+
+    // Empty State
     emptyState: {
         alignItems: 'center',
         paddingVertical: 60,
         paddingHorizontal: 32,
     },
-    emptyStateTitle: {
+    emptyTitle: {
         fontSize: 18,
         fontWeight: '700',
         color: '#1F2937',
         marginTop: 16,
         marginBottom: 8,
     },
-    emptyStateText: {
+    emptyDescription: {
         fontSize: 14,
         color: '#6B7280',
         textAlign: 'center',
         lineHeight: 20,
     },
-    bottomSpacing: {
-        height: 80,
-    },
-    fab: {
-        position: 'absolute',
-        bottom: 16,
-        right: 16,
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        justifyContent: 'center',
-        alignItems: 'center',
+
+    // Bottom Action Bar
+    bottomBar: {
+        flexDirection: 'row',
+        gap: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+        backgroundColor: 'white',
+        borderTopWidth: 1,
+        borderTopColor: '#F3F4F6',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 14,
+        borderRadius: 12,
+    },
+    primaryButton: {
+        flex: 2,
+    },
+    primaryButtonText: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: 'white',
+    },
+    secondaryButton: {
+        flex: 1,
+        backgroundColor: '#F9FAFB',
+    },
+    secondaryButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#6B7280',
+    },
+
+    bottomSpacing: {
+        height: 20,
     },
 });

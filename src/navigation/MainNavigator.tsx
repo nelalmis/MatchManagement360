@@ -139,7 +139,7 @@ const LeaguesStack = () => {
             <Stack.Screen
                 name="joinLeague"
                 component={JoinLeagueScreen}
-                options={{ headerShown: true }}
+                options={{ headerShown: false }}
             />
             <Stack.Screen
                 name="createLeagueInvitation"
@@ -149,12 +149,12 @@ const LeaguesStack = () => {
             <Stack.Screen
                 name="manageLeagueInvitations"
                 component={ManageLeagueInvitationsScreen}
-                options={{ headerShown: true }}
+                options={{ headerShown: false }}
             />
             <Stack.Screen
                 name="leagueSettings"
                 component={LeagueSettingsScreen}
-                options={{ headerShown: true }}
+                options={{ headerShown: false }}
             />
             <Stack.Screen
                 name="manageLeagueMembers"

@@ -1,6 +1,6 @@
 // src/screens/League/components/PlayerSelectorModal.tsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -38,12 +38,14 @@ interface PlayerSelectorModalProps {
   visible: boolean;
   onClose: () => void;
   onSelect: (selectedPlayerIds: string[]) => void;
+
   players: Player[];                    // League members
   title?: string;                       // Modal başlığı
   multiSelect?: boolean;                // Çoklu seçim
   excludePlayerIds?: string[];          // Zaten eklenenler
   showBadges?: boolean;                 // Premium/Direct/Admin badges
   emptyMessage?: string;                // Boş mesajı
+  selectedIds?: string[];  // ← YENI!
 }
 
 // ============================================
@@ -60,13 +62,26 @@ export const PlayerSelectorModal: React.FC<PlayerSelectorModalProps> = ({
   excludePlayerIds = [],
   showBadges = true,
   emptyMessage = 'Oyuncu bulunamadı',
+  selectedIds = [],
 }) => {
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set(selectedIds));
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Debug: Log players when modal opens
+  useEffect(() => {
+    if (visible) {
+      console.log('PlayerSelectorModal opened');
+      console.log('Total players:', players.length);
+      console.log('Excluded players:', excludePlayerIds.length);
+      console.log('Players data:', players);
+    }
+  }, [visible, players, excludePlayerIds]);
 
   // Filter and sort players
   const filteredPlayers = useMemo(() => {
+    console.log('Filtering players...');
     let filtered = players.filter(player => !excludePlayerIds.includes(player.id));
+    console.log('After exclusion:', filtered.length);
 
     // Apply search filter
     if (searchQuery.trim()) {
@@ -77,20 +92,24 @@ export const PlayerSelectorModal: React.FC<PlayerSelectorModalProps> = ({
         const id = player.id?.toLowerCase() || '';
         return name.includes(query) || phone.includes(query) || id.includes(query);
       });
+      console.log('After search filter:', filtered.length);
     }
 
     // Sort: Premium -> Direct -> Regular
-    return filtered.sort((a, b) => {
+    const sorted = filtered.sort((a, b) => {
       if (a.isPremium && !b.isPremium) return -1;
       if (!a.isPremium && b.isPremium) return 1;
       if (a.isDirect && !b.isDirect) return -1;
       if (!a.isDirect && b.isDirect) return 1;
-      
+
       // Alphabetical by name or id
       const aName = a.name || a.id;
       const bName = b.name || b.id;
       return aName.localeCompare(bName);
     });
+
+    console.log('Final filtered players:', sorted.length);
+    return sorted;
   }, [players, excludePlayerIds, searchQuery]);
 
   // ============================================
@@ -98,6 +117,7 @@ export const PlayerSelectorModal: React.FC<PlayerSelectorModalProps> = ({
   // ============================================
 
   const handleTogglePlayer = (playerId: string) => {
+    console.log('Toggle player:', playerId);
     if (multiSelect) {
       setSelectedPlayerIds(prev => {
         const newSet = new Set(prev);
@@ -125,6 +145,7 @@ export const PlayerSelectorModal: React.FC<PlayerSelectorModalProps> = ({
   };
 
   const handleConfirm = () => {
+    console.log('Confirming selection:', Array.from(selectedPlayerIds));
     onSelect(Array.from(selectedPlayerIds));
     handleClose();
   };
@@ -159,7 +180,7 @@ export const PlayerSelectorModal: React.FC<PlayerSelectorModalProps> = ({
         <View style={styles.playerInfo}>
           <View style={styles.playerNameRow}>
             <Text style={styles.playerName}>{displayName}</Text>
-            
+
             {/* Badges */}
             {showBadges && (
               <View style={styles.badgesContainer}>
@@ -275,6 +296,11 @@ export const PlayerSelectorModal: React.FC<PlayerSelectorModalProps> = ({
               <View style={styles.emptyState}>
                 <Users size={48} color="#D1D5DB" strokeWidth={2} />
                 <Text style={styles.emptyStateText}>{emptyMessage}</Text>
+                {players.length > 0 && (
+                  <Text style={styles.emptyStateHint}>
+                    {searchQuery ? 'Arama sonucu bulunamadı' : 'Tüm oyuncular zaten eklenmiş'}
+                  </Text>
+                )}
               </View>
             )}
           </ScrollView>
@@ -327,7 +353,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 20,
-    maxHeight: '85%',
+    height: '95%', // Modal ekranın %95'ini kaplasın
   },
 
   // Header
@@ -502,6 +528,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#9CA3AF',
     marginTop: 16,
+    fontWeight: '600',
+  },
+  emptyStateHint: {
+    fontSize: 13,
+    color: '#D1D5DB',
+    marginTop: 8,
   },
 
   // Footer

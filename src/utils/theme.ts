@@ -434,6 +434,10 @@ export const getSportBackgroundColor = (sport: SportType): string => {
   return sportThemes[sport].background;
 };
 
+export const getSportDisplayName = (sport: SportType): string => {
+  return sportThemes[sport].label;
+}
+
 /**
  * Opacity ile renk oluşturur
  */
