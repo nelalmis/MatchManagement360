@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
+import { CustomHeader } from '../../components/CustomHeader';
 
 interface SettingItem {
   id: string;
@@ -296,6 +297,10 @@ export const SettingsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <CustomHeader title="Ayarlar" 
+      showBack={true}
+      onLeftPress={() => NavigationService.goBack()}
+      />
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* User Card */}
         <View style={styles.userCard}>

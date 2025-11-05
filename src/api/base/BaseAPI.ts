@@ -180,6 +180,56 @@ export class BaseAPI<T extends { id?: string }> {
   // ============================================
   // HELPER: Convert Firestore timestamp to ISO string
   // ============================================
+  // protected convertTimestamps(data: any): any {
+  //   if (!data) return data;
+  //   return data;
+  //   const converted = { ...data };
+
+  //   Object.keys(converted).forEach((key) => {
+  //     const value = converted[key];
+
+  //     if (value.toDate && typeof value.toDate === 'function') {
+  //       return value.toDate();
+  //     }
+
+  //     // Already a Date
+  //     if (value instanceof Date) {
+  //       return value;
+  //     }
+
+  //     // Timestamp -> Date
+  //     if (value instanceof Timestamp && value.toDate && typeof value.toDate === 'function') {
+  //       converted[key] = value.toDate();
+  //     }
+  //     // ISO 8601 String -> Date (YENİ)
+  //     else if (
+  //       typeof value === 'string' &&
+  //       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/.test(value)
+  //     ) {
+  //       try {
+  //         const date = new Date(value);
+  //         if (!isNaN(date.getTime())) {
+  //           converted[key] = date;
+  //         }
+  //       } catch (error) {
+  //         console.warn(`Failed to convert date string: ${value}`, error);
+  //       }
+  //     }
+  //     // Nested object
+  //     else if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+  //       converted[key] = this.convertTimestamps(value);
+  //     }
+  //     // Array
+  //     else if (Array.isArray(value)) {
+  //       converted[key] = value.map((item) =>
+  //         typeof item === 'object' && item !== null ? this.convertTimestamps(item) : item
+  //       );
+  //     }
+  //   });
+
+  //   return converted;
+  // }
+
   protected convertTimestamps(data: any): any {
     if (!data) return data;
 
@@ -188,48 +238,21 @@ export class BaseAPI<T extends { id?: string }> {
     Object.keys(converted).forEach((key) => {
       const value = converted[key];
 
-      if (value.toDate && typeof value.toDate === 'function') {
-        return value.toDate();
-      }
-
-      // Already a Date
-      if (value instanceof Date) {
-        return value;
-      }
-
-      // Timestamp -> Date
       if (value instanceof Timestamp) {
-        converted[key] = value.toDate();
-      }
-      // ISO 8601 String -> Date (YENİ)
-      else if (
-        typeof value === 'string' &&
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/.test(value)
-      ) {
-        try {
-          const date = new Date(value);
-          if (!isNaN(date.getTime())) {
-            converted[key] = date;
-          }
-        } catch (error) {
-          console.warn(`Failed to convert date string: ${value}`, error);
-        }
-      }
-      // Nested object
-      else if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        converted[key] = value.toDate().toISOString();
+      } else if (value instanceof Date) {
+        converted[key] = value.toISOString();
+      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
         converted[key] = this.convertTimestamps(value);
-      }
-      // Array
-      else if (Array.isArray(value)) {
+      } else if (Array.isArray(value)) {
         converted[key] = value.map((item) =>
-          typeof item === 'object' && item !== null ? this.convertTimestamps(item) : item
+          typeof item === 'object' ? this.convertTimestamps(item) : item
         );
       }
     });
 
     return converted;
   }
-
   // ============================================
   // HELPER: Build query constraints
   // ============================================

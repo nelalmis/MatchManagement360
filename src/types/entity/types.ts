@@ -416,136 +416,6 @@ export interface ILeagueSettings {
 }
 
 
-/**
- * COLLECTION: league_invitations
- * AÇIKLAMA: Lig davet kodları ve linkleri
- * İLİŞKİLER: leagues, players (invitation_uses)
- * CACHE: usedCount, isActive
- */
-export interface ILeagueInvitation {
-  id: string;
-  leagueId: string;
-
-  // ============================================
-  // DAVET KODU
-  // ============================================
-  code: string;                 // "ABC123XY" - 8 haneli unique code
-  inviteLink: string;           // "app://join-league/ABC123XY" deep link
-
-  // ============================================
-  // YARATICI & ZAMAN
-  // ============================================
-  createdBy: string;            // Admin ID
-  createdAt: string;
-  expiresAt?: string;           // Opsiyonel - null ise süresiz
-
-  // ============================================
-  // KULLANIM LİMİTLERİ
-  // ============================================
-  maxUses?: number;             // Opsiyonel - null ise sınırsız
-  usedCount: number;            // Kaç kez kullanıldı (CACHE)
-  isActive: boolean;            // Manuel olarak devre dışı bırakılabilir
-
-  // ============================================
-  // METADATA
-  // ============================================
-  metadata: {
-    description?: string;        // "Sezon başı davet", "Özel turnuva"
-    tags?: string[];             // ["season-1", "premium", "trial"]
-    assignRole?: 'member' | 'premium' | 'direct';  // Katılan kişiye otomatik rol
-  };
-
-  // ============================================
-  // İSTATİSTİKLER
-  // ============================================
-  stats: {
-    totalViews: number;          // Kaç kez link görüntülendi
-    totalAttempts: number;       // Kaç kez kullanılmaya çalışıldı
-    successfulJoins: number;     // Başarılı katılım sayısı
-    lastUsedAt?: string;         // Son kullanım tarihi
-  };
-
-  // ============================================
-  // META
-  // ============================================
-  updatedAt?: string;
-}
-
-/**
- * SUB-COLLECTION: league_invitation_uses (league_invitations/{leagueInvitationId}/uses)
- * AÇIKLAMA: Her kod kullanımının kaydı
- */
-export interface ILeagueInvitationUse {
-  id: string;
-  leagueInvitationId: string;
-  leagueId: string;
-
-  // ============================================
-  // KULLANICI BİLGİSİ
-  // ============================================
-  userId: string;               // Katılan oyuncu ID
-  joinedAt: string;
-
-  // ============================================
-  // CIHAZ & PLATFORM
-  // ============================================
-  device: {
-    platform: 'ios' | 'android' | 'web';
-    model?: string;
-    osVersion?: string;
-  };
-
-  // ============================================
-  // ROL ATAMASI
-  // ============================================
-  assignedRole?: 'member' | 'premium' | 'direct';  // Otomatik atanan rol
-}
-
-/**
- * Invite Code Generation Options
- */
-export interface IGenerateInviteOptions {
-  leagueId: string;
-  creatorId: string;
-  description?: string;
-  tags?: string[];
-  assignRole?: 'member' | 'premium' | 'direct';
-  expiresInDays?: number;       // null = süresiz
-  maxUses?: number;             // null = sınırsız
-}
-
-/**
- * Join League with Code Request
- */
-export interface IJoinLeagueRequest {
-  code: string;                 // Davet kodu
-  userId: string;               // Katılacak oyuncu
-  device?: {
-    platform: 'ios' | 'android' | 'web';
-    model?: string;
-    osVersion?: string;
-  };
-}
-
-/**
- * Invite Code Validation Result
- */
-export interface IInviteValidation {
-  valid: boolean;
-  invitation?: ILeagueInvitation;
-  error?: {
-    code: 'INVALID_CODE' | 'EXPIRED' | 'MAX_USES_REACHED' | 'INACTIVE' | 'ALREADY_MEMBER';
-    message: string;
-  };
-  league?: {
-    id: string;
-    title: string;
-    sportType: string;
-    logo?: string;
-    memberCount: number;
-  };
-}
-
 
 // ============================================
 // 5. SEASON (seasons collection)
@@ -1172,45 +1042,6 @@ export interface IMatchComment {
   // ============================================
   createdAt: string;
   updatedAt?: string;
-}
-
-// ============================================
-// 12. MATCH INVITATION (match_invitations collection)
-// ============================================
-
-/**
- * COLLECTION: match_invitations
- * AÇIKLAMA: Maça davet sistemi
- * İLİŞKİLER: match, inviter, invitee
- * CACHE: inviterName, inviteeName (gösterim için)
- */
-export interface IMatchInvitation {
-  id: string;
-  matchId: string;              // Hangi maç (→ matches)
-  matchType: MatchType;
-
-  // ============================================
-  // DAVET
-  // ============================================
-  inviterId: string;            // Davet eden (→ users)
-  inviterName: string;          // CACHE: Davet eden adı
-
-  inviteeId: string;            // Davet edilen (→ users)
-  inviteeName: string;          // CACHE: Davet edilen adı
-
-  // ============================================
-  // DURUM
-  // ============================================
-  status: 'pending' | 'accepted' | 'declined' | 'expired';
-
-  message?: string;             // Davet mesajı
-
-  // ============================================
-  // META
-  // ============================================
-  sentAt: string;
-  respondedAt?: string;
-  expiresAt?: string;
 }
 
 // ============================================
@@ -2103,14 +1934,6 @@ export enum PaymentStatus {
   PARTIAL = 'partial',
   OVERDUE = 'overdue',
   WAIVED = 'waived'
-}
-
-export enum InvitationStatus {
-  PENDING = 'pending',
-  ACCEPTED = 'accepted',
-  DECLINED = 'declined',
-  EXPIRED = 'expired',
-  CANCELLED = 'cancelled'
 }
 
 export enum NotificationStatus {

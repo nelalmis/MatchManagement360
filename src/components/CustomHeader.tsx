@@ -1,7 +1,18 @@
 // components/CustomHeader.tsx
 
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Platform, 
+  ActivityIndicator, 
+  StatusBar,
+  AppState,
+  AppStateStatus
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Menu,
   ChevronLeft,
@@ -30,13 +41,13 @@ interface CustomHeaderProps {
   // Sport icon - Branş ikonu göstermek için
   sportType?: SportType;
   showIcon?: boolean;
-  customIcon?: React.ComponentType<any> | string; // Lucide icon veya emoji string
+  customIcon?: React.ComponentType<any> | string;
 
   // LEFT BUTTON (Sadece biri seçilebilir)
-  showMenu?: boolean;        // Ana tab ekranları için
-  showBack?: boolean;        // Detail ekranlar için
-  showClose?: boolean;       // Modal tarzı ekranlar için
-  onLeftPress?: () => void;  // Custom left action
+  showMenu?: boolean;
+  showBack?: boolean;
+  showClose?: boolean;
+  onLeftPress?: () => void;
 
   // RIGHT BUTTONS (Birden fazla olabilir)
   showNotifications?: boolean;
@@ -64,11 +75,11 @@ interface CustomHeaderProps {
 
   // Styling
   backgroundColor?: string;
-  textColor?: string;          // Title ve subtitle text rengi
-  iconColor?: string;          // Icon renkleri
-  notificationCount?: number;  // Badge için
-  loading?: boolean;           // Save butonu için loading state
-  disableSave?: boolean;      // Save butonu için disable state
+  textColor?: string;
+  iconColor?: string;
+  notificationCount?: number;
+  loading?: boolean;
+  disableSave?: boolean;
 }
 
 export const CustomHeader: React.FC<CustomHeaderProps> = ({
@@ -110,14 +121,45 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
 }) => {
   const { openMenu } = useSideMenu();
 
-  // Sport config'den icon ve renk al
-  const SportIcon = customIcon ? customIcon : (sportType ? getSportEmoji(sportType) || null : null);
-  const sportColor = sportType ? getSportPrimaryColor(sportType) || backgroundColor : backgroundColor;
+  // Sport config'den icon ve renk al - useMemo ile optimize et
+  const SportIcon = useMemo(() => 
+    customIcon ? customIcon : (sportType ? getSportEmoji(sportType) || null : null),
+    [customIcon, sportType]
+  );
+  // Final background color'u useMemo ile hesapla
+  const finalBackgroundColor = useMemo(() => {
+    if (sportType && backgroundColor === '#16a34a') {
+      const sportColor = getSportPrimaryColor(sportType);
+      console.log("FinalColor=", sportColor || backgroundColor)
+      return sportColor || backgroundColor;
+    }
+    console.log("FinalColor=", backgroundColor);
+    return backgroundColor;
+  }, [sportType, backgroundColor]);
 
-  // Eğer sportType varsa ve backgroundColor default ise, sport rengini kullan
-  const finalBackgroundColor = sportType && backgroundColor === '#16a34a'
-    ? sportColor
-    : backgroundColor;
+  // StatusBar'ı güncelle - finalBackgroundColor değiştiğinde
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      StatusBar.setTranslucent(false);
+      StatusBar.setBackgroundColor(finalBackgroundColor);
+      StatusBar.setBarStyle(textColor === 'white' ? 'light-content' : 'dark-content');
+    }
+  }, [finalBackgroundColor, textColor]);
+
+  // AppState listener - Sadece background'dan dönüş için
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && Platform.OS === 'android') {
+        StatusBar.setTranslucent(false);
+        StatusBar.setBackgroundColor(finalBackgroundColor);
+        StatusBar.setBarStyle(textColor === 'white' ? 'light-content' : 'dark-content');
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [finalBackgroundColor, textColor]);
 
   // LEFT BUTTON HANDLER
   const handleLeftPress = () => {
@@ -173,7 +215,6 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
   const renderRightButtons = () => {
     const buttons = [];
 
-    // Settings Button
     if (showSettings && onSettingsPress) {
       buttons.push(
         <TouchableOpacity
@@ -187,7 +228,6 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
       );
     }
 
-    // More Button
     if (showMore && onMorePress) {
       buttons.push(
         <TouchableOpacity
@@ -201,7 +241,6 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
       );
     }
 
-    // Filter Button
     if (showFilter && onFilterPress) {
       buttons.push(
         <TouchableOpacity
@@ -215,7 +254,6 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
       );
     }
 
-    // Search Button
     if (showSearch && onSearchPress) {
       buttons.push(
         <TouchableOpacity
@@ -229,7 +267,6 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
       );
     }
 
-    // Create Button
     if (showCreate && onCreatePress) {
       buttons.push(
         <TouchableOpacity
@@ -243,7 +280,6 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
       );
     }
 
-    // Edit Button
     if (showEdit && onEditPress) {
       buttons.push(
         <TouchableOpacity
@@ -257,7 +293,6 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
       );
     }
 
-    // Save Button (with loading state)
     if (showSave && onSavePress) {
       buttons.push(
         <TouchableOpacity
@@ -268,14 +303,14 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
           disabled={disableSave || loading}
         >
           {loading ? (
-            // <View style={styles.loadingDot} />
-            <ActivityIndicator size="small" color="white" />
+            <ActivityIndicator size="small" color={iconColor} />
           ) : (
             <Save size={20} color={iconColor} strokeWidth={2} />
           )}
         </TouchableOpacity>
       );
     }
+
     if (showBookmark && onBookmarkPress) {
       buttons.push(
         <TouchableOpacity
@@ -289,7 +324,6 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
       );
     }
 
-    // Notification Button (with badge)
     if (showNotifications && onNotificationPress) {
       buttons.push(
         <TouchableOpacity
@@ -311,7 +345,7 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
         </TouchableOpacity>
       );
     }
-    // Share Button
+
     if (showShare && onSharePress) {
       buttons.push(
         <TouchableOpacity
@@ -333,58 +367,73 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
   };
 
   return (
-    <View style={[styles.header, { backgroundColor: finalBackgroundColor }]}>
-      {/* Left Button */}
-      {renderLeftButton()}
+    <>
+      <StatusBar
+        barStyle={textColor === 'white' ? 'light-content' : 'dark-content'}
+        backgroundColor={finalBackgroundColor}
+        translucent={false}
+      />
+      
+      <SafeAreaView 
+        style={[styles.safeArea, { backgroundColor: finalBackgroundColor }]}
+        edges={['top']}
+      >
+        <View style={styles.header}>
+          {/* Left Button */}
+          {renderLeftButton()}
 
-      {/* Center Title with Sport Icon */}
-      <View style={styles.titleContainer}>
-        <View style={styles.titleRow}>
-          {showIcon && SportIcon && (
-            <View style={styles.sportIconContainer}>
-              {typeof SportIcon === 'string' ? (
-                <Text style={styles.sportEmoji}>{SportIcon}</Text>
-              ) : (
-                <SportIcon size={20} color={textColor} strokeWidth={2} />
+          {/* Center Title with Sport Icon */}
+          <View style={styles.titleContainer}>
+            <View style={styles.titleRow}>
+              {showIcon && SportIcon && (
+                <View style={styles.sportIconContainer}>
+                  {typeof SportIcon === 'string' ? (
+                    <Text style={styles.sportEmoji}>{SportIcon}</Text>
+                  ) : (
+                    <SportIcon size={20} color={textColor} strokeWidth={2} />
+                  )}
+                </View>
               )}
+              <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>
+                {title}
+              </Text>
             </View>
-          )}
-          <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>
-            {title}
-          </Text>
-        </View>
-        {subtitle && (
-          <Text
-            style={[
-              styles.subtitle,
-              { color: textColor === 'white' ? 'rgba(255, 255, 255, 0.9)' : textColor }
-            ]}
-            numberOfLines={1}
-          >
-            {subtitle}
-          </Text>
-        )}
-      </View>
+            {subtitle && (
+              <Text
+                style={[
+                  styles.subtitle,
+                  { color: textColor === 'white' ? 'rgba(255, 255, 255, 0.9)' : textColor }
+                ]}
+                numberOfLines={1}
+              >
+                {subtitle}
+              </Text>
+            )}
+          </View>
 
-      {/* Right Buttons */}
-      {renderRightButtons()}
-    </View>
+          {/* Right Buttons */}
+          {renderRightButtons()}
+        </View>
+      </SafeAreaView>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  header: {
-    paddingTop: Platform.OS === 'ios' ? 40 : 30,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+  safeArea: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   button: {
     width: 40,
@@ -417,9 +466,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   sportEmoji: {
-  fontSize: 20,
-  lineHeight: 20,
-},
+    fontSize: 20,
+    lineHeight: 20,
+  },
   title: {
     fontSize: 18,
     fontWeight: '700',

@@ -58,13 +58,11 @@ import { NavigationService } from '../../navigation/NavigationService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
 import { StandingsService } from '../../services/serviceLayer/standingsService';
-import { LeagueInvitationService } from '../../services/serviceLayer/LeagueInvitationService';
 import { PlayerSelectorModal } from './components/PlayerSelectorModal';
 import {
   ILeague,
   IFixture,
   IStandings,
-  ILeagueInvitation,
   SportType,
   IPlayer,
 } from '../../types/entity/types';
@@ -75,7 +73,8 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import PlayerService from '../../services/serviceLayer/playerService';
 import { CustomHeader } from '../../components/CustomHeader';
-import { InvitationType } from '../../types/entity/invitation';
+import { ILeagueInvitation, InvitationType } from '../../types/entity/invitation';
+import LeagueInvitationService from '../../services/serviceLayer/invitationService';
 
 // ============================================
 // TYPES
@@ -1485,7 +1484,7 @@ export const LeagueDetailScreen: React.FC = () => {
 
                     <View style={styles.inviteStatItem}>
                       <Text style={styles.inviteStatLabel}>Görüntülenme</Text>
-                      <Text style={styles.inviteStatValue}>{invitation.stats.totalViews}</Text>
+                      <Text style={styles.inviteStatValue}>{invitation.stats?.totalViews}</Text>
                     </View>
 
                     {invitation.expiresAt && (
@@ -1498,9 +1497,9 @@ export const LeagueDetailScreen: React.FC = () => {
                     )}
                   </View>
 
-                  {invitation.metadata.description && (
+                  {invitation.settings.description && (
                     <Text style={styles.inviteDescription}>
-                      {invitation.metadata.description}
+                      {invitation.settings.description}
                     </Text>
                   )}
                 </View>

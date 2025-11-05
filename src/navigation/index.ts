@@ -24,7 +24,7 @@ export {
 } from './guards/NavigationGuards';
 
 // Stacks (Eğer dışarıdan kullanılacaksa)
-export { AuthStack } from './AuthStack';
+// export { AuthStack } from './AuthStack';
 export { MainNavigator } from './MainNavigator';
 
 // Tab Navigator

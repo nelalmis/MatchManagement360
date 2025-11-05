@@ -9,7 +9,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import {LinearGradient} from 'expo-linear-gradient';
 import { commonColors, typography, spacing } from '../../utils/theme';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/types';

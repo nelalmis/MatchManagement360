@@ -135,8 +135,8 @@ export const ManageInvitationsScreen: React.FC = () => {
         try {
             const message =
                 type === 'league'
-                    ? `${targetTitle} ligine katıl!\n\nDavet Kodu: ${invite.code}\nLink: ${invite.inviteLink}`
-                    : `${targetTitle} maçına katıl!\n\nDavet Kodu: ${invite.code}\nLink: ${invite.inviteLink}`;
+                    ? `🏆 ${targetTitle} ligine katıl!\n\nDavet Kodu: ${invite.code}\nLink: ${invite.inviteLink}`
+                    : `⚽ ${targetTitle} maçına katıl!\n\nDavet Kodu: ${invite.code}\nLink: ${invite.inviteLink}`;
 
             await Share.share({
                 message,

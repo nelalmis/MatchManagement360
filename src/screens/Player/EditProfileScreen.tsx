@@ -39,6 +39,7 @@ import {
 import { PlayerService } from '../../services/serviceLayer/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
+import { CustomHeader } from '../../components/CustomHeader';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -401,28 +402,16 @@ export const EditProfileScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleCancel}
-          activeOpacity={0.7}
-        >
-          <X size={24} color="#1F2937" strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profili Düzenle</Text>
-        <TouchableOpacity
-          style={[styles.headerButton, saving && styles.headerButtonDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-          activeOpacity={0.7}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#16a34a" />
-          ) : (
-            <Save size={24} color="#16a34a" strokeWidth={2} />
-          )}
-        </TouchableOpacity>
-      </View>
+      <CustomHeader
+        title="Profili Düzenle"
+        showMenu={false}
+        showClose={true}
+        onLeftPress={handleCancel}
+        showSave={true}
+        onSavePress={handleSave}
+        disableSave={saving}
+        loading={saving}
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Profile Photo */}

@@ -49,7 +49,7 @@ import {
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
-import { MatchInvitationService } from '../../services/serviceLayer/matchInvitationService';
+import { MatchInvitationService } from '../../services/serviceLayer/invitationService';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
@@ -80,7 +80,6 @@ export const MatchListScreen: React.FC = () => {
   const [hasMore, setHasMore] = useState(true); // ✅ Daha fazla veri var mı?
   const [lastDoc, setLastDoc] = useState<any>(null); // ✅ Son döküman (pagination için)
   const [title, setTitle] = useState('Maçlarım');
-  const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,7 +122,6 @@ export const MatchListScreen: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    loadPendingInvitations();
   }, [fixtureId, leagueId]);
 
   // ✅ Filter değişince listeyi sıfırla ve tekrar yükle
@@ -143,18 +141,6 @@ export const MatchListScreen: React.FC = () => {
     });
     return Array.from(sports);
   }, [matches, league]);
-
-  const loadPendingInvitations = async () => {
-    if (!user?.id) return;
-    try {
-      const result = await MatchInvitationService.getPendingInvitations(user.id);
-      if (result.success && result.data) {
-        setPendingInvitationsCount(result.data.length);
-      }
-    } catch (error) {
-      console.error('Error loading invitations:', error);
-    }
-  };
 
   // ✅ Reset and reload (filter değişince)
   const resetAndLoad = useCallback(async () => {
@@ -432,7 +418,6 @@ export const MatchListScreen: React.FC = () => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await resetAndLoad();
-    await loadPendingInvitations();
     setRefreshing(false);
   }, [resetAndLoad]);
 
@@ -767,27 +752,6 @@ export const MatchListScreen: React.FC = () => {
 
       {/* Quick Actions */}
       <View style={styles.quickActionsContainer}>
-        {pendingInvitationsCount > 0 && (
-          <TouchableOpacity
-            style={styles.invitationBanner}
-            onPress={handleViewInvitations}
-            activeOpacity={0.7}
-          >
-            <View style={styles.invitationBannerLeft}>
-              <Mail size={20} color="#10B981" strokeWidth={2} />
-              <View style={styles.invitationBannerText}>
-                <Text style={styles.invitationBannerTitle}>
-                  {pendingInvitationsCount} Davet Bekliyor
-                </Text>
-                <Text style={styles.invitationBannerSubtitle}>
-                  Dostluk maçı davetlerini görüntüle
-                </Text>
-              </View>
-            </View>
-            <ChevronRight size={20} color="#10B981" strokeWidth={2} />
-          </TouchableOpacity>
-        )}
-
         <TouchableOpacity
           style={styles.createFriendlyButton}
           onPress={handleCreateFriendlyMatch}
@@ -916,7 +880,6 @@ export const MatchListScreen: React.FC = () => {
   if (!league && matches.length === 0 && !loading) {
     return (
       <View style={styles.container}>
-        <CustomHeader title="Maçlarım" showMenu={true} />
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconContainer}>
             <Trophy size={64} color="#D1D5DB" strokeWidth={1.5} />

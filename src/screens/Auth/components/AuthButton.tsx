@@ -8,7 +8,7 @@ import {
   View,
   TouchableOpacityProps,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight, LucideIcon } from 'lucide-react-native';
 import { commonColors, typography, spacing, borderRadius, shadows } from '../../../utils/theme';
 
@@ -130,7 +130,7 @@ export const AuthButton: React.FC<AuthButtonProps> = ({
         {...props}
       >
         <LinearGradient
-          colors={[...colors] as string[]}
+          colors={colors} // ✅ Artık type casting'e gerek yok
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={[

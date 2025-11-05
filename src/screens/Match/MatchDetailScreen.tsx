@@ -54,13 +54,13 @@ import {
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
-import { MatchInvitationService } from '../../services/serviceLayer/matchInvitationService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { eventManager, Events } from '../../utils';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { InvitationType } from '../../types/entity/invitation';
+import { MatchInvitationService } from '../../services/serviceLayer/invitationService';
 
 export const MatchDetailScreen: React.FC = () => {
   const route: any = useRoute();
@@ -220,7 +220,7 @@ export const MatchDetailScreen: React.FC = () => {
 
       // Load pending invitations count (for organizer)
       if (isFriendly && isOrganizer) {
-        const invitationsResult = await MatchInvitationService.getPendingMatchInvitations(matchId);
+        const invitationsResult = await MatchInvitationService.getActiveInvitations(user!.id, matchId);
         if (invitationsResult.success && invitationsResult.data) {
           setPendingInvitationsCount(invitationsResult.data.length);
         }

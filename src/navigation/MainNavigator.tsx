@@ -23,9 +23,9 @@ import { LeagueListScreen } from '../screens';
 import { LeagueDetailScreen } from '../screens';
 import { CreateLeagueScreen } from '../screens';
 import { EditLeagueScreen } from '../screens';
-import { JoinLeagueScreen } from '../screens';
-import { ManageLeagueInvitationsScreen } from '../screens';
-import { CreateLeagueInvitationScreen } from '../screens';
+// import { JoinLeagueScreen } from '../screens';
+// import { ManageLeagueInvitationsScreen } from '../screens';
+// import { CreateLeagueInvitationScreen } from '../screens';
 // Fixture
 import { FixtureListScreen } from '../screens';
 import { FixtureDetailScreen } from '../screens';
@@ -68,6 +68,8 @@ import { NotificationSettingsScreen } from '../screens';
 
 // Components
 import { CustomHeader } from '../components/CustomHeader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -82,13 +84,30 @@ const HomeStack = () => {
             <Stack.Screen
                 name="homeScreen"
                 component={HomeScreen}
-                options={{
-                    header: () => <CustomHeader title="Ana Sayfa" showMenu showNotifications />,
+                options={({ navigation }) => {
+                    // Navigation state değiştiğinde yeni instance oluştur
+                    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+
+                    useFocusEffect(
+                        React.useCallback(() => {
+                            forceUpdate();
+                        }, [])
+                    );
+
+                    return {
+                        header: () => (
+                            <CustomHeader
+                                title="Ana Sayfa"
+                                showMenu
+                                showNotifications
+                            />
+                        ),
+                    };
                 }}
             />
-             {/* Modal Screens Group */}
-            <Stack.Group 
-                screenOptions={{ 
+            {/* Modal Screens Group */}
+            <Stack.Group
+                screenOptions={{
                     presentation: 'modal',
                     animation: 'slide_from_bottom',
                 }}
@@ -149,12 +168,7 @@ const LeaguesStack = () => {
                 component={EditFixtureScreen}
                 options={{ headerShown: false }}
             />
-            <Stack.Screen
-                name="joinLeague"
-                component={JoinLeagueScreen}
-                options={{ headerShown: false }}
-            />
-            
+
             <Stack.Screen
                 name="leagueSettings"
                 component={LeagueSettingsScreen}
@@ -165,10 +179,10 @@ const LeaguesStack = () => {
                 component={ManageLeagueMembersScreen}
                 options={{ headerShown: false }}
             />
-            
-             {/* Modal Screens Group */}
-            <Stack.Group 
-                screenOptions={{ 
+
+            {/* Modal Screens Group */}
+            <Stack.Group
+                screenOptions={{
                     presentation: 'modal',
                     animation: 'slide_from_bottom',
                 }}
@@ -184,16 +198,21 @@ const LeaguesStack = () => {
                     options={{ headerShown: false }}
                 />
                 {/* Legacy screens - will be removed */}
-                <Stack.Screen
+                {/* <Stack.Screen
                     name="createLeagueInvitation"
                     component={CreateLeagueInvitationScreen}
                     options={{ headerShown: false }}
                 />
                 <Stack.Screen
+                name="joinLeague"
+                component={JoinLeagueScreen}
+                options={{ headerShown: false }}
+                /> */}
+                {/* <Stack.Screen
                     name="manageLeagueInvitations"
                     component={ManageLeagueInvitationsScreen}
                     options={{ headerShown: false }}
-                />
+                /> */}
             </Stack.Group>
         </Stack.Navigator>
     );
@@ -206,7 +225,7 @@ const MatchesStack = () => {
             <Stack.Screen
                 name="matchList"
                 component={MatchListScreen}
-                options={{ headerShown: false }}
+                options={{ headerShown: true , header: () => <CustomHeader title="Maçlar" showMenu showNotifications /> }}
             />
             <Stack.Screen
                 name="myMatches"
@@ -228,7 +247,7 @@ const MatchesStack = () => {
                 component={FriendlyMatchInvitationsScreen}
                 options={{ headerShown: false }}
             /> */}
-            
+
             {/* <Stack.Screen
         name="editFriendlyMatch"
         component={EditFriendlyMatchScreen}
@@ -289,9 +308,9 @@ const MatchesStack = () => {
                 component={PlayerPaymentScreen}
                 options={{ headerShown: false }}
             />
-             {/* Modal Screens Group */}
-            <Stack.Group 
-                screenOptions={{ 
+            {/* Modal Screens Group */}
+            <Stack.Group
+                screenOptions={{
                     presentation: 'modal',
                     animation: 'slide_from_bottom',
                 }}
@@ -312,8 +331,8 @@ const MatchesStack = () => {
                     options={{ headerShown: false }}
                 />
             </Stack.Group>
-            
-            
+
+
         </Stack.Navigator>
     );
 };
@@ -370,11 +389,7 @@ const ProfileStack = () => {
                 component={EditProfileScreen}
                 options={{ headerShown: false }}
             />
-            <Stack.Screen
-                name="selectPositions"
-                component={SelectPositionsScreen}
-                options={{ headerShown: false }}
-            />
+            
             <Stack.Screen
                 name="settings"
                 component={SettingsScreen}
@@ -385,6 +400,19 @@ const ProfileStack = () => {
                 component={NotificationSettingsScreen}
                 options={{ headerShown: false }}
             />
+            {/* Modal Screens Group */}
+            <Stack.Group
+                screenOptions={{
+                    presentation: 'modal',
+                    animation: 'slide_from_bottom',
+                }}
+            >
+               <Stack.Screen
+                   name="selectPositions"
+                   component={SelectPositionsScreen}
+                   options={{ headerShown: false }}
+               />
+            </Stack.Group>
         </Stack.Navigator>
     );
 };
@@ -393,7 +421,8 @@ const ProfileStack = () => {
 // BOTTOM TAB NAVIGATOR
 // ============================================
 export const MainNavigator: React.FC = () => {
-
+    const insets = useSafeAreaInsets();
+    console.log('Safe Area Insets:', insets.bottom);
     return (
         <Tab.Navigator
             screenOptions={({ route }) => ({
@@ -404,9 +433,9 @@ export const MainNavigator: React.FC = () => {
                     backgroundColor: 'white',
                     borderTopWidth: 1,
                     borderTopColor: '#E5E7EB',
-                    paddingBottom: 8,
+                    paddingBottom: insets.bottom > 0 ? insets.bottom : 8, // iOS için dinamik, Android için sabit
                     paddingTop: 8,
-                    height: 65,
+                    height: insets.bottom > 0 ? 55 + insets.bottom : 55, // iOS için dinamik yükseklik
                     elevation: 8,
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: -2 },

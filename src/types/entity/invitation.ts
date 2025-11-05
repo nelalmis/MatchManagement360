@@ -174,7 +174,7 @@ export interface IMatchInvitationUse extends IBaseInvitationUse {
   type: InvitationType.MATCH;
   
   matchData: {
-    registeredAs: 'player' | 'reserve' | 'guest';
+    assignedRole: 'player' | 'reserve' | 'guest' | 'direct';
     assignedTeam?: 'team1' | 'team2';
     position?: string;
     guestInfo?: {

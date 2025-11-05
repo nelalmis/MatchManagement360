@@ -24,20 +24,22 @@ import {
   Crown,
   Mail,
   Phone,
+  TrendingDown,
+  Minus,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
+import { CustomHeader } from '../../components/CustomHeader';
 import {
   IPlayer,
   IPlayerStats,
-  getSportIcon,
-  getSportColor,
   SportType,
-} from '../../types/types';
-import { playerService } from '../../services/playerService';
-import { playerStatsService } from '../../services/playerStatsService';
-import { matchService } from '../../services/matchService';
+} from '../../types/entity/types';
+import { PlayerService } from '../../services/serviceLayer/playerService';
+import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
+import { MatchService } from '../../services/serviceLayer/matchService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
+import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 
 interface CareerStats {
   totalMatches: number;
@@ -86,36 +88,48 @@ export const PlayerProfileScreen: React.FC = () => {
       setLoading(true);
 
       // Player data
-      const playerData = await playerService.getById(playerId);
-      if (!playerData) {
+      const playerData = await PlayerService.getPlayer(playerId);
+      if (!playerData.success || !playerData.data) {
         Alert.alert('Hata', 'Oyuncu bulunamadı');
         NavigationService.goBack();
         return;
       }
-      setPlayer(playerData);
+      setPlayer(playerData.data);
 
       // Career stats
-      const career = await playerStatsService.getPlayerCareerStats(playerId);
-      setCareerStats(career);
+      const careerResult = await PlayerStatsService.getCareerStats(playerId);
+      if (careerResult.success && careerResult.data) {
+        const career = careerResult.data;
+        setCareerStats({
+          totalMatches: career.total.matches,
+          totalGoals: career.total.goals,
+          totalAssists: career.total.assists,
+          totalWins: career.league.wins + career.friendly.wins,
+          totalMVPs: career.mvp.count,
+          averageRating: career.rating.average,
+        });
+      }
 
       // League stats
-      const allStats = await playerStatsService.getStatsByPlayer(playerId);
-      // TODO: Add league names
-      const leagueStatsData: LeagueStats[] = allStats.map(stat => ({
-        leagueId: stat.leagueId,
-        leagueName: 'Lig Adı', // TODO: Fetch from leagueService
-        sportType: 'Futbol' as SportType, // TODO: Fetch from leagueService
-        stats: stat,
-      }));
-      setLeagueStats(leagueStatsData);
+      const allStatsResult = await PlayerStatsService.getAllPlayerStats(playerId);
+      if (allStatsResult.success && allStatsResult.data) {
+        const leagueStatsData: LeagueStats[] = allStatsResult.data.map(stat => ({
+          leagueId: stat.leagueId,
+          leagueName: 'Lig', // TODO: Fetch league name
+          sportType: 'Futbol' as SportType, // TODO: Fetch sport type
+          stats: stat,
+        }));
+        setLeagueStats(leagueStatsData);
+      }
 
       // Recent matches
-      const matches = await matchService.getMatchesByPlayer(playerId);
-      const completed = matches
-        .filter(m => m.status === 'Tamamlandı')
-        .sort((a, b) => new Date(b.matchStartTime).getTime() - new Date(a.matchStartTime).getTime())
-        .slice(0, 5);
-      setRecentMatches(completed);
+      const matchesResult = await MatchService.getPlayerAllMatchesPaginated(playerId, 5);
+      if (matchesResult.success && matchesResult.data) {
+        const completed = matchesResult.data.data
+          .filter(m => m.status === 'completed')
+          .slice(0, 5);
+        setRecentMatches(completed);
+      }
 
     } catch (error) {
       console.error('Error loading player profile:', error);
@@ -141,7 +155,7 @@ export const PlayerProfileScreen: React.FC = () => {
 
   const handleViewMatches = useCallback(() => {
     NavigationService.navigateToMyMatches();
-  }, [playerId]);
+  }, []);
 
   const formatDate = useCallback((date: Date) => {
     return new Date(date).toLocaleDateString('tr-TR', {
@@ -162,17 +176,49 @@ export const PlayerProfileScreen: React.FC = () => {
     return age;
   }, []);
 
+  const renderRatingTrend = (trend: 'improving' | 'stable' | 'declining') => {
+    const config = {
+      improving: { icon: TrendingUp, color: '#10B981', text: 'Yükseliyor' },
+      declining: { icon: TrendingDown, color: '#EF4444', text: 'Düşüyor' },
+      stable: { icon: Minus, color: '#6B7280', text: 'Stabil' },
+    };
+
+    const { icon: Icon, color, text } = config[trend];
+
+    return (
+      <View style={[styles.trendBadge, { backgroundColor: color + '20' }]}>
+        <Icon size={14} color={color} strokeWidth={2} />
+        <Text style={[styles.trendText, { color }]}>{text}</Text>
+      </View>
+    );
+  };
+
   if (loading || !player) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Profil yükleniyor...</Text>
+      <View style={styles.container}>
+        <CustomHeader
+          title="Profil"
+          showBack
+          onLeftPress={() => NavigationService.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#16a34a" />
+          <Text style={styles.loadingText}>Profil yükleniyor...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      <CustomHeader
+        title={isOwnProfile ? 'Profilim' : 'Oyuncu Profili'}
+        showBack
+        onLeftPress={() => NavigationService.goBack()}
+        showEdit={isOwnProfile}
+        onEditPress={handleEditProfile}
+      />
+
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -191,15 +237,6 @@ export const PlayerProfileScreen: React.FC = () => {
             <View style={styles.avatar}>
               <User size={48} color="white" strokeWidth={2} />
             </View>
-            {isOwnProfile && (
-              <TouchableOpacity
-                style={styles.editButton}
-                onPress={handleEditProfile}
-                activeOpacity={0.7}
-              >
-                <Edit size={16} color="white" strokeWidth={2.5} />
-              </TouchableOpacity>
-            )}
           </View>
 
           <View style={styles.headerInfo}>
@@ -241,10 +278,10 @@ export const PlayerProfileScreen: React.FC = () => {
               {player.favoriteSports.map((sport, index) => (
                 <View
                   key={index}
-                  style={[styles.sportBadge, { backgroundColor: getSportColor(sport) + '20' }]}
+                  style={[styles.sportBadge, { backgroundColor: getSportPrimaryColor(sport) + '20' }]}
                 >
-                  <Text style={styles.sportEmoji}>{getSportIcon(sport)}</Text>
-                  <Text style={[styles.sportText, { color: getSportColor(sport) }]}>
+                  <Text style={styles.sportEmoji}>{getSportEmoji(sport)}</Text>
+                  <Text style={[styles.sportText, { color: getSportPrimaryColor(sport) }]}>
                     {sport}
                   </Text>
                 </View>
@@ -315,29 +352,6 @@ export const PlayerProfileScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Quick Actions */}
-        {/* <View style={styles.section}>
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleViewStats}
-              activeOpacity={0.7}
-            >
-              <BarChart3 size={20} color="#16a34a" strokeWidth={2} />
-              <Text style={styles.actionButtonText}>Detaylı İstatistikler</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={handleViewMatches}
-              activeOpacity={0.7}
-            >
-              <Calendar size={20} color="#16a34a" strokeWidth={2} />
-              <Text style={styles.actionButtonText}>Geçmiş Maçlar</Text>
-            </TouchableOpacity>
-          </View>
-        </View> */}
-
         {/* League Stats */}
         {leagueStats.length > 0 && (
           <View style={styles.section}>
@@ -350,8 +364,11 @@ export const PlayerProfileScreen: React.FC = () => {
               <View key={index} style={styles.leagueCard}>
                 <View style={styles.leagueCardHeader}>
                   <View style={styles.leagueCardLeft}>
-                    <Text style={styles.sportEmoji}>{getSportIcon(league.sportType)}</Text>
-                    <Text style={styles.leagueCardTitle}>{league.leagueName}</Text>
+                    <Text style={styles.sportEmoji}>{getSportEmoji(league.sportType)}</Text>
+                    <View style={styles.leagueCardTitleContainer}>
+                      <Text style={styles.leagueCardTitle}>{league.leagueName}</Text>
+                      {league.stats.rating.trend && renderRatingTrend(league.stats.rating.trend)}
+                    </View>
                   </View>
                   <TouchableOpacity
                     onPress={() => NavigationService.navigateToStandings(league.leagueId)}
@@ -363,22 +380,38 @@ export const PlayerProfileScreen: React.FC = () => {
 
                 <View style={styles.leagueStatsRow}>
                   <View style={styles.leagueStat}>
-                    <Text style={styles.leagueStatValue}>{league.stats.totalMatches}</Text>
+                    <Text style={styles.leagueStatValue}>{league.stats.total.matches}</Text>
                     <Text style={styles.leagueStatLabel}>Maç</Text>
                   </View>
                   <View style={styles.leagueStat}>
-                    <Text style={styles.leagueStatValue}>{league.stats.totalGoals}</Text>
+                    <Text style={styles.leagueStatValue}>{league.stats.total.goals}</Text>
                     <Text style={styles.leagueStatLabel}>Gol</Text>
                   </View>
                   <View style={styles.leagueStat}>
-                    <Text style={styles.leagueStatValue}>{league.stats.totalAssists}</Text>
+                    <Text style={styles.leagueStatValue}>{league.stats.total.assists}</Text>
                     <Text style={styles.leagueStatLabel}>Asist</Text>
                   </View>
                   <View style={styles.leagueStat}>
                     <Text style={[styles.leagueStatValue, { color: '#16a34a' }]}>
-                      {league.stats.points}
+                      {league.stats.total.points}
                     </Text>
                     <Text style={styles.leagueStatLabel}>Puan</Text>
+                  </View>
+                </View>
+
+                {/* Rating Info */}
+                <View style={styles.ratingRow}>
+                  <View style={styles.ratingItem}>
+                    <Star size={14} color="#F59E0B" strokeWidth={2} />
+                    <Text style={styles.ratingText}>
+                      {league.stats.rating.average.toFixed(1)} ortalama
+                    </Text>
+                  </View>
+                  <View style={styles.ratingItem}>
+                    <Crown size={14} color="#8B5CF6" strokeWidth={2} />
+                    <Text style={styles.ratingText}>
+                      {league.stats.mvp.rate.toFixed(0)}% MVP
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -395,49 +428,51 @@ export const PlayerProfileScreen: React.FC = () => {
             </View>
 
             {recentMatches.map((match) => {
-              const isInTeam1 = match.team1PlayerIds?.includes(playerId);
-              const playerGoals = match.goalScorers?.find((g: any) => g.playerId === playerId);
+              const isInTeam1 = match.players.teams?.team1?.some((p: any) => p.playerId === playerId);
+              const scorer = match.score?.scorers?.find((g: any) => g.playerId === playerId);
 
               return (
                 <TouchableOpacity
                   key={match.id}
                   style={styles.matchCard}
-                  onPress={() => NavigationService.navigateToMatch(match.id )}
+                  onPress={() => NavigationService.navigateToMatch(match.id)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.matchCardHeader}>
                     <Text style={styles.matchTitle}>{match.title}</Text>
-                    <Text style={styles.matchDate}>{formatDate(match.matchStartTime)}</Text>
+                    <Text style={styles.matchDate}>{formatDate(match.schedule.matchStart)}</Text>
                   </View>
 
                   <View style={styles.matchScore}>
                     <Text style={[styles.scoreText, isInTeam1 && styles.playerTeam]}>
                       Takım 1
                     </Text>
-                    <Text style={styles.score}>{match.score || '0-0'}</Text>
+                    <Text style={styles.score}>
+                      {match.score?.team1 || 0}-{match.score?.team2 || 0}
+                    </Text>
                     <Text style={[styles.scoreText, !isInTeam1 && styles.playerTeam]}>
                       Takım 2
                     </Text>
                   </View>
 
-                  {playerGoals && (playerGoals.goals > 0 || playerGoals.assists > 0) && (
+                  {scorer && (scorer.goals > 0 || scorer.assists > 0) && (
                     <View style={styles.playerPerformance}>
-                      {playerGoals.goals > 0 && (
+                      {scorer.goals > 0 && (
                         <View style={styles.performanceBadge}>
                           <Target size={12} color="#EF4444" strokeWidth={2} />
-                          <Text style={styles.performanceText}>{playerGoals.goals} Gol</Text>
+                          <Text style={styles.performanceText}>{scorer.goals} Gol</Text>
                         </View>
                       )}
-                      {playerGoals.assists > 0 && (
+                      {scorer.assists > 0 && (
                         <View style={styles.performanceBadge}>
                           <Users size={12} color="#10B981" strokeWidth={2} />
-                          <Text style={styles.performanceText}>{playerGoals.assists} Asist</Text>
+                          <Text style={styles.performanceText}>{scorer.assists} Asist</Text>
                         </View>
                       )}
                     </View>
                   )}
 
-                  {match.playerIdOfMatchMVP === playerId && (
+                  {match.mvp?.playerId === playerId && (
                     <View style={styles.mvpBadge}>
                       <Crown size={14} color="#F59E0B" strokeWidth={2} />
                       <Text style={styles.mvpText}>MVP</Text>
@@ -522,19 +557,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  editButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#16a34a',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'white',
   },
   headerInfo: {
     alignItems: 'center',
@@ -652,27 +674,6 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: '#16a34a',
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#16a34a',
-  },
   leagueCard: {
     backgroundColor: 'white',
     borderRadius: 12,
@@ -699,14 +700,33 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
   },
+  leagueCardTitleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   leagueCardTitle: {
     fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
   },
+  trendBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  trendText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
   leagueStatsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    marginBottom: 12,
   },
   leagueStat: {
     alignItems: 'center',
@@ -719,6 +739,23 @@ const styles = StyleSheet.create({
   },
   leagueStatLabel: {
     fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  ratingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  ratingText: {
+    fontSize: 12,
     color: '#6B7280',
     fontWeight: '500',
   },

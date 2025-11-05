@@ -21,17 +21,17 @@ import {
   BarChart3,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
+import { CustomHeader } from '../../components/CustomHeader';
 import {
   ILeague,
-  getSportIcon,
-  getSportColor,
-  SPORT_CONFIGS,
-} from '../../types/types';
-import { leagueService } from '../../services/leagueService';
-import { playerStatsService } from '../../services/playerStatsService';
-import { playerService } from '../../services/playerService';
+  SportType,
+} from '../../types/entity/types';
+import { LeagueService } from '../../services/serviceLayer/leagueService';
+import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
+import { PlayerService } from '../../services/serviceLayer/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
+import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 
 interface TopAssister {
   playerId: string;
@@ -48,6 +48,7 @@ export const TopAssistsScreen: React.FC = () => {
   const route: any = useRoute();
   const { user } = useAuth();
   const leagueId = route.params?.leagueId;
+  const seasonId = route.params?.seasonId;
 
   const [league, setLeague] = useState<ILeague | null>(null);
   const [assisters, setAssisters] = useState<TopAssister[]>([]);
@@ -57,12 +58,7 @@ export const TopAssistsScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const sportColor = useMemo(() => 
-    league ? getSportColor(league.sportType) : '#10B981',
-    [league]
-  );
-
-  const sportConfig = useMemo(() => 
-    league ? SPORT_CONFIGS[league.sportType] : SPORT_CONFIGS['Futbol'],
+    league ? getSportPrimaryColor(league.sportType) : '#10B981',
     [league]
   );
 
@@ -94,32 +90,45 @@ export const TopAssistsScreen: React.FC = () => {
       setLoading(true);
 
       // League data
-      const leagueData = await leagueService.getById(leagueId);
-      if (!leagueData) {
+      const leagueResult = await LeagueService.getLeague(leagueId);
+      if (!leagueResult.success || !leagueResult.data) {
         Alert.alert('Hata', 'Lig bulunamadı');
         NavigationService.goBack();
         return;
       }
-      setLeague(leagueData);
+      setLeague(leagueResult.data);
 
-      // Get player stats
-      const allPlayerStats = await playerStatsService.getStatsByLeague(leagueId);
+      // Get season stats (if seasonId provided) or league stats
+      let allPlayerStats;
+      if (seasonId) {
+        const seasonStatsResult = await PlayerStatsService.getSeasonStats(seasonId);
+        allPlayerStats = seasonStatsResult.success && seasonStatsResult.data 
+          ? seasonStatsResult.data 
+          : [];
+      } else {
+        const leagueStatsResult = await PlayerStatsService.getLeagueStats(leagueId);
+        allPlayerStats = leagueStatsResult.success && leagueStatsResult.data 
+          ? leagueStatsResult.data 
+          : [];
+      }
 
       // Build assisters array
       const assistersData: TopAssister[] = [];
 
       for (const stat of allPlayerStats) {
-        if (stat.totalAssists > 0) {
-          const player = await playerService.getById(stat.playerId);
+        if (stat.total.assists > 0) {
+          const playerResult = await PlayerService.getPlayer(stat.playerId);
           
           assistersData.push({
             playerId: stat.playerId,
-            playerName: player ? `${player.name} ${player.surname}` : 'Bilinmeyen',
-            totalAssists: stat.totalAssists,
-            totalMatches: stat.totalMatches,
-            averageAssistsPerMatch: stat.averageAssistsPerMatch || 0,
-            totalGoals: stat.totalGoals || 0,
-            points: stat.points || 0,
+            playerName: playerResult.success && playerResult.data
+              ? `${playerResult.data.name} ${playerResult.data.surname}`
+              : 'Bilinmeyen',
+            totalAssists: stat.total.assists,
+            totalMatches: stat.total.matches,
+            averageAssistsPerMatch: stat.league.assistsPerMatch,
+            totalGoals: stat.total.goals,
+            points: stat.total.points,
             rank: 0,
           });
         }
@@ -128,7 +137,9 @@ export const TopAssistsScreen: React.FC = () => {
       // Sort by total assists
       assistersData.sort((a, b) => {
         if (b.totalAssists !== a.totalAssists) return b.totalAssists - a.totalAssists;
-        if (b.averageAssistsPerMatch !== a.averageAssistsPerMatch) return b.averageAssistsPerMatch - a.averageAssistsPerMatch;
+        if (b.averageAssistsPerMatch !== a.averageAssistsPerMatch) {
+          return b.averageAssistsPerMatch - a.averageAssistsPerMatch;
+        }
         return b.totalGoals - a.totalGoals;
       });
 
@@ -146,7 +157,7 @@ export const TopAssistsScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [leagueId]);
+  }, [leagueId, seasonId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -162,30 +173,33 @@ export const TopAssistsScreen: React.FC = () => {
   };
 
   const handlePlayerPress = useCallback((playerId: string) => {
-    NavigationService.navigateToPlayer(playerId );
+    NavigationService.navigateToPlayerProfile(playerId);
   }, []);
 
   if (loading || !league) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10B981" />
-        <Text style={styles.loadingText}>Asist krallığı yükleniyor...</Text>
+      <View style={styles.container}>
+        <CustomHeader
+          title="Asist Krallığı"
+          showBack
+          onLeftPress={() => NavigationService.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#10B981" />
+          <Text style={styles.loadingText}>Asist krallığı yükleniyor...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: sportColor }]}>
-        <View style={styles.headerContent}>
-          <Users size={32} color="white" strokeWidth={2.5} />
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>Asist Krallığı</Text>
-            <Text style={styles.headerSubtitle}>{league.title}</Text>
-          </View>
-        </View>
-      </View>
+      <CustomHeader
+        title="Asist Krallığı"
+        subtitle={league.title}
+        showBack
+        onLeftPress={() => NavigationService.goBack()}
+      />
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -466,29 +480,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: '#6B7280',
-    fontWeight: '500',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  headerTextContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: 'white',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '500',
   },
   searchContainer: {

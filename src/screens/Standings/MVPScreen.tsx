@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
-  Image,
 } from 'react-native';
 import {
   Award,
@@ -22,18 +21,19 @@ import {
   Flame,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
+import { CustomHeader } from '../../components/CustomHeader';
 import {
   ILeague,
   IMatch,
-  getSportIcon,
-  getSportColor,
-} from '../../types/types';
-import { leagueService } from '../../services/leagueService';
-import { matchService } from '../../services/matchService';
-import { playerService } from '../../services/playerService';
-import { playerStatsService } from '../../services/playerStatsService';
+  MatchStatus,
+} from '../../types/entity/types';
+import { LeagueService } from '../../services/serviceLayer/leagueService';
+import { MatchService } from '../../services/serviceLayer/matchService';
+import { PlayerService } from '../../services/serviceLayer/playerService';
+import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
+import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 
 interface MVPPlayer {
   playerId: string;
@@ -44,22 +44,31 @@ interface MVPPlayer {
   totalGoals: number;
   totalAssists: number;
   mvpPercentage: number;
-  form: string[];
+}
+
+interface RecentMVP {
+  matchId: string;
+  matchTitle: string;
+  matchDate: string;
+  playerId: string;
+  playerName: string;
+  score: string;
 }
 
 export const MVPScreen: React.FC = () => {
   const route: any = useRoute();
   const { user } = useAuth();
   const leagueId = route.params?.leagueId;
+  const seasonId = route.params?.seasonId;
 
   const [league, setLeague] = useState<ILeague | null>(null);
   const [mvpPlayers, setMvpPlayers] = useState<MVPPlayer[]>([]);
-  const [recentMVPs, setRecentMVPs] = useState<any[]>([]);
+  const [recentMVPs, setRecentMVPs] = useState<RecentMVP[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const sportColor = useMemo(() => 
-    league ? getSportColor(league.sportType) : '#16a34a',
+    league ? getSportPrimaryColor(league.sportType) : '#16a34a',
     [league]
   );
 
@@ -80,43 +89,57 @@ export const MVPScreen: React.FC = () => {
       setLoading(true);
 
       // League data
-      const leagueData = await leagueService.getById(leagueId);
-      if (!leagueData) {
+      const leagueResult = await LeagueService.getLeague(leagueId);
+      if (!leagueResult.success || !leagueResult.data) {
         Alert.alert('Hata', 'Lig bulunamadı');
         NavigationService.goBack();
         return;
       }
-      setLeague(leagueData);
+      setLeague(leagueResult.data);
 
       // Get all completed matches
-      const matches = await matchService.getMatchesByLeague(leagueId);
-      const completedMatches = matches.filter(m => 
-        m.status === 'Tamamlandı' && m.playerIdOfMatchMVP
+      const matchesResult = await MatchService.getLeagueMatches(leagueId);
+      const allMatches = matchesResult.success && matchesResult.data ? matchesResult.data : [];
+      
+      const completedMatches = allMatches.filter(m => 
+        m.status === MatchStatus.COMPLETED && m.mvp?.playerId
       );
 
       // Get player stats
-      const allPlayerStats = await playerStatsService.getStatsByLeague(leagueId);
+      let allPlayerStats;
+      if (seasonId) {
+        const seasonStatsResult = await PlayerStatsService.getSeasonStats(seasonId);
+        allPlayerStats = seasonStatsResult.success && seasonStatsResult.data 
+          ? seasonStatsResult.data 
+          : [];
+      } else {
+        const leagueStatsResult = await PlayerStatsService.getLeagueStats(leagueId);
+        allPlayerStats = leagueStatsResult.success && leagueStatsResult.data 
+          ? leagueStatsResult.data 
+          : [];
+      }
 
       // Calculate MVP stats
       const mvpStats: Record<string, MVPPlayer> = {};
 
       for (const match of completedMatches) {
-        const mvpId = match.playerIdOfMatchMVP!;
+        const mvpId = match.mvp?.playerId!;
         
         if (!mvpStats[mvpId]) {
-          const player = await playerService.getById(mvpId);
+          const playerResult = await PlayerService.getPlayer(mvpId);
           const playerStat = allPlayerStats.find(s => s.playerId === mvpId);
           
           mvpStats[mvpId] = {
             playerId: mvpId,
-            playerName: player ? `${player.name} ${player.surname}` : 'Bilinmeyen',
+            playerName: playerResult.success && playerResult.data
+              ? `${playerResult.data.name} ${playerResult.data.surname}`
+              : 'Bilinmeyen',
             mvpCount: 0,
-            totalMatches: playerStat?.totalMatches || 0,
-            averageRating: playerStat?.rating || 0,
-            totalGoals: playerStat?.totalGoals || 0,
-            totalAssists: playerStat?.totalAssists || 0,
+            totalMatches: playerStat?.total.matches || 0,
+            averageRating: playerStat?.rating.average || 0,
+            totalGoals: playerStat?.total.goals || 0,
+            totalAssists: playerStat?.total.assists || 0,
             mvpPercentage: 0,
-            form: [],
           };
         }
         
@@ -141,22 +164,25 @@ export const MVPScreen: React.FC = () => {
 
       // Recent MVPs (last 10 matches)
       const recentMatches = completedMatches
-        .sort((a, b) => new Date(b.matchStartTime).getTime() - new Date(a.matchStartTime).getTime())
+        .sort((a, b) => new Date(b.schedule.matchStart).getTime() - new Date(a.schedule.matchStart).getTime())
         .slice(0, 10);
 
-      const recentMVPsData = await Promise.all(
-        recentMatches.map(async (match) => {
-          const player = await playerService.getById(match.playerIdOfMatchMVP!);
-          return {
-            matchId: match.id,
-            matchTitle: match.title,
-            matchDate: match.matchStartTime,
-            playerId: match.playerIdOfMatchMVP,
-            playerName: player ? `${player.name} ${player.surname}` : 'Bilinmeyen',
-            score: match.score,
-          };
-        })
-      );
+      const recentMVPsData: RecentMVP[] = [];
+      
+      for (const match of recentMatches) {
+        const playerResult = await PlayerService.getPlayer(match.mvp?.playerId!);
+        
+        recentMVPsData.push({
+          matchId: match.id,
+          matchTitle: match.title,
+          matchDate: match.schedule.matchStart?.toDateString() || '',
+          playerId: match.mvp?.playerId!,
+          playerName: playerResult.success && playerResult.data
+            ? `${playerResult.data.name} ${playerResult.data.surname}`
+            : 'Bilinmeyen',
+          score: `${match.score?.team1} - ${match.score?.team2}`,
+        });
+      }
 
       setRecentMVPs(recentMVPsData);
 
@@ -166,7 +192,7 @@ export const MVPScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [leagueId]);
+  }, [leagueId, seasonId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -174,8 +200,8 @@ export const MVPScreen: React.FC = () => {
     setRefreshing(false);
   }, [loadData]);
 
-  const formatDate = useCallback((date: Date) => {
-    return new Date(date).toLocaleDateString('tr-TR', {
+  const formatDate = useCallback((dateString: string) => {
+    return new Date(dateString).toLocaleDateString('tr-TR', {
       day: 'numeric',
       month: 'short',
     });
@@ -188,27 +214,38 @@ export const MVPScreen: React.FC = () => {
     return null;
   };
 
+  const handlePlayerPress = useCallback((playerId: string) => {
+    NavigationService.navigateToPlayerProfile(playerId);
+  }, []);
+
+  const handleMatchPress = useCallback((matchId: string) => {
+    NavigationService.navigateToMatchDetail(matchId);
+  }, []);
+
   if (loading || !league) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>MVP verileri yükleniyor...</Text>
+      <View style={styles.container}>
+        <CustomHeader
+          title="En Değerli Oyuncular"
+          showBack
+          onLeftPress={() => NavigationService.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#16a34a" />
+          <Text style={styles.loadingText}>MVP verileri yükleniyor...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: sportColor }]}>
-        <View style={styles.headerContent}>
-          <Crown size={32} color="white" strokeWidth={2.5} />
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>En Değerli Oyuncular</Text>
-            <Text style={styles.headerSubtitle}>{league.title}</Text>
-          </View>
-        </View>
-      </View>
+      <CustomHeader
+        title="En Değerli Oyuncular"
+        subtitle={league.title}
+        showBack
+        onLeftPress={() => NavigationService.goBack()}
+      />
 
       <ScrollView
         style={styles.content}
@@ -228,7 +265,11 @@ export const MVPScreen: React.FC = () => {
             <View style={styles.podiumContainer}>
               {/* 2nd Place */}
               {mvpPlayers[1] && (
-                <View style={styles.podiumItem}>
+                <TouchableOpacity
+                  style={styles.podiumItem}
+                  onPress={() => handlePlayerPress(mvpPlayers[1].playerId)}
+                  activeOpacity={0.7}
+                >
                   <View style={[styles.podiumRank, styles.podiumSecond]}>
                     <Text style={styles.podiumMedal}>🥈</Text>
                     <View style={styles.podiumAvatar}>
@@ -248,11 +289,15 @@ export const MVPScreen: React.FC = () => {
                     </Text>
                   </View>
                   <View style={[styles.podiumBase, styles.podiumBaseSecond]} />
-                </View>
+                </TouchableOpacity>
               )}
 
               {/* 1st Place */}
-              <View style={styles.podiumItem}>
+              <TouchableOpacity
+                style={styles.podiumItem}
+                onPress={() => handlePlayerPress(mvpPlayers[0].playerId)}
+                activeOpacity={0.7}
+              >
                 <View style={[styles.podiumRank, styles.podiumFirst]}>
                   <Text style={styles.podiumMedal}>🥇</Text>
                   <View style={[styles.podiumAvatar, styles.podiumAvatarFirst]}>
@@ -272,11 +317,15 @@ export const MVPScreen: React.FC = () => {
                   </Text>
                 </View>
                 <View style={[styles.podiumBase, styles.podiumBaseFirst]} />
-              </View>
+              </TouchableOpacity>
 
               {/* 3rd Place */}
               {mvpPlayers[2] && (
-                <View style={styles.podiumItem}>
+                <TouchableOpacity
+                  style={styles.podiumItem}
+                  onPress={() => handlePlayerPress(mvpPlayers[2].playerId)}
+                  activeOpacity={0.7}
+                >
                   <View style={[styles.podiumRank, styles.podiumThird]}>
                     <Text style={styles.podiumMedal}>🥉</Text>
                     <View style={styles.podiumAvatar}>
@@ -296,7 +345,7 @@ export const MVPScreen: React.FC = () => {
                     </Text>
                   </View>
                   <View style={[styles.podiumBase, styles.podiumBaseThird]} />
-                </View>
+                </TouchableOpacity>
               )}
             </View>
           </View>
@@ -311,13 +360,15 @@ export const MVPScreen: React.FC = () => {
             const medal = getMedalEmoji(index);
 
             return (
-              <View 
+              <TouchableOpacity
                 key={player.playerId}
                 style={[
                   styles.mvpCard,
                   isCurrentUser && styles.currentUserCard,
                   index < 3 && styles.topThreeCard,
                 ]}
+                onPress={() => handlePlayerPress(player.playerId)}
+                activeOpacity={0.7}
               >
                 <View style={styles.mvpCardLeft}>
                   <View style={[
@@ -365,7 +416,7 @@ export const MVPScreen: React.FC = () => {
                     {player.totalMatches} maç
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })}
 
@@ -382,11 +433,11 @@ export const MVPScreen: React.FC = () => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Son MVP'ler</Text>
             
-            {recentMVPs.map((mvp, index) => (
+            {recentMVPs.map((mvp) => (
               <TouchableOpacity
                 key={mvp.matchId}
                 style={styles.recentMVPCard}
-                onPress={() => NavigationService.navigateToMatch(mvp.matchId )}
+                onPress={() => handleMatchPress(mvp.matchId)}
                 activeOpacity={0.7}
               >
                 <View style={styles.recentMVPLeft}>
@@ -436,29 +487,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: '#6B7280',
-    fontWeight: '500',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  headerTextContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: 'white',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '500',
   },
   content: {

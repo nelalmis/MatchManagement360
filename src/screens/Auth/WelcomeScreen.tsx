@@ -10,7 +10,7 @@ import {
   StatusBar,
   Animated,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import {LinearGradient} from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { commonColors, typography, spacing, borderRadius } from '../../utils/theme';
 import { AuthButton } from './components/AuthButton';
@@ -27,7 +27,7 @@ interface OnboardingSlide {
   emoji: string;
   title: string;
   description: string;
-  gradient: readonly [string, string];
+  gradient: [string, string];
 }
 
 const slides: OnboardingSlide[] = [
@@ -120,7 +120,7 @@ export const WelcomeScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <View style={styles.slide}>
         <LinearGradient
-          colors={[...item.gradient] as string[]}
+          colors={item.gradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.slideGradient}

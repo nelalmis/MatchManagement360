@@ -18,21 +18,20 @@ import {
   Award,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
+import { CustomHeader } from '../../components/CustomHeader';
 import {
   ILeague,
   IMatch,
-  IPlayerStats,
-  getSportIcon,
-  getSportColor,
+  MatchStatus,
   SportType,
-  SPORT_CONFIGS,
-} from '../../types/types';
-import { leagueService } from '../../services/leagueService';
-import { matchService } from '../../services/matchService';
-import { playerStatsService } from '../../services/playerStatsService';
-import { playerService } from '../../services/playerService';
+} from '../../types/entity/types';
+import { LeagueService } from '../../services/serviceLayer/leagueService';
+import { MatchService } from '../../services/serviceLayer/matchService';
+import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
+import { PlayerService } from '../../services/serviceLayer/playerService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
+import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 
 interface StandingPlayer {
   playerId: string;
@@ -47,15 +46,9 @@ interface StandingPlayer {
   points: number;
   form: string[];
   rank: number;
-  previousRank?: number;
-  // Sport-specific
-  sets?: number; // Tenis, Voleybol
-  aces?: number; // Tenis
-  assists?: number; // Basketbol
-  rebounds?: number; // Basketbol
 }
 
-type TabType = 'standings' | 'topScorers' | 'topAssists' | 'mvp';
+type TabType = 'standings' | 'topScorers' | 'topAssists';
 
 // Sport-specific configurations
 const getSportStatsConfig = (sportType: SportType) => {
@@ -107,6 +100,7 @@ export const StandingsScreen: React.FC = () => {
   const route: any = useRoute();
   const { user } = useAuth();
   const leagueId = route.params?.leagueId;
+  const seasonId = route.params?.seasonId;
 
   const [league, setLeague] = useState<ILeague | null>(null);
   const [standings, setStandings] = useState<StandingPlayer[]>([]);
@@ -123,7 +117,7 @@ export const StandingsScreen: React.FC = () => {
   );
 
   const sportColor = useMemo(() => 
-    league ? getSportColor(league.sportType) : '#16a34a',
+    league ? getSportPrimaryColor(league.sportType) : '#16a34a',
     [league]
   );
 
@@ -144,26 +138,38 @@ export const StandingsScreen: React.FC = () => {
       setLoading(true);
 
       // League data
-      const leagueData = await leagueService.getById(leagueId);
-      if (!leagueData) {
+      const leagueResult = await LeagueService.getLeague(leagueId);
+      if (!leagueResult.success || !leagueResult.data) {
         Alert.alert('Hata', 'Lig bulunamadı');
         NavigationService.goBack();
         return;
       }
-      setLeague(leagueData);
+      setLeague(leagueResult.data);
 
       // Get all matches
-      const matches = await matchService.getMatchesByLeague(leagueId);
-      const completedMatches = matches.filter(m => m.status === 'Tamamlandı');
+      const matchesResult = await MatchService.getLeagueMatches(leagueId);
+      const allMatches = matchesResult.success && matchesResult.data ? matchesResult.data : [];
+      const completedMatches = allMatches.filter(m => m.status === MatchStatus.COMPLETED);
 
       // Get player stats
-      const allPlayerStats = await playerStatsService.getStatsByLeague(leagueId);
+      let allPlayerStats;
+      if (seasonId) {
+        const seasonStatsResult = await PlayerStatsService.getSeasonStats(seasonId);
+        allPlayerStats = seasonStatsResult.success && seasonStatsResult.data 
+          ? seasonStatsResult.data 
+          : [];
+      } else {
+        const leagueStatsResult = await PlayerStatsService.getLeagueStats(leagueId);
+        allPlayerStats = leagueStatsResult.success && leagueStatsResult.data 
+          ? leagueStatsResult.data 
+          : [];
+      }
 
       // Calculate standings
       const playerStandings: Record<string, StandingPlayer> = {};
 
       // Initialize all players
-      for (const playerId of leagueData.playerIds) {
+      for (const playerId of leagueResult.data.members.all) {
         playerStandings[playerId] = {
           playerId,
           playerName: '',
@@ -182,13 +188,14 @@ export const StandingsScreen: React.FC = () => {
 
       // Calculate from matches
       for (const match of completedMatches) {
-        if (!match.team1PlayerIds || !match.team2PlayerIds) continue;
+        if (!match.score || !match.players.teams) continue;
 
-        const team1Score = match.team1Score || 0;
-        const team2Score = match.team2Score || 0;
+        const team1Score = match.score.team1;
+        const team2Score = match.score.team2;
 
         // Team 1 players
-        for (const playerId of match.team1PlayerIds) {
+        for (const player of match.players.teams.team1) {
+          const playerId = player.playerId;
           if (!playerStandings[playerId]) continue;
           
           playerStandings[playerId].played++;
@@ -210,7 +217,8 @@ export const StandingsScreen: React.FC = () => {
         }
 
         // Team 2 players
-        for (const playerId of match.team2PlayerIds) {
+        for (const player of match.players.teams.team1) {
+          const playerId = player.playerId;
           if (!playerStandings[playerId]) continue;
           
           playerStandings[playerId].played++;
@@ -235,8 +243,10 @@ export const StandingsScreen: React.FC = () => {
       // Calculate difference and get player names
       const standingsArray: StandingPlayer[] = [];
       for (const [playerId, data] of Object.entries(playerStandings)) {
-        const player = await playerService.getById(playerId);
-        data.playerName = player ? `${player.name} ${player.surname}` : 'Bilinmeyen';
+        const playerResult = await PlayerService.getPlayer(playerId);
+        data.playerName = playerResult.success && playerResult.data
+          ? `${playerResult.data.name} ${playerResult.data.surname}`
+          : 'Bilinmeyen';
         data.pointsDifference = data.pointsFor - data.pointsAgainst;
         data.form = data.form.slice(-5);
         standingsArray.push(data);
@@ -261,16 +271,18 @@ export const StandingsScreen: React.FC = () => {
         .map(stat => ({
           playerId: stat.playerId,
           playerName: '',
-          goals: stat.totalGoals || 0,
-          matches: stat.totalMatches || 0,
+          goals: stat.total.goals,
+          matches: stat.total.matches,
         }))
         .filter(s => s.goals > 0)
         .sort((a, b) => b.goals - a.goals)
         .slice(0, 10);
 
       for (const scorer of scorers) {
-        const player = await playerService.getById(scorer.playerId);
-        scorer.playerName = player ? `${player.name} ${player.surname}` : 'Bilinmeyen';
+        const playerResult = await PlayerService.getPlayer(scorer.playerId);
+        scorer.playerName = playerResult.success && playerResult.data
+          ? `${playerResult.data.name} ${playerResult.data.surname}`
+          : 'Bilinmeyen';
       }
       setTopScorers(scorers);
 
@@ -280,16 +292,18 @@ export const StandingsScreen: React.FC = () => {
           .map(stat => ({
             playerId: stat.playerId,
             playerName: '',
-            assists: stat.totalAssists || 0,
-            matches: stat.totalMatches || 0,
+            assists: stat.total.assists,
+            matches: stat.total.matches,
           }))
           .filter(a => a.assists > 0)
           .sort((a, b) => b.assists - a.assists)
           .slice(0, 10);
 
         for (const assister of assisters) {
-          const player = await playerService.getById(assister.playerId);
-          assister.playerName = player ? `${player.name} ${player.surname}` : 'Bilinmeyen';
+          const playerResult = await PlayerService.getPlayer(assister.playerId);
+          assister.playerName = playerResult.success && playerResult.data
+            ? `${playerResult.data.name} ${playerResult.data.surname}`
+            : 'Bilinmeyen';
         }
         setTopAssists(assisters);
       }
@@ -300,7 +314,7 @@ export const StandingsScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [leagueId, sportConfig]);
+  }, [leagueId, seasonId, sportConfig]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -314,27 +328,34 @@ export const StandingsScreen: React.FC = () => {
     return '#DC2626';
   }, []);
 
+  const handlePlayerPress = useCallback((playerId: string) => {
+    NavigationService.navigateToPlayerProfile(playerId);
+  }, []);
+
   if (loading || !league) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Puan durumu yükleniyor...</Text>
+      <View style={styles.container}>
+        <CustomHeader
+          title="Puan Durumu"
+          showBack
+          onLeftPress={() => NavigationService.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#16a34a" />
+          <Text style={styles.loadingText}>Puan durumu yükleniyor...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Sport Header */}
-      <View style={[styles.sportHeader, { backgroundColor: sportColor }]}>
-        <Text style={styles.sportIcon}>{getSportIcon(league.sportType)}</Text>
-        <View style={styles.sportHeaderInfo}>
-          <Text style={styles.sportHeaderTitle}>{league.title}</Text>
-          <Text style={styles.sportHeaderSubtitle}>
-            {SPORT_CONFIGS[league.sportType]?.name} • {league.playerIds.length} Oyuncu
-          </Text>
-        </View>
-      </View>
+      <CustomHeader
+        title="Puan Durumu"
+        subtitle={league.title}
+        showBack
+        onLeftPress={() => NavigationService.goBack()}
+      />
 
       {/* Tabs */}
       <View style={styles.tabsContainer}>
@@ -441,13 +462,15 @@ export const StandingsScreen: React.FC = () => {
                   const isCurrentUser = player.playerId === user?.id;
 
                   return (
-                    <View 
+                    <TouchableOpacity
                       key={player.playerId} 
                       style={[
                         styles.tableRow,
                         isCurrentUser && styles.currentUserRow,
                         index < 3 && styles.topThreeRow,
                       ]}
+                      onPress={() => handlePlayerPress(player.playerId)}
+                      activeOpacity={0.7}
                     >
                       {/* Rank */}
                       <View style={styles.rankCellWidth}>
@@ -503,7 +526,7 @@ export const StandingsScreen: React.FC = () => {
                       <Text style={[styles.pointsCellWidth, { color: sportColor }]}>
                         {player.points}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -535,7 +558,12 @@ export const StandingsScreen: React.FC = () => {
         {selectedTab === 'topScorers' && (
           <View style={styles.rankingContainer}>
             {topScorers.map((scorer, index) => (
-              <View key={scorer.playerId} style={styles.rankingCard}>
+              <TouchableOpacity
+                key={scorer.playerId}
+                style={styles.rankingCard}
+                onPress={() => handlePlayerPress(scorer.playerId)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.rankingLeft}>
                   <View style={[
                     styles.rankBadge,
@@ -559,7 +587,7 @@ export const StandingsScreen: React.FC = () => {
                     {scorer.goals}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
 
             {topScorers.length === 0 && (
@@ -575,7 +603,12 @@ export const StandingsScreen: React.FC = () => {
         {selectedTab === 'topAssists' && sportConfig.showAssists && (
           <View style={styles.rankingContainer}>
             {topAssists.map((assister, index) => (
-              <View key={assister.playerId} style={styles.rankingCard}>
+              <TouchableOpacity
+                key={assister.playerId}
+                style={styles.rankingCard}
+                onPress={() => handlePlayerPress(assister.playerId)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.rankingLeft}>
                   <View style={[
                     styles.rankBadge,
@@ -599,7 +632,7 @@ export const StandingsScreen: React.FC = () => {
                     {assister.assists}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
 
             {topAssists.length === 0 && (
@@ -634,37 +667,11 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
-  sportHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    gap: 12,
-  },
-  sportIcon: {
-    fontSize: 40,
-  },
-  sportHeaderInfo: {
-    flex: 1,
-  },
-  sportHeaderTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'white',
-    marginBottom: 4,
-  },
-  sportHeaderSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
-  },
   tabsContainer: {
     flexDirection: 'row',
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-  },
-  tabsContent: {
-    // Removed - not needed anymore
   },
   tab: {
     flex: 1,

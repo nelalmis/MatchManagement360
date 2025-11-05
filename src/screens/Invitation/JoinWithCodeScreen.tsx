@@ -12,6 +12,7 @@ import {
     Alert,
     Keyboard,
     Image,
+    Platform,
 } from 'react-native';
 import {
     ArrowLeft,
@@ -59,7 +60,7 @@ export const JoinWithCodeScreen: React.FC = () => {
     const handleCodeChange = (value: string, index: number) => {
         // Only allow alphanumeric
         const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        
+
         // Handle paste (multiple characters)
         if (cleaned.length > 1) {
             handlePaste(cleaned);
@@ -90,12 +91,12 @@ export const JoinWithCodeScreen: React.FC = () => {
     const handlePaste = (pastedText: string) => {
         // Extract only alphanumeric characters
         const cleaned = pastedText.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        
+
         if (cleaned.length === 0) return;
 
         // Take first 6 characters
         const chars = cleaned.substring(0, 6).split('');
-        
+
         // Fill the code array
         const newCode = [...code];
         chars.forEach((char, i) => {
@@ -103,7 +104,7 @@ export const JoinWithCodeScreen: React.FC = () => {
                 newCode[i] = char;
             }
         });
-        
+
         setCode(newCode);
         setError(null);
         setValidation(null);
@@ -223,7 +224,7 @@ export const JoinWithCodeScreen: React.FC = () => {
                 const result = await LeagueInvitationService.joinLeague({
                     code: fullCode,
                     userId: user.id,
-                    device: { platform: 'ios' }, // TODO: Get from Platform.OS
+                    device: { platform: Platform.OS },
                 });
 
                 if (!result.success) {
@@ -248,11 +249,42 @@ export const JoinWithCodeScreen: React.FC = () => {
                 const result = await MatchInvitationService.joinMatch({
                     code: fullCode,
                     userId: user.id,
-                    device: { platform: 'ios' },
+                    device: { platform: Platform.OS },
                 });
 
                 if (!result.success) {
                     setError(result.error?.message || 'Maça katılırken hata oluştu');
+                    switch (result.error?.code) {
+                        case 'INVALID_CODE':
+                            setError('Geçersiz davet kodu. Lütfen kontrol edin.');
+                            break;
+                        case 'CODE_EXPIRED':
+                            setError('Bu davet kodunun süresi dolmuş.');
+                            break;
+                        case 'MAX_USES_REACHED':
+                            setError('Bu kod maksimum kullanım sayısına ulaşmış.');
+                            break;
+                        case 'ALREADY_REGISTERED':
+                            setError('Bu maça zaten kayıtlısınız.');
+                            setTimeout(() => {
+                                if (result.data?.matchId) {
+                                    NavigationService.navigateToMatch(result.data.matchId);
+                                }
+                            }, 1500);
+                            break;
+                        case 'MATCH_FULL':
+                            setError('Maç kadrosu dolu. Kayıt kapalı.');
+                            break;
+                        case 'INACTIVE':
+                            setError('Bu davet kodu devre dışı bırakılmış.');
+                            break;
+                        case 'MATCH_NOT_FOUND':
+                            setError('İlgili maç bulunamadı.');
+                            break;
+                        default:
+                            setError(result.error?.message || 'Bir hata oluştu');
+                    }
+                    return;
                     return;
                 }
 
@@ -277,6 +309,51 @@ export const JoinWithCodeScreen: React.FC = () => {
             setLoading(false);
         }
     };
+
+    const getAssignedRole = () => {
+        if (!validation || !validation.valid) return;
+
+        if (validation.invitation?.metadata.assignRole) {
+            switch (validation.invitation.type) {
+                case InvitationType.LEAGUE:
+                    switch (validation.invitation.metadata.assignRole) {
+                        case 'member':
+                            return "Normal Üye"
+                            break;
+                        case 'premium':
+                            return "Premium Üye"
+                            break;
+                        case 'direct':
+                            return "Doğrudan Üye"
+                            break;
+                        default:
+                            return validation.invitation.metadata.assignRole;
+                    }
+                    break;
+                case InvitationType.MATCH:
+                    switch (validation.invitation.metadata.assignRole) {
+                        case 'player':
+                            return "Oyuncu"
+                            break;
+                        case 'reserve':
+                            return "Yedek"
+                            break;
+                        case 'guest':
+                            return "Misafir"
+                            break;
+                        case 'direct':
+                            return "Doğrudan Katılımcı"
+                            break;
+                        default:
+                            return validation.invitation.metadata.assignRole;
+                    }
+                    break;
+                default:
+                    return validation.invitation.metadata.assignRole;
+            }
+        }
+
+    }
 
     // ============================================
     // RENDER PREVIEW
@@ -318,6 +395,23 @@ export const JoinWithCodeScreen: React.FC = () => {
                         {isLeague ? '🏆 Lig' : '⚽ Maç'}
                     </Text>
                 </View>
+
+                {validation.invitation?.metadata.assignRole && (
+                    <View style={styles.roleInfo}>
+                        <Trophy size={16} color="#16a34a" strokeWidth={2} />
+                        <Text style={styles.roleInfoText}>
+                            Bu davet kodu ile katıldığınızda size "{getAssignedRole()}" rolü atanacaktır.
+                        </Text>
+                    </View>
+                )}
+
+                {validation.invitation?.metadata.description && (
+                    <View style={styles.descriptionBox}>
+                        <Text style={styles.descriptionText}>
+                            {validation.invitation.metadata.description}
+                        </Text>
+                    </View>
+                )}
 
                 {/* Info */}
                 {isLeague ? (
@@ -442,6 +536,19 @@ export const JoinWithCodeScreen: React.FC = () => {
                                 />
                             ))}
                         </View>
+                        {/* 
+                        <View style={styles.inputContainer}>
+                                <TextInput
+                                  style={styles.input}
+                                  placeholder="DAVET KODU"
+                                  value={code}
+                                  onChangeText={(text) => setCode(text.toUpperCase())}
+                                  maxLength={8}
+                                  autoCapitalize="characters"
+                                  autoCorrect={false}
+                                  autoFocus={!initialCode}
+                                />
+                              </View> */}
 
                         {/* Error Message */}
                         {error && (
@@ -701,6 +808,33 @@ const styles = StyleSheet.create({
     typeBadgeText: {
         fontSize: 14,
         fontWeight: '700',
+    },
+    roleInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#DCFCE7',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 10,
+        marginBottom: 16,
+    },
+    roleInfoText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#166534',
+        flex: 1,
+    },
+    descriptionBox: {
+        backgroundColor: '#F3F4F6',
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 20,
+    },
+    descriptionText: {
+        fontSize: 14,
+        color: '#4B5563',
+        lineHeight: 20,
     },
     infoSection: {
         gap: 12,

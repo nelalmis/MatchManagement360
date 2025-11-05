@@ -1036,41 +1036,40 @@ export const HomeScreen: React.FC = () => {
         )}
 
         {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => handleQuickAction('joinLeague')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: '#DCFCE7' }]}>
-              <UserPlus size={24} color="#16a34a" strokeWidth={2.5} />
-            </View>
-            <Text style={styles.quickActionText}>Lige Katıl</Text>
-          </TouchableOpacity>
+<View style={styles.quickActions}>
+  <TouchableOpacity
+    style={styles.quickActionButton}
+    onPress={() => handleQuickAction('joinLeague')}
+    activeOpacity={0.7}
+  >
+    <View style={[styles.quickActionIcon, { backgroundColor: '#DCFCE7' }]}>
+      <UserPlus size={20} color="#16a34a" strokeWidth={2.5} />
+    </View>
+    <Text style={styles.quickActionText}>Lige{'\n'}Katıl</Text>
+  </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => handleQuickAction('standings')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: '#FEF3C7' }]}>
-              <TrendingUp size={24} color="#F59E0B" strokeWidth={2.5} />
-            </View>
-            <Text style={styles.quickActionText}>Puan Durumu</Text>
-          </TouchableOpacity>
+  <TouchableOpacity
+    style={styles.quickActionButton}
+    onPress={() => handleQuickAction('standings')}
+    activeOpacity={0.7}
+  >
+    <View style={[styles.quickActionIcon, { backgroundColor: '#FEF3C7' }]}>
+      <TrendingUp size={20} color="#F59E0B" strokeWidth={2.5} />
+    </View>
+    <Text style={styles.quickActionText}>Puan{'\n'}Durumu</Text>
+  </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.quickActionButton}
-            onPress={() => handleQuickAction('payments')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: '#FEE2E2' }]}>
-              <DollarSign size={24} color="#EF4444" strokeWidth={2.5} />
-            </View>
-            <Text style={styles.quickActionText}>Ödemeler</Text>
-          </TouchableOpacity>
-        </View>
-
+  <TouchableOpacity
+    style={styles.quickActionButton}
+    onPress={() => handleQuickAction('payments')}
+    activeOpacity={0.7}
+  >
+    <View style={[styles.quickActionIcon, { backgroundColor: '#FEE2E2' }]}>
+      <DollarSign size={20} color="#EF4444" strokeWidth={2.5} />
+    </View>
+    <Text style={styles.quickActionText}>Ödeme{'\n'}Takip</Text>
+  </TouchableOpacity>
+</View>
         {/* Announcements */}
         {renderAnnouncements()}
 
@@ -1377,42 +1376,45 @@ const styles = StyleSheet.create({
     color: '#16a34a',
     fontWeight: '600',
   },
-
-  // Quick Actions
-  quickActions: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  quickActionButton: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  quickActionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  quickActionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1F2937',
-    flex: 1,
-  },
+// Quick Actions - Modern Design
+quickActions: {
+  flexDirection: 'row',
+  gap: 10,
+  paddingHorizontal: 16,
+  marginTop: 8,
+  marginBottom: 24,
+},
+quickActionButton: {
+  flex: 1,
+  backgroundColor: 'white',
+  borderRadius: 14,
+  paddingVertical: 12,
+  paddingHorizontal: 8,
+  alignItems: 'center',
+  justifyContent: 'center',
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.04,
+  shadowRadius: 6,
+  elevation: 2,
+  minHeight: 80,
+},
+quickActionIcon: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginBottom: 6,
+},
+quickActionText: {
+  fontSize: 11,
+  fontWeight: '600',
+  color: '#374151',
+  textAlign: 'center',
+  lineHeight: 14,
+  letterSpacing: -0.2,
+},
 
   // Announcement Card
   announcementCard: {

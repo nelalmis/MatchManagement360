@@ -25,30 +25,23 @@ import {
   Activity,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
+import { CustomHeader } from '../../components/CustomHeader';
 import {
   IPlayer,
   IPlayerStats,
-  IPlayerRatingProfile,
-  ILeague,
-  getSportIcon,
-  getSportColor,
   SportType,
-  SPORT_CONFIGS,
-} from '../../types/types';
-import { playerService } from '../../services/playerService';
-import { playerStatsService } from '../../services/playerStatsService';
-import { playerRatingProfileService } from '../../services/playerRatingProfileService';
-import { leagueService } from '../../services/leagueService';
+} from '../../types/entity/types';
+import { PlayerService } from '../../services/serviceLayer/playerService';
+import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
-import PlayerService from '../../services/serviceLayer/playerService';
+import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 
 interface LeagueStatsDetail {
   leagueId: string;
   leagueName: string;
   sportType: SportType;
   stats: IPlayerStats;
-  ratingProfile: IPlayerRatingProfile | null;
   winRate: number;
   goalsPerMatch: number;
   assistsPerMatch: number;
@@ -85,14 +78,14 @@ export const PlayerStatsScreen: React.FC = () => {
 
     const total = filteredLeagueStats.reduce(
       (acc, league) => ({
-        matches: acc.matches + league.stats.totalMatches,
-        goals: acc.goals + league.stats.totalGoals,
-        assists: acc.assists + league.stats.totalAssists,
-        wins: acc.wins + league.stats.wins,
-        draws: acc.draws + league.stats.draws,
-        losses: acc.losses + league.stats.losses,
-        mvps: acc.mvps + league.stats.mvpCount,
-        points: acc.points + league.stats.points,
+        matches: acc.matches + league.stats.total.matches,
+        goals: acc.goals + league.stats.total.goals,
+        assists: acc.assists + league.stats.total.assists,
+        wins: acc.wins + league.stats.league.wins,
+        draws: acc.draws + league.stats.league.draws,
+        losses: acc.losses + league.stats.league.losses,
+        mvps: acc.mvps + league.stats.mvp.count,
+        points: acc.points + league.stats.total.points,
       }),
       { matches: 0, goals: 0, assists: 0, wins: 0, draws: 0, losses: 0, mvps: 0, points: 0 }
     );
@@ -124,55 +117,49 @@ export const PlayerStatsScreen: React.FC = () => {
 
       // Player data
       const playerData = await PlayerService.getPlayer(playerId);
-      if (!playerData) {
+      if (!playerData.success || !playerData.data) {
         Alert.alert('Hata', 'Oyuncu bulunamadı');
         NavigationService.goBack();
         return;
       }
-      setPlayer(playerData.data as IPlayer);
+      setPlayer(playerData.data);
 
       // Get all player stats
-      const allStats = await playerStatsService.getStatsByPlayer(playerId);
+      const allStatsResult = await PlayerStatsService.getAllPlayerStats(playerId);
 
-      // Build detailed league stats
-      const detailedStats: LeagueStatsDetail[] = [];
+      if (allStatsResult.success && allStatsResult.data) {
+        // Build detailed league stats
+        const detailedStats: LeagueStatsDetail[] = allStatsResult.data.map(stat => {
+          const winRate = stat.league.matches > 0 
+            ? (stat.league.wins / stat.league.matches) * 100 
+            : 0;
+          const goalsPerMatch = stat.total.matches > 0 
+            ? stat.total.goals / stat.total.matches 
+            : 0;
+          const assistsPerMatch = stat.total.matches > 0 
+            ? stat.total.assists / stat.total.matches 
+            : 0;
 
-      for (const stat of allStats) {
-        const league = await leagueService.getById(stat.leagueId);
-
-        if (league) {
-          // Get rating profile
-          const ratingProfile = await playerRatingProfileService.getProfileByPlayerLeagueSeason(
-            playerId,
-            stat.leagueId,
-            stat.seasonId
-          );
-
-          const winRate = stat.totalMatches > 0 ? (stat.wins / stat.totalMatches) * 100 : 0;
-          const goalsPerMatch = stat.totalMatches > 0 ? stat.totalGoals / stat.totalMatches : 0;
-          const assistsPerMatch = stat.totalMatches > 0 ? stat.totalAssists / stat.totalMatches : 0;
-
-          detailedStats.push({
+          return {
             leagueId: stat.leagueId,
-            leagueName: league.title,
-            sportType: league.sportType,
+            leagueName: 'Lig', // TODO: Fetch league name from leagueService
+            sportType: 'Futbol' as SportType, // TODO: Fetch from league
             stats: stat,
-            ratingProfile,
             winRate,
             goalsPerMatch,
             assistsPerMatch,
-          });
+          };
+        });
+
+        // Sort by total matches (most active first)
+        detailedStats.sort((a, b) => b.stats.total.matches - a.stats.total.matches);
+
+        setAllLeagueStats(detailedStats);
+
+        // Select first league by default
+        if (detailedStats.length > 0) {
+          setSelectedLeague(detailedStats[0]);
         }
-      }
-
-      // Sort by total matches (most active first)
-      detailedStats.sort((a, b) => b.stats.totalMatches - a.stats.totalMatches);
-
-      setAllLeagueStats(detailedStats);
-
-      // Select first league by default
-      if (detailedStats.length > 0) {
-        setSelectedLeague(detailedStats[0]);
       }
 
     } catch (error) {
@@ -207,18 +194,38 @@ export const PlayerStatsScreen: React.FC = () => {
     }
   };
 
+  const getTrendText = (trend: 'improving' | 'stable' | 'declining') => {
+    switch (trend) {
+      case 'improving': return 'Yükseliyor';
+      case 'declining': return 'Düşüyor';
+      default: return 'Stabil';
+    }
+  };
+
   if (loading || !player) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>İstatistikler yükleniyor...</Text>
+      <View style={styles.container}>
+        <CustomHeader
+          title="İstatistikler"
+          showBack
+          onLeftPress={() => NavigationService.goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#16a34a" />
+          <Text style={styles.loadingText}>İstatistikler yükleniyor...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* <CustomHeader title="İstatistiklerim" showDrawer={true} /> */}
+      <CustomHeader
+        title="İstatistiklerim"
+        showBack
+        onLeftPress={() => NavigationService.goBack()}
+      />
+
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -237,7 +244,7 @@ export const PlayerStatsScreen: React.FC = () => {
             <View style={styles.sectionHeader}>
               <Trophy size={20} color="#16a34a" strokeWidth={2} />
               <Text style={styles.sectionTitle}>
-                {selectedSport === 'all' ? 'Genel Performans' : `${SPORT_CONFIGS[selectedSport].name} Performansı`}
+                {selectedSport === 'all' ? 'Genel Performans' : `${selectedSport} Performansı`}
               </Text>
             </View>
 
@@ -319,19 +326,19 @@ export const PlayerStatsScreen: React.FC = () => {
                     styles.sportChip,
                     selectedSport === sport && {
                       ...styles.sportChipActive,
-                      backgroundColor: getSportColor(sport),
-                      borderColor: getSportColor(sport),
+                      backgroundColor: getSportPrimaryColor(sport),
+                      borderColor: getSportPrimaryColor(sport),
                     }
                   ]}
                   onPress={() => setSelectedSport(sport)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.sportChipEmoji}>{getSportIcon(sport)}</Text>
+                  <Text style={styles.sportChipEmoji}>{getSportEmoji(sport)}</Text>
                   <Text style={[
                     styles.sportChipText,
                     selectedSport === sport && styles.sportChipTextActive
                   ]}>
-                    {SPORT_CONFIGS[sport].name}
+                    {sport}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -496,14 +503,14 @@ export const PlayerStatsScreen: React.FC = () => {
                     styles.leagueChip,
                     selectedLeague?.leagueId === league.leagueId && {
                       ...styles.leagueChipActive,
-                      backgroundColor: getSportColor(league.sportType),
-                      borderColor: getSportColor(league.sportType),
+                      backgroundColor: getSportPrimaryColor(league.sportType),
+                      borderColor: getSportPrimaryColor(league.sportType),
                     }
                   ]}
                   onPress={() => setSelectedLeague(league)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.leagueChipEmoji}>{getSportIcon(league.sportType)}</Text>
+                  <Text style={styles.leagueChipEmoji}>{getSportEmoji(league.sportType)}</Text>
                   <Text style={[
                     styles.leagueChipText,
                     selectedLeague?.leagueId === league.leagueId && styles.leagueChipTextActive
@@ -523,22 +530,20 @@ export const PlayerStatsScreen: React.FC = () => {
             <View style={styles.section}>
               <View style={styles.leagueHeader}>
                 <View style={styles.leagueHeaderLeft}>
-                  <Text style={styles.leagueHeaderEmoji}>{getSportIcon(selectedLeague.sportType)}</Text>
+                  <Text style={styles.leagueHeaderEmoji}>{getSportEmoji(selectedLeague.sportType)}</Text>
                   <View>
                     <Text style={styles.leagueHeaderTitle}>{selectedLeague.leagueName}</Text>
                     <Text style={styles.leagueHeaderSubtitle}>
-                      {selectedLeague.stats.totalMatches} maç oynandı
+                      {selectedLeague.stats.total.matches} maç oynandı
                     </Text>
                   </View>
                 </View>
-                {selectedLeague.ratingProfile && (
-                  <View style={styles.ratingBadge}>
-                    <Star size={14} color="#F59E0B" strokeWidth={2} fill="#F59E0B" />
-                    <Text style={styles.ratingBadgeText}>
-                      {selectedLeague.ratingProfile.overallRating.toFixed(1)}
-                    </Text>
-                  </View>
-                )}
+                <View style={styles.ratingBadge}>
+                  <Star size={14} color="#F59E0B" strokeWidth={2} fill="#F59E0B" />
+                  <Text style={styles.ratingBadgeText}>
+                    {selectedLeague.stats.rating.average.toFixed(1)}
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -570,7 +575,7 @@ export const PlayerStatsScreen: React.FC = () => {
                 <View style={styles.performanceStats}>
                   <View style={styles.performanceStatItem}>
                     <Text style={[styles.performanceStatValue, { color: '#EF4444' }]}>
-                      {selectedLeague.stats.totalGoals}
+                      {selectedLeague.stats.total.goals}
                     </Text>
                     <Text style={styles.performanceStatLabel}>
                       Gol ({selectedLeague.goalsPerMatch.toFixed(2)}/maç)
@@ -579,7 +584,7 @@ export const PlayerStatsScreen: React.FC = () => {
 
                   <View style={styles.performanceStatItem}>
                     <Text style={[styles.performanceStatValue, { color: '#10B981' }]}>
-                      {selectedLeague.stats.totalAssists}
+                      {selectedLeague.stats.total.assists}
                     </Text>
                     <Text style={styles.performanceStatLabel}>
                       Asist ({selectedLeague.assistsPerMatch.toFixed(2)}/maç)
@@ -588,10 +593,10 @@ export const PlayerStatsScreen: React.FC = () => {
 
                   <View style={styles.performanceStatItem}>
                     <Text style={[styles.performanceStatValue, { color: '#8B5CF6' }]}>
-                      {selectedLeague.stats.mvpCount}
+                      {selectedLeague.stats.mvp.count}
                     </Text>
                     <Text style={styles.performanceStatLabel}>
-                      MVP ({((selectedLeague.stats.mvpCount / selectedLeague.stats.totalMatches) * 100).toFixed(0)}%)
+                      MVP ({selectedLeague.stats.mvp.rate.toFixed(0)}%)
                     </Text>
                   </View>
                 </View>
@@ -599,54 +604,81 @@ export const PlayerStatsScreen: React.FC = () => {
             </View>
 
             {/* Rating & Trend */}
-            {selectedLeague.ratingProfile && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Star size={20} color="#16a34a" strokeWidth={2} />
-                  <Text style={styles.sectionTitle}>Rating & Trend</Text>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Star size={20} color="#16a34a" strokeWidth={2} />
+                <Text style={styles.sectionTitle}>Rating & Trend</Text>
+              </View>
+
+              <View style={styles.ratingCard}>
+                <View style={styles.ratingMain}>
+                  <View style={styles.ratingCircle}>
+                    <Star size={28} color="#F59E0B" strokeWidth={2} fill="#F59E0B" />
+                    <Text style={styles.ratingValue}>
+                      {selectedLeague.stats.rating.average.toFixed(1)}
+                    </Text>
+                  </View>
+                  <View style={styles.ratingInfo}>
+                    <Text style={styles.ratingLabel}>Ortalama Rating</Text>
+                    <Text style={styles.ratingSubtext}>
+                      {selectedLeague.stats.rating.totalReceived} puanlama
+                    </Text>
+                  </View>
                 </View>
 
-                <View style={styles.ratingCard}>
-                  <View style={styles.ratingMain}>
-                    <View style={styles.ratingCircle}>
-                      <Star size={28} color="#F59E0B" strokeWidth={2} fill="#F59E0B" />
-                      <Text style={styles.ratingValue}>
-                        {selectedLeague.ratingProfile.overallRating.toFixed(1)}
-                      </Text>
-                    </View>
-                    <View style={styles.ratingInfo}>
-                      <Text style={styles.ratingLabel}>Ortalama Rating</Text>
-                      <Text style={styles.ratingSubtext}>
-                        {selectedLeague.ratingProfile.totalRatingsReceived} puanlama
+                <View style={styles.ratingDetails}>
+                  <View style={styles.ratingDetailItem}>
+                    <Text style={styles.ratingDetailLabel}>Trend</Text>
+                    <View style={styles.trendBadge}>
+                      {renderTrendIcon(selectedLeague.stats.rating.trend)}
+                      <Text style={styles.trendText}>
+                        {getTrendText(selectedLeague.stats.rating.trend)}
                       </Text>
                     </View>
                   </View>
 
-                  <View style={styles.ratingDetails}>
-                    <View style={styles.ratingDetailItem}>
-                      <Text style={styles.ratingDetailLabel}>Trend</Text>
-                      <View style={styles.trendBadge}>
-                        {renderTrendIcon(selectedLeague.ratingProfile.ratingTrend)}
-                        <Text style={styles.trendText}>
-                          {selectedLeague.ratingProfile.ratingTrend === 'improving'
-                            ? 'Yükseliyor'
-                            : selectedLeague.ratingProfile.ratingTrend === 'declining'
-                              ? 'Düşüyor'
-                              : 'Stabil'}
+                  <View style={styles.ratingDetailItem}>
+                    <Text style={styles.ratingDetailLabel}>MVP Oranı</Text>
+                    <Text style={styles.ratingDetailValue}>
+                      {selectedLeague.stats.mvp.rate.toFixed(0)}%
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Rating Categories */}
+                {selectedLeague.stats.rating.categories && (
+                  <View style={styles.categoriesSection}>
+                    <Text style={styles.categoriesTitle}>Kategori Puanları</Text>
+                    <View style={styles.categoriesGrid}>
+                      <View style={styles.categoryItem}>
+                        <Text style={styles.categoryLabel}>Beceri</Text>
+                        <Text style={styles.categoryValue}>
+                          {selectedLeague.stats.rating.categories.skill.toFixed(1)}
+                        </Text>
+                      </View>
+                      <View style={styles.categoryItem}>
+                        <Text style={styles.categoryLabel}>Takım</Text>
+                        <Text style={styles.categoryValue}>
+                          {selectedLeague.stats.rating.categories.teamwork.toFixed(1)}
+                        </Text>
+                      </View>
+                      <View style={styles.categoryItem}>
+                        <Text style={styles.categoryLabel}>Fair Play</Text>
+                        <Text style={styles.categoryValue}>
+                          {selectedLeague.stats.rating.categories.sportsmanship.toFixed(1)}
+                        </Text>
+                      </View>
+                      <View style={styles.categoryItem}>
+                        <Text style={styles.categoryLabel}>Çaba</Text>
+                        <Text style={styles.categoryValue}>
+                          {selectedLeague.stats.rating.categories.effort.toFixed(1)}
                         </Text>
                       </View>
                     </View>
-
-                    <View style={styles.ratingDetailItem}>
-                      <Text style={styles.ratingDetailLabel}>MVP Oranı</Text>
-                      <Text style={styles.ratingDetailValue}>
-                        {selectedLeague.ratingProfile.mvpRate.toFixed(0)}%
-                      </Text>
-                    </View>
                   </View>
-                </View>
+                )}
               </View>
-            )}
+            </View>
 
             {/* View Standings Button */}
             <View style={styles.section}>
@@ -680,29 +712,29 @@ export const PlayerStatsScreen: React.FC = () => {
               >
                 <View style={styles.comparisonHeader}>
                   <View style={styles.comparisonLeft}>
-                    <Text style={styles.comparisonEmoji}>{getSportIcon(league.sportType)}</Text>
+                    <Text style={styles.comparisonEmoji}>{getSportEmoji(league.sportType)}</Text>
                     <Text style={styles.comparisonTitle}>{league.leagueName}</Text>
                   </View>
                   <View style={[
                     styles.comparisonBadge,
-                    { backgroundColor: getSportColor(league.sportType) + '20' }
+                    { backgroundColor: getSportPrimaryColor(league.sportType) + '20' }
                   ]}>
                     <Text style={[
                       styles.comparisonBadgeText,
-                      { color: getSportColor(league.sportType) }
+                      { color: getSportPrimaryColor(league.sportType) }
                     ]}>
-                      {league.stats.totalMatches} Maç
+                      {league.stats.total.matches} Maç
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.comparisonStats}>
                   <View style={styles.comparisonStat}>
-                    <Text style={styles.comparisonStatValue}>{league.stats.totalGoals}</Text>
+                    <Text style={styles.comparisonStatValue}>{league.stats.total.goals}</Text>
                     <Text style={styles.comparisonStatLabel}>Gol</Text>
                   </View>
                   <View style={styles.comparisonStat}>
-                    <Text style={styles.comparisonStatValue}>{league.stats.totalAssists}</Text>
+                    <Text style={styles.comparisonStatValue}>{league.stats.total.assists}</Text>
                     <Text style={styles.comparisonStatLabel}>Asist</Text>
                   </View>
                   <View style={styles.comparisonStat}>
@@ -711,17 +743,15 @@ export const PlayerStatsScreen: React.FC = () => {
                     </Text>
                     <Text style={styles.comparisonStatLabel}>Galibiyet</Text>
                   </View>
-                  {league.ratingProfile && (
-                    <View style={styles.comparisonStat}>
-                      <View style={styles.comparisonStatRating}>
-                        <Star size={12} color="#F59E0B" strokeWidth={2} fill="#F59E0B" />
-                        <Text style={styles.comparisonStatValue}>
-                          {league.ratingProfile.overallRating.toFixed(1)}
-                        </Text>
-                      </View>
-                      <Text style={styles.comparisonStatLabel}>Rating</Text>
+                  <View style={styles.comparisonStat}>
+                    <View style={styles.comparisonStatRating}>
+                      <Star size={12} color="#F59E0B" strokeWidth={2} fill="#F59E0B" />
+                      <Text style={styles.comparisonStatValue}>
+                        {league.stats.rating.average.toFixed(1)}
+                      </Text>
                     </View>
-                  )}
+                    <Text style={styles.comparisonStatLabel}>Rating</Text>
+                  </View>
                 </View>
               </TouchableOpacity>
             ))}
@@ -1140,6 +1170,7 @@ const styles = StyleSheet.create({
   ratingDetails: {
     flexDirection: 'row',
     gap: 16,
+    marginBottom: 20,
   },
   ratingDetailItem: {
     flex: 1,
@@ -1167,6 +1198,38 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#8B5CF6',
+  },
+  categoriesSection: {
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  categoriesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  categoriesGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  categoryItem: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 10,
+  },
+  categoryLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  categoryValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#F59E0B',
   },
   standingsButton: {
     flexDirection: 'row',

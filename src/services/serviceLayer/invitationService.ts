@@ -69,7 +69,7 @@ export interface IJoinLeagueRequest {
   code: string;
   userId: string;
   device?: {
-    platform: 'ios' | 'android' | 'web';
+    platform: 'ios' | 'android' | 'web' | 'windows' | 'macos';
     model?: string;
     osVersion?: string;
   };
@@ -79,7 +79,7 @@ export interface IJoinMatchRequest {
   code: string;
   userId: string;
   device?: {
-    platform: 'ios' | 'android' | 'web';
+    platform: 'ios' | 'android' | 'web' | 'windows' | 'macos';
     model?: string;
     osVersion?: string;
   };
@@ -1089,7 +1089,7 @@ export class MatchInvitationService {
             valid: false,
             invitation,
             error: {
-              code: 'EXPIRED',
+              code: 'CODE_EXPIRED',
               message: 'Bu davet kodunun süresi dolmuş',
             },
           },

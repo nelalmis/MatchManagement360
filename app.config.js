@@ -25,7 +25,7 @@ export default {
     orientation: "portrait",
     icon: "./assets/icons/logo-4.png",
     userInterfaceStyle: "light",
-    newArchEnabled: true,
+    newArchEnabled: false,
     splash: {
       image: "./assets/icons/splash.png",
       resizeMode: "contain",
@@ -34,6 +34,7 @@ export default {
     updates: {
       fallbackToCacheTimeout: 0
     },
+      
     ios: {
       supportsTablet: true
     },

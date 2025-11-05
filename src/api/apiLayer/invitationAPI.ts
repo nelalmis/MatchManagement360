@@ -659,7 +659,7 @@ abstract class BaseInvitationAPI<T extends IInvitation> extends BaseAPI<T> {
 
 export class LeagueInvitationAPI extends BaseInvitationAPI<ILeagueInvitation> {
   constructor() {
-    super('league_invitations');
+    super('invitations');
   }
 
   /**
@@ -816,7 +816,7 @@ export class LeagueInvitationAPI extends BaseInvitationAPI<ILeagueInvitation> {
 
 export class MatchInvitationAPI extends BaseInvitationAPI<IMatchInvitation> {
   constructor() {
-    super('match_invitations');
+    super('invitations');
   }
 
   /**
@@ -931,7 +931,7 @@ export class MatchInvitationAPI extends BaseInvitationAPI<IMatchInvitation> {
 
 export class TeamInvitationAPI extends BaseInvitationAPI<ITeamInvitation> {
   constructor() {
-    super('team_invitations');
+    super('invitations');
   }
 
   /**
