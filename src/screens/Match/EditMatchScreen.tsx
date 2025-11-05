@@ -1,4 +1,5 @@
-// screens/Match/EditMatchScreen.tsx
+// src/screens/Match/EditMatchScreen.tsx
+// 🔧 EDIT MATCH - Updated for new IMatch structure
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -20,19 +21,25 @@ import {
   DollarSign,
   Save,
   Trash2,
+  UserPlus,
+  Info,
 } from 'lucide-react-native';
-import { useRoute, RouteProp } from '@react-navigation/native';
-import { matchService } from '../../services/matchService';
-import { IMatch } from '../../types/types';
-import { RootStackParamList, NavigationService, EditMatchRouteProp } from '../../navigation';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { useRoute } from '@react-navigation/native';
+import { MatchService } from '../../services/serviceLayer/matchService';
+import { IMatch, MatchStatus, MatchType } from '../../types/entity/types';
+import { NavigationService } from '../../navigation';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useAuth } from '../../hooks';
+import { CustomHeader } from '../../components/CustomHeader';
 
+type EditMatchRouteProp = {
+  matchId: string;
+};
 
 export const EditMatchScreen: React.FC = () => {
   const { user } = useAuth();
-  const route = useRoute<EditMatchRouteProp>();
-  const { matchId } = route.params;
+  const route = useRoute<any>();
+  const { matchId } = route.params as EditMatchRouteProp;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,17 +48,33 @@ export const EditMatchScreen: React.FC = () => {
   // Match data
   const [match, setMatch] = useState<IMatch | null>(null);
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState(new Date());
-  const [time, setTime] = useState(new Date());
-  const [location, setLocation] = useState('');
-  const [maxPlayers, setMaxPlayers] = useState('');
-  const [pricePerPlayer, setPricePerPlayer] = useState('');
   const [description, setDescription] = useState('');
-  const [isActive, setIsActive] = useState(true);
+  
+  // Schedule
+  const [registrationStartDate, setRegistrationStartDate] = useState(new Date());
+  const [registrationEndDate, setRegistrationEndDate] = useState(new Date());
+  const [matchStartDate, setMatchStartDate] = useState(new Date());
+  const [matchEndDate, setMatchEndDate] = useState(new Date());
+  
+  // Venue
+  const [location, setLocation] = useState('');
+  const [googleMapsUrl, setGoogleMapsUrl] = useState('');
+  const [pricePerPlayer, setPricePerPlayer] = useState('');
+  const [bankAccountIBAN, setBankAccountIBAN] = useState('');
+  const [bankAccountName, setBankAccountName] = useState('');
+  
+  // Squad
+  const [totalPlayers, setTotalPlayers] = useState('');
+  const [reservePlayers, setReservePlayers] = useState('');
+  const [minPlayersToStart, setMinPlayersToStart] = useState('');
 
-  // DatePicker states
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  // Friendly settings (if applicable)
+  const [isPublic, setIsPublic] = useState(true);
+  const [affectsStats, setAffectsStats] = useState(true);
+  const [affectsStandings, setAffectsStandings] = useState(false);
+
+  // DatePicker states - SIMPLIFIED
+  const [showDatePicker, setShowDatePicker] = useState<'regStart' | 'regEnd' | 'matchStart' | 'matchEnd' | null>(null);
 
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -69,16 +92,20 @@ export const EditMatchScreen: React.FC = () => {
 
     try {
       setLoading(true);
-      const matchData = await matchService.getById(matchId);
+      const result = await MatchService.getMatch(matchId);
 
-      if (!matchData) {
+      if (!result.success || !result.data) {
         Alert.alert('Hata', 'Maç bulunamadı');
         NavigationService.goBack();
         return;
       }
 
-      // Check permissions
-      if (matchData.createdAt !== user?.id) {
+      const matchData = result.data;
+
+      // Check permissions - only organizers can edit
+      const isOrganizer = matchData.permissions.organizers.includes(user?.id || '');
+      
+      if (!isOrganizer) {
         Alert.alert('Hata', 'Bu maçı düzenleme yetkiniz yok');
         NavigationService.goBack();
         return;
@@ -97,15 +124,38 @@ export const EditMatchScreen: React.FC = () => {
 
   const populateForm = (matchData: IMatch) => {
     setTitle(matchData.title);
-    setLocation(matchData.location || "");
-    // setMaxPlayers(matchData.staffPlayerCount.toString());
-    // setPricePerPlayer(matchData.pricePerPlayer.toString());
-    // setDescription(matchData.description || '');
-    // setIsActive(matchData.status === 'Aktif');
+    setDescription(matchData.description || '');
 
-    const matchDate = new Date(matchData.matchStartTime);
-    setDate(matchDate);
-    setTime(matchDate);
+    // Schedule
+    setRegistrationStartDate(new Date(matchData.schedule.registrationStart));
+    setRegistrationEndDate(new Date(matchData.schedule.registrationEnd));
+    setMatchStartDate(new Date(matchData.schedule.matchStart));
+    setMatchEndDate(new Date(matchData.schedule.matchEnd));
+
+    // Venue
+    if (matchData.venue) {
+      setLocation(matchData.venue.location || '');
+      setGoogleMapsUrl(matchData.venue.googleMapsUrl || '');
+      setPricePerPlayer(matchData.venue.pricePerPlayer?.toString() || '0');
+      
+      // Parse payment info
+      if (matchData.venue.payment) {
+        setBankAccountIBAN(matchData.venue.payment.iban || '');
+        setBankAccountName(matchData.venue.payment.accountName || '');
+      }
+    }
+
+    // Squad
+    setTotalPlayers(matchData.squad.totalPlayers.toString());
+    setReservePlayers(matchData.squad.reservePlayers.toString());
+    setMinPlayersToStart(matchData.squad.minPlayersToStart.toString());
+
+    // Friendly settings
+    if (matchData.type === MatchType.FRIENDLY && matchData.friendlySettings) {
+      setIsPublic(matchData.friendlySettings.isPublic);
+      setAffectsStats(matchData.friendlySettings.affectsStats);
+      setAffectsStandings(matchData.friendlySettings.affectsStandings);
+    }
   };
 
   const validateForm = (): boolean => {
@@ -119,22 +169,46 @@ export const EditMatchScreen: React.FC = () => {
       newErrors.location = 'Konum gerekli';
     }
 
-    const maxPlayersNum = parseInt(maxPlayers);
-    if (!maxPlayers || isNaN(maxPlayersNum) || maxPlayersNum < 2) {
-      newErrors.maxPlayers = 'En az 2 oyuncu olmalı';
+    const totalPlayersNum = parseInt(totalPlayers);
+    if (!totalPlayers || isNaN(totalPlayersNum) || totalPlayersNum < 2) {
+      newErrors.totalPlayers = 'En az 2 oyuncu olmalı';
+    }
+
+    const reservePlayersNum = parseInt(reservePlayers);
+    if (!reservePlayers || isNaN(reservePlayersNum) || reservePlayersNum < 0) {
+      newErrors.reservePlayers = 'Geçerli bir sayı girin';
+    }
+
+    const minPlayersNum = parseInt(minPlayersToStart);
+    if (!minPlayersToStart || isNaN(minPlayersNum) || minPlayersNum < 2) {
+      newErrors.minPlayersToStart = 'En az 2 oyuncu olmalı';
+    }
+
+    if (minPlayersNum > totalPlayersNum) {
+      newErrors.minPlayersToStart = 'Minimum oyuncu sayısı toplam oyuncudan fazla olamaz';
     }
 
     const priceNum = parseFloat(pricePerPlayer);
-    if (!pricePerPlayer || isNaN(priceNum) || priceNum < 0) {
+    if (pricePerPlayer && (isNaN(priceNum) || priceNum < 0)) {
       newErrors.pricePerPlayer = 'Geçerli bir fiyat girin';
     }
 
-    const combinedDateTime = new Date(date);
-    combinedDateTime.setHours(time.getHours());
-    combinedDateTime.setMinutes(time.getMinutes());
+    // Date validations
+    const now = new Date();
+    if (registrationStartDate <= now) {
+      newErrors.registrationStart = 'Kayıt başlangıcı gelecekte olmalı';
+    }
 
-    if (combinedDateTime <= new Date()) {
-      newErrors.date = 'Geçmiş bir tarih seçemezsiniz';
+    if (registrationEndDate <= registrationStartDate) {
+      newErrors.registrationEnd = 'Kayıt bitişi, başlangıçtan sonra olmalı';
+    }
+
+    if (matchStartDate <= registrationEndDate) {
+      newErrors.matchStart = 'Maç başlangıcı, kayıt bitişinden sonra olmalı';
+    }
+
+    if (matchEndDate <= matchStartDate) {
+      newErrors.matchEnd = 'Maç bitişi, başlangıçtan sonra olmalı';
     }
 
     setErrors(newErrors);
@@ -152,31 +226,56 @@ export const EditMatchScreen: React.FC = () => {
     try {
       setSaving(true);
 
-      const combinedDateTime = new Date(date);
-      combinedDateTime.setHours(time.getHours());
-      combinedDateTime.setMinutes(time.getMinutes());
-
       const updatedMatch: Partial<IMatch> = {
         title: title.trim(),
-        location: location.trim(),
-        matchStartTime: combinedDateTime,
-        // staffPlayerCount: parseInt(maxPlayers),
-        pricePerPlayer: parseFloat(pricePerPlayer),
-        // description: description.trim(),
-        // status: isActive ? '' : 'Pasif',
-        updatedAt: new Date().toISOString(),
+        description: description.trim() || undefined,
+        
+        schedule: {
+          registrationStart: registrationStartDate,
+          registrationEnd: registrationEndDate,
+          matchStart: matchStartDate,
+          matchEnd: matchEndDate,
+        },
+
+        venue: {
+          location: location.trim(),
+          googleMapsUrl: googleMapsUrl.trim() || undefined,
+          pricePerPlayer: parseFloat(pricePerPlayer) || 0,
+          payment: (bankAccountIBAN.trim() || bankAccountName.trim()) ? {
+            iban: bankAccountIBAN.trim() || undefined,
+            accountName: bankAccountName.trim() || undefined,
+          } : undefined,
+        },
+
+        squad: {
+          totalPlayers: parseInt(totalPlayers),
+          reservePlayers: parseInt(reservePlayers),
+          minPlayersToStart: parseInt(minPlayersToStart),
+        },
       };
 
-      await matchService.update(matchId, updatedMatch);
+      // Update friendly settings if it's a friendly match
+      if (match.type === MatchType.FRIENDLY) {
+        updatedMatch.friendlySettings = {
+          isPublic,
+          affectsStats,
+          affectsStandings,
+          invitedPlayerIds: match.friendlySettings?.invitedPlayerIds,
+        };
+      }
 
-      Alert.alert('Başarılı', 'Maç başarıyla güncellendi', [
-        {
-          text: 'Tamam',
-          onPress: () => {
-            NavigationService.goBack();
+      const result = await MatchService.updateMatch(matchId, updatedMatch);
+
+      if (result.success) {
+        Alert.alert('Başarılı', 'Maç başarıyla güncellendi', [
+          {
+            text: 'Tamam',
+            onPress: () => NavigationService.goBack(),
           },
-        },
-      ]);
+        ]);
+      } else {
+        Alert.alert('Hata', result.error?.message || 'Maç güncellenirken bir hata oluştu');
+      }
     } catch (error) {
       console.error('Error updating match:', error);
       Alert.alert('Hata', 'Maç güncellenirken bir hata oluştu');
@@ -208,16 +307,18 @@ export const EditMatchScreen: React.FC = () => {
 
     try {
       setDeleting(true);
-      await matchService.delete(matchId);
+      const result = await MatchService.deleteMatch(matchId, user?.id || '');
 
-      Alert.alert('Başarılı', 'Maç başarıyla silindi', [
-        {
-          text: 'Tamam',
-          onPress: () => {
-            NavigationService.goBack();
+      if (result.success) {
+        Alert.alert('Başarılı', 'Maç başarıyla silindi', [
+          {
+            text: 'Tamam',
+            onPress: () => NavigationService.goBack(),
           },
-        },
-      ]);
+        ]);
+      } else {
+        Alert.alert('Hata', result.error?.message || 'Maç silinirken bir hata oluştu');
+      }
     } catch (error) {
       console.error('Error deleting match:', error);
       Alert.alert('Hata', 'Maç silinirken bir hata oluştu');
@@ -226,30 +327,37 @@ export const EditMatchScreen: React.FC = () => {
     }
   };
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setDate(selectedDate);
+  const handleDateConfirm = (selectedDate: Date) => {
+    const currentType = showDatePicker;
+    setShowDatePicker(null);
+
+    if (!currentType) return;
+
+    switch (currentType) {
+      case 'regStart':
+        setRegistrationStartDate(selectedDate);
+        break;
+      case 'regEnd':
+        setRegistrationEndDate(selectedDate);
+        break;
+      case 'matchStart':
+        setMatchStartDate(selectedDate);
+        break;
+      case 'matchEnd':
+        setMatchEndDate(selectedDate);
+        break;
     }
   };
 
-  const onTimeChange = (event: any, selectedTime?: Date) => {
-    setShowTimePicker(false);
-    if (selectedTime) {
-      setTime(selectedTime);
-    }
+  const handleDateCancel = () => {
+    setShowDatePicker(null);
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('tr-TR', {
+  const formatDateTime = (date: Date) => {
+    return date.toLocaleString('tr-TR', {
       day: 'numeric',
-      month: 'long',
+      month: 'short',
       year: 'numeric',
-    });
-  };
-
-  const formatTime = (time: Date) => {
-    return time.toLocaleTimeString('tr-TR', {
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -274,11 +382,24 @@ export const EditMatchScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <CustomHeader
+        title="Maç Düzenle"
+        subtitle={match.type === MatchType.LEAGUE ? 'Lig Maçı' : 'Dostluk Maçı'}
+        showBack={true}
+        onLeftPress={() => NavigationService.goBack()}
+      />
+
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Basic Info Section */}
+        <View style={styles.sectionHeader}>
+          <Info size={20} color="#16a34a" strokeWidth={2} />
+          <Text style={styles.sectionTitle}>Temel Bilgiler</Text>
+        </View>
+
         {/* Title */}
         <View style={styles.section}>
           <Text style={styles.label}>
@@ -294,35 +415,103 @@ export const EditMatchScreen: React.FC = () => {
           {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
         </View>
 
-        {/* Date */}
+        {/* Description */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Açıklama</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Maç hakkında ek bilgiler..."
+            placeholderTextColor="#9CA3AF"
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+          />
+        </View>
+
+        {/* Schedule Section */}
+        <View style={styles.sectionHeader}>
+          <Calendar size={20} color="#16a34a" strokeWidth={2} />
+          <Text style={styles.sectionTitle}>Zamanlama</Text>
+        </View>
+
+        {/* Registration Start */}
         <View style={styles.section}>
           <Text style={styles.label}>
-            Tarih <Text style={styles.required}>*</Text>
+            Kayıt Başlangıcı <Text style={styles.required}>*</Text>
           </Text>
           <TouchableOpacity
-            style={[styles.dateButton, errors.date && styles.inputError]}
-            onPress={() => setShowDatePicker(true)}
+            style={[styles.dateButton, errors.registrationStart && styles.inputError]}
+            onPress={() => setShowDatePicker('regStart')}
             activeOpacity={0.7}
           >
             <Calendar size={20} color="#6B7280" strokeWidth={2} />
-            <Text style={styles.dateButtonText}>{formatDate(date)}</Text>
+            <Text style={styles.dateButtonText}>{formatDateTime(registrationStartDate)}</Text>
           </TouchableOpacity>
-          {errors.date && <Text style={styles.errorText}>{errors.date}</Text>}
+          {errors.registrationStart && (
+            <Text style={styles.errorText}>{errors.registrationStart}</Text>
+          )}
         </View>
 
-        {/* Time */}
+        {/* Registration End */}
         <View style={styles.section}>
           <Text style={styles.label}>
-            Saat <Text style={styles.required}>*</Text>
+            Kayıt Bitişi <Text style={styles.required}>*</Text>
           </Text>
           <TouchableOpacity
-            style={styles.dateButton}
-            onPress={() => setShowTimePicker(true)}
+            style={[styles.dateButton, errors.registrationEnd && styles.inputError]}
+            onPress={() => setShowDatePicker('regEnd')}
+            activeOpacity={0.7}
+          >
+            <Calendar size={20} color="#6B7280" strokeWidth={2} />
+            <Text style={styles.dateButtonText}>{formatDateTime(registrationEndDate)}</Text>
+          </TouchableOpacity>
+          {errors.registrationEnd && (
+            <Text style={styles.errorText}>{errors.registrationEnd}</Text>
+          )}
+        </View>
+
+        {/* Match Start */}
+        <View style={styles.section}>
+          <Text style={styles.label}>
+            Maç Başlangıcı <Text style={styles.required}>*</Text>
+          </Text>
+          <TouchableOpacity
+            style={[styles.dateButton, errors.matchStart && styles.inputError]}
+            onPress={() => setShowDatePicker('matchStart')}
             activeOpacity={0.7}
           >
             <Clock size={20} color="#6B7280" strokeWidth={2} />
-            <Text style={styles.dateButtonText}>{formatTime(time)}</Text>
+            <Text style={styles.dateButtonText}>{formatDateTime(matchStartDate)}</Text>
           </TouchableOpacity>
+          {errors.matchStart && (
+            <Text style={styles.errorText}>{errors.matchStart}</Text>
+          )}
+        </View>
+
+        {/* Match End */}
+        <View style={styles.section}>
+          <Text style={styles.label}>
+            Maç Bitişi <Text style={styles.required}>*</Text>
+          </Text>
+          <TouchableOpacity
+            style={[styles.dateButton, errors.matchEnd && styles.inputError]}
+            onPress={() => setShowDatePicker('matchEnd')}
+            activeOpacity={0.7}
+          >
+            <Clock size={20} color="#6B7280" strokeWidth={2} />
+            <Text style={styles.dateButtonText}>{formatDateTime(matchEndDate)}</Text>
+          </TouchableOpacity>
+          {errors.matchEnd && (
+            <Text style={styles.errorText}>{errors.matchEnd}</Text>
+          )}
+        </View>
+
+        {/* Venue Section */}
+        <View style={styles.sectionHeader}>
+          <MapPin size={20} color="#16a34a" strokeWidth={2} />
+          <Text style={styles.sectionTitle}>Lokasyon & Ödeme</Text>
         </View>
 
         {/* Location */}
@@ -343,32 +532,23 @@ export const EditMatchScreen: React.FC = () => {
           {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
         </View>
 
-        {/* Max Players */}
+        {/* Google Maps URL */}
         <View style={styles.section}>
-          <Text style={styles.label}>
-            Oyuncu Sayısı <Text style={styles.required}>*</Text>
-          </Text>
-          <View style={styles.inputWithIcon}>
-            <Users size={20} color="#6B7280" strokeWidth={2} />
-            <TextInput
-              style={[styles.inputWithIconText, errors.maxPlayers && styles.inputError]}
-              value={maxPlayers}
-              onChangeText={setMaxPlayers}
-              placeholder="Örn: 14"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="number-pad"
-            />
-          </View>
-          {errors.maxPlayers && (
-            <Text style={styles.errorText}>{errors.maxPlayers}</Text>
-          )}
+          <Text style={styles.label}>Google Maps Linki</Text>
+          <TextInput
+            style={styles.input}
+            value={googleMapsUrl}
+            onChangeText={setGoogleMapsUrl}
+            placeholder="https://maps.google.com/..."
+            placeholderTextColor="#9CA3AF"
+            keyboardType="url"
+            autoCapitalize="none"
+          />
         </View>
 
         {/* Price */}
         <View style={styles.section}>
-          <Text style={styles.label}>
-            Kişi Başı Ücret <Text style={styles.required}>*</Text>
-          </Text>
+          <Text style={styles.label}>Kişi Başı Ücret</Text>
           <View style={styles.inputWithIcon}>
             <DollarSign size={20} color="#6B7280" strokeWidth={2} />
             <TextInput
@@ -389,38 +569,170 @@ export const EditMatchScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Description */}
+        {/* Bank Account - IBAN */}
         <View style={styles.section}>
-          <Text style={styles.label}>Açıklama</Text>
+          <Text style={styles.label}>IBAN</Text>
           <TextInput
-            style={[styles.input, styles.textArea]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Maç hakkında ek bilgiler..."
+            style={styles.input}
+            value={bankAccountIBAN}
+            onChangeText={setBankAccountIBAN}
+            placeholder="TR00 0000 0000 0000 0000 0000 00"
             placeholderTextColor="#9CA3AF"
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
+            keyboardType="default"
+            autoCapitalize="characters"
           />
         </View>
 
-        {/* Status */}
+        {/* Bank Account - Account Holder Name */}
         <View style={styles.section}>
-          <View style={styles.switchContainer}>
-            <View style={styles.switchLabel}>
-              <Text style={styles.label}>Maç Durumu</Text>
-              <Text style={styles.switchDescription}>
-                {isActive ? 'Maç aktif' : 'Maç pasif'}
-              </Text>
-            </View>
-            <Switch
-              value={isActive}
-              onValueChange={setIsActive}
-              trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-              thumbColor={isActive ? '#16a34a' : '#F3F4F6'}
+          <Text style={styles.label}>Hesap Sahibi</Text>
+          <TextInput
+            style={styles.input}
+            value={bankAccountName}
+            onChangeText={setBankAccountName}
+            placeholder="Ad Soyad"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="default"
+          />
+        </View>
+
+        {/* Squad Section */}
+        <View style={styles.sectionHeader}>
+          <Users size={20} color="#16a34a" strokeWidth={2} />
+          <Text style={styles.sectionTitle}>Kadro Ayarları</Text>
+        </View>
+
+        {/* Total Players */}
+        <View style={styles.section}>
+          <Text style={styles.label}>
+            Toplam Oyuncu Sayısı <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.inputWithIcon}>
+            <Users size={20} color="#6B7280" strokeWidth={2} />
+            <TextInput
+              style={[styles.inputWithIconText, errors.totalPlayers && styles.inputError]}
+              value={totalPlayers}
+              onChangeText={setTotalPlayers}
+              placeholder="Örn: 14"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="number-pad"
             />
           </View>
+          {errors.totalPlayers && (
+            <Text style={styles.errorText}>{errors.totalPlayers}</Text>
+          )}
         </View>
+
+        {/* Reserve Players */}
+        <View style={styles.section}>
+          <Text style={styles.label}>
+            Yedek Oyuncu Sayısı <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.inputWithIcon}>
+            <UserPlus size={20} color="#6B7280" strokeWidth={2} />
+            <TextInput
+              style={[styles.inputWithIconText, errors.reservePlayers && styles.inputError]}
+              value={reservePlayers}
+              onChangeText={setReservePlayers}
+              placeholder="Örn: 2"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="number-pad"
+            />
+          </View>
+          {errors.reservePlayers && (
+            <Text style={styles.errorText}>{errors.reservePlayers}</Text>
+          )}
+        </View>
+
+        {/* Min Players to Start */}
+        <View style={styles.section}>
+          <Text style={styles.label}>
+            Başlamak İçin Minimum Oyuncu <Text style={styles.required}>*</Text>
+          </Text>
+          <View style={styles.inputWithIcon}>
+            <Users size={20} color="#6B7280" strokeWidth={2} />
+            <TextInput
+              style={[
+                styles.inputWithIconText,
+                errors.minPlayersToStart && styles.inputError,
+              ]}
+              value={minPlayersToStart}
+              onChangeText={setMinPlayersToStart}
+              placeholder="Örn: 10"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="number-pad"
+            />
+          </View>
+          {errors.minPlayersToStart && (
+            <Text style={styles.errorText}>{errors.minPlayersToStart}</Text>
+          )}
+        </View>
+
+        {/* Friendly Settings (only for friendly matches) */}
+        {match.type === MatchType.FRIENDLY && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Info size={20} color="#16a34a" strokeWidth={2} />
+              <Text style={styles.sectionTitle}>Dostluk Maçı Ayarları</Text>
+            </View>
+
+            {/* Is Public */}
+            <View style={styles.section}>
+              <View style={styles.switchContainer}>
+                <View style={styles.switchLabel}>
+                  <Text style={styles.label}>Herkese Açık</Text>
+                  <Text style={styles.switchDescription}>
+                    {isPublic ? 'Herkes görebilir ve katılabilir' : 'Sadece davet edilenler'}
+                  </Text>
+                </View>
+                <Switch
+                  value={isPublic}
+                  onValueChange={setIsPublic}
+                  trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+                  thumbColor={isPublic ? '#16a34a' : '#F3F4F6'}
+                />
+              </View>
+            </View>
+
+            {/* Affects Stats */}
+            <View style={styles.section}>
+              <View style={styles.switchContainer}>
+                <View style={styles.switchLabel}>
+                  <Text style={styles.label}>İstatistikleri Etkiler</Text>
+                  <Text style={styles.switchDescription}>
+                    {affectsStats
+                      ? 'Oyuncu istatistiklerine sayılır'
+                      : 'İstatistiklere sayılmaz'}
+                  </Text>
+                </View>
+                <Switch
+                  value={affectsStats}
+                  onValueChange={setAffectsStats}
+                  trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+                  thumbColor={affectsStats ? '#16a34a' : '#F3F4F6'}
+                />
+              </View>
+            </View>
+
+            {/* Affects Standings */}
+            <View style={styles.section}>
+              <View style={styles.switchContainer}>
+                <View style={styles.switchLabel}>
+                  <Text style={styles.label}>Puan Durumunu Etkiler</Text>
+                  <Text style={styles.switchDescription}>
+                    {affectsStandings ? 'Lig puanlarına sayılır' : 'Puana sayılmaz'}
+                  </Text>
+                </View>
+                <Switch
+                  value={affectsStandings}
+                  onValueChange={setAffectsStandings}
+                  trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
+                  thumbColor={affectsStandings ? '#16a34a' : '#F3F4F6'}
+                />
+              </View>
+            </View>
+          </>
+        )}
 
         {/* Delete Button */}
         <TouchableOpacity
@@ -461,27 +773,26 @@ export const EditMatchScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Date Picker */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={date}
-          mode="date"
-          display="default"
-          onChange={onDateChange}
-          minimumDate={new Date()}
-        />
-      )}
-
-      {/* Time Picker */}
-      {showTimePicker && (
-        <DateTimePicker
-          value={time}
-          mode="time"
-          display="default"
-          onChange={onTimeChange}
-          is24Hour={true}
-        />
-      )}
+      {/* Date Picker Modal - Stable & Bug-Free */}
+      <DateTimePickerModal
+        isVisible={showDatePicker !== null}
+        mode="datetime"
+        onConfirm={handleDateConfirm}
+        onCancel={handleDateCancel}
+        date={
+          showDatePicker === 'regStart'
+            ? registrationStartDate
+            : showDatePicker === 'regEnd'
+            ? registrationEndDate
+            : showDatePicker === 'matchStart'
+            ? matchStartDate
+            : matchEndDate
+        }
+        minimumDate={new Date()}
+        locale="tr_TR"
+        confirmTextIOS="Tamam"
+        cancelTextIOS="İptal"
+      />
     </View>
   );
 };
@@ -501,6 +812,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: '#6B7280',
+    fontWeight: '600',
   },
   errorContainer: {
     flex: 1,
@@ -508,12 +820,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F9FAFB',
   },
+  errorText: {
+    fontSize: 12,
+    color: '#DC2626',
+    marginTop: 6,
+  },
   scrollView: {
     flex: 1,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
   section: {
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 12,
   },
   label: {
     fontSize: 14,
@@ -615,11 +945,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#DC2626',
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#DC2626',
-    marginTop: 6,
   },
   bottomSpacing: {
     height: 100,

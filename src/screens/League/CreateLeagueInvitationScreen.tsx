@@ -27,6 +27,7 @@ import { useAuth } from '../../hooks';
 import * as Clipboard from 'expo-clipboard';
 import LeagueInvitationService from '../../services/serviceLayer/LeagueInvitationService';
 import { CreateLeagueInvitationRouteProp, useRoute } from '../../navigation';
+import { CustomHeader } from '../../components/CustomHeader';
 
 export const CreateLeagueInvitationScreen: React.FC = () => {
     const { user } = useAuth();
@@ -132,13 +133,11 @@ export const CreateLeagueInvitationScreen: React.FC = () => {
         return (
             <View style={styles.container}>
                 {/* Header */}
-                <View style={styles.header}>
-                    <View style={styles.headerButton} />
-                    <Text style={styles.headerTitle}>Davet Kodu Oluşturuldu</Text>
-                    <TouchableOpacity onPress={handleDone} style={styles.headerButton}>
-                        <X size={24} color="#1F2937" strokeWidth={2} />
-                    </TouchableOpacity>
-                </View>
+                <CustomHeader
+                    title="Davet Kodu Oluşturuldu"
+                    showClose={true}
+                    onLeftPress={handleDone}
+                />
 
                 <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                     {/* Success Message */}
@@ -265,18 +264,11 @@ export const CreateLeagueInvitationScreen: React.FC = () => {
 
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity
-                    onPress={() => NavigationService.goBack()}
-                    style={styles.headerButton}
-                    activeOpacity={0.7}
-                >
-                    <X size={24} color="#1F2937" strokeWidth={2} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Davet Kodu Oluştur</Text>
-                <View style={styles.headerButton} />
-            </View>
+            <CustomHeader
+                title="Davet Kodu Oluştur"
+                showClose={true}
+                onLeftPress={() => NavigationService.goBack()}
+            />
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* League Info */}

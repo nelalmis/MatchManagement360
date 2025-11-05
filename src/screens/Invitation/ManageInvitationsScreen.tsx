@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+// src/screens/Invitation/ManageInvitationsScreen.tsx
+// 🎯 GENERIC MANAGE INVITATIONS - Supports League & Match
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -22,45 +25,79 @@ import {
     Power,
     PowerOff,
     Trash2,
+    ChevronLeft,
 } from 'lucide-react-native';
-import { ILeagueInvitation } from '../../types/entity/types';
-import { NavigationService } from '../../navigation/NavigationService';
-import { useAuth } from '../../hooks';
+import { useRoute } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
-import LeagueInvitationService from '../../services/serviceLayer/LeagueInvitationService';
-import { ManageLeagueInvitationsRouteProp, useRoute } from '../../navigation';
+import { NavigationService } from '../../navigation/NavigationService';
+import {
+    LeagueInvitationService,
+    MatchInvitationService,
+} from '../../services/serviceLayer/invitationService';
+import { useAuth } from '../../hooks';
+import {
+    ILeagueInvitation,
+    IMatchInvitation,
+    InvitationType,
+    InvitationStatus,
+} from '../../types/entity/invitation';
+import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { CustomHeader } from '../../components/CustomHeader';
+import { SportType } from '../../types/entity/types';
 
+type ManageInvitationsParams = {
+    type: InvitationType;
+    targetId: string;
+    targetTitle: string;
+    sportType?: SportType;
+};
 
-export const ManageLeagueInvitationsScreen: React.FC = () => {
+export const ManageInvitationsScreen: React.FC = () => {
+    const route: any = useRoute();
     const { user } = useAuth();
-    const route = useRoute<ManageLeagueInvitationsRouteProp>();
-    const { leagueId, leagueTitle } = route.params;
+    const params: ManageInvitationsParams = route.params;
+
+    const { type, targetId, targetTitle, sportType } = params;
 
     // State
-    const [invitations, setInvitations] = useState<ILeagueInvitation[]>([]);
+    const [invitations, setInvitations] = useState<(ILeagueInvitation | IMatchInvitation)[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [selectedInvite, setSelectedInvite] = useState<string | null>(null);
 
+    const sportColor = sportType ? getSportPrimaryColor(sportType as any) : '#16a34a';
+    const sportEmoji = sportType ? getSportEmoji(sportType as any) : '🏆';
+
     // ============================================
     // LOAD INVITATIONS
     // ============================================
+
     useEffect(() => {
         loadInvitations();
     }, []);
 
-    const loadInvitations = async () => {
+    const loadInvitations = useCallback(async () => {
         if (!user?.id) return;
 
         try {
             setLoading(true);
-            const result = await LeagueInvitationService.getLeagueInvitations(leagueId, user.id);
 
-            if (result.success && result.data) {
-                setInvitations(result.data);
+            if (type === 'league') {
+                const result = await LeagueInvitationService.getLeagueInvitations(targetId, user.id);
+
+                if (result.success && result.data) {
+                    setInvitations(result.data);
+                } else {
+                    Alert.alert('Hata', result.error?.message || 'Davet kodları yüklenemedi');
+                }
             } else {
-                Alert.alert('Hata', result.error?.message || 'Davet kodları yüklenemedi');
+                const result = await MatchInvitationService.getMatchInvitations(targetId, user.id);
+
+                if (result.success && result.data) {
+                    setInvitations(result.data);
+                } else {
+                    Alert.alert('Hata', result.error?.message || 'Davet kodları yüklenemedi');
+                }
             }
         } catch (error) {
             console.error('Error loading invitations:', error);
@@ -68,19 +105,25 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [type, targetId, user?.id]);
 
-    const handleRefresh = async () => {
+    const handleRefresh = useCallback(async () => {
         setRefreshing(true);
         await loadInvitations();
         setRefreshing(false);
-    };
+    }, [loadInvitations]);
 
     // ============================================
     // ACTIONS
     // ============================================
+
     const handleCreateNew = () => {
-        NavigationService.navigateToCreateLeagueInvitation(leagueId, leagueTitle);
+        NavigationService.navigateToCreateInvitation(
+            type,
+            targetId,
+            targetTitle,
+            sportType,
+        );
     };
 
     const handleCopyCode = async (code: string) => {
@@ -88,54 +131,64 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
         Alert.alert('Kopyalandı', 'Davet kodu panoya kopyalandı');
     };
 
-    const handleShareInvite = async (invite: ILeagueInvitation) => {
+    const handleShareInvite = async (invite: ILeagueInvitation | IMatchInvitation) => {
         try {
+            const message =
+                type === 'league'
+                    ? `${targetTitle} ligine katıl!\n\nDavet Kodu: ${invite.code}\nLink: ${invite.inviteLink}`
+                    : `${targetTitle} maçına katıl!\n\nDavet Kodu: ${invite.code}\nLink: ${invite.inviteLink}`;
+
             await Share.share({
-                message: `${leagueTitle} ligine katıl!\n\nDavet Kodu: ${invite.code}\nLink: ${invite.inviteLink}`,
-                title: 'Lig Daveti',
+                message,
+                title: type === 'league' ? 'Lig Daveti' : 'Maç Daveti',
             });
         } catch (error) {
             console.error('Error sharing:', error);
         }
     };
 
-    const handleToggleActive = async (invite: ILeagueInvitation) => {
+    const handleToggleActive = async (invite: ILeagueInvitation | IMatchInvitation) => {
         if (!user?.id) return;
 
-        const action = invite.isActive ? 'devre dışı bırakmak' : 'aktif etmek';
+        const isActive = invite.status === InvitationStatus.ACTIVE;
+        const action = isActive ? 'devre dışı bırakmak' : 'aktif etmek';
 
-        Alert.alert(
-            'Onay',
-            `Bu davet kodunu ${action} istediğinize emin misiniz?`,
-            [
-                { text: 'İptal', style: 'cancel' },
-                {
-                    text: 'Evet',
-                    onPress: async () => {
-                        try {
-                            const result = invite.isActive
+        Alert.alert('Onay', `Bu davet kodunu ${action} istediğinize emin misiniz?`, [
+            { text: 'İptal', style: 'cancel' },
+            {
+                text: 'Evet',
+                onPress: async () => {
+                    try {
+                        let result;
+
+                        if (type === 'league') {
+                            result = isActive
                                 ? await LeagueInvitationService.deactivateInvite(invite.id!, user.id)
                                 : await LeagueInvitationService.reactivateInvite(invite.id!, user.id);
-
-                            if (result.success) {
-                                Alert.alert('Başarılı', `Davet kodu ${invite.isActive ? 'devre dışı bırakıldı' : 'aktif edildi'}`);
-                                loadInvitations();
-                            } else {
-                                Alert.alert('Hata', result.error?.message || 'İşlem başarısız');
-                            }
-                        } catch (error) {
-                            console.error('Error toggling invite:', error);
-                            Alert.alert('Hata', 'Beklenmeyen bir hata oluştu');
-                        } finally {
-                            setSelectedInvite(null);
+                        } else {
+                            result = isActive
+                                ? await MatchInvitationService.deactivateInvite(invite.id!, user.id)
+                                : { success: false, error: { message: 'Match invitations cannot be reactivated' } };
                         }
-                    },
+
+                        if (result.success) {
+                            Alert.alert('Başarılı', `Davet kodu ${isActive ? 'devre dışı bırakıldı' : 'aktif edildi'}`);
+                            loadInvitations();
+                        } else {
+                            Alert.alert('Hata', result.error?.message || 'İşlem başarısız');
+                        }
+                    } catch (error) {
+                        console.error('Error toggling invite:', error);
+                        Alert.alert('Hata', 'Beklenmeyen bir hata oluştu');
+                    } finally {
+                        setSelectedInvite(null);
+                    }
                 },
-            ]
-        );
+            },
+        ]);
     };
 
-    const handleDelete = async (invite: ILeagueInvitation) => {
+    const handleDelete = async (invite: ILeagueInvitation | IMatchInvitation) => {
         if (!user?.id) return;
 
         Alert.alert(
@@ -148,7 +201,13 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
                     style: 'destructive',
                     onPress: async () => {
                         try {
-                            const result = await LeagueInvitationService.deleteInvite(invite.id!, user.id);
+                            let result;
+
+                            if (type === 'league') {
+                                result = await LeagueInvitationService.deleteInvite(invite.id!, user.id);
+                            } else {
+                                result = await MatchInvitationService.deleteInvite(invite.id!, user.id);
+                            }
 
                             if (result.success) {
                                 Alert.alert('Başarılı', 'Davet kodu silindi');
@@ -171,10 +230,34 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
     // ============================================
     // RENDER INVITATION CARD
     // ============================================
-    const renderInvitationCard = ({ item }: { item: ILeagueInvitation }) => {
-        const isExpired = item.expiresAt && new Date(item.expiresAt) < new Date();
+
+    const getExpiryDate = (expiresAt: any): Date | null => {
+        if (!expiresAt) return null;
+
+        // Firestore Timestamp
+        if (expiresAt.toDate && typeof expiresAt.toDate === 'function') {
+            return expiresAt.toDate();
+        }
+
+        // Already a Date
+        if (expiresAt instanceof Date) {
+            return expiresAt;
+        }
+
+        // ISO string
+        if (typeof expiresAt === 'string') {
+            return new Date(expiresAt);
+        }
+
+        return null;
+    };
+    const renderInvitationCard = ({ item }: { item: ILeagueInvitation | IMatchInvitation }) => {
+        const expiryDate = getExpiryDate(item.expiresAt);
+        const isExpired = expiryDate && expiryDate < new Date();
         const isMaxedOut = item.maxUses && item.usedCount >= item.maxUses;
-        const isInactive = !item.isActive || isExpired || isMaxedOut;
+        const isInactive =
+            item.status !== InvitationStatus.ACTIVE || isExpired || isMaxedOut;
+
 
         return (
             <View style={[styles.card, isInactive ? styles.cardInactive : null]}>
@@ -187,12 +270,14 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
                             onPress={() => handleCopyCode(item.code)}
                             activeOpacity={0.7}
                         >
-                            <Copy size={16} color={isInactive ? '#9CA3AF' : '#16a34a'} strokeWidth={2} />
+                            <Copy size={16} color={isInactive ? '#9CA3AF' : sportColor} strokeWidth={2} />
                         </TouchableOpacity>
                     </View>
 
                     <TouchableOpacity
-                        onPress={() => setSelectedInvite(selectedInvite === item.id ? null : item.id!)}
+                        onPress={() =>
+                            setSelectedInvite(selectedInvite === item.id ? null : item.id!)
+                        }
                         style={styles.menuButton}
                         activeOpacity={0.7}
                     >
@@ -200,9 +285,9 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
                     </TouchableOpacity>
                 </View>
 
-                {/* Status Badge */}
+                {/* Status Badges */}
                 <View style={styles.statusBadges}>
-                    {!item.isActive && (
+                    {item.status === InvitationStatus.DISABLED && (
                         <View style={[styles.badge, styles.badgeInactive]}>
                             <Text style={styles.badgeText}>Devre Dışı</Text>
                         </View>
@@ -217,7 +302,7 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
                             <Text style={styles.badgeText}>Limit Doldu</Text>
                         </View>
                     )}
-                    {item.isActive && !isExpired && !isMaxedOut && (
+                    {item.status === InvitationStatus.ACTIVE && !isExpired && !isMaxedOut && (
                         <View style={[styles.badge, styles.badgeActive]}>
                             <Text style={styles.badgeText}>Aktif</Text>
                         </View>
@@ -225,15 +310,15 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
                 </View>
 
                 {/* Description */}
-                {item.metadata.description && (
-                    <Text style={styles.description}>{item.metadata.description}</Text>
+                {item.settings.description && (
+                    <Text style={styles.description}>{item.settings.description}</Text>
                 )}
 
                 {/* Stats */}
                 <View style={styles.stats}>
                     <View style={styles.statItem}>
                         <Eye size={14} color="#6B7280" strokeWidth={2} />
-                        <Text style={styles.statText}>{item.stats.totalViews} görüntüleme</Text>
+                        <Text style={styles.statText}>{item.stats?.totalViews} görüntüleme</Text>
                     </View>
 
                     <View style={styles.statItem}>
@@ -245,11 +330,11 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
                 </View>
 
                 {/* Expiry Info */}
-                {item.expiresAt && (
+                {expiryDate && (
                     <View style={styles.expiryInfo}>
                         <Calendar size={14} color="#6B7280" strokeWidth={2} />
                         <Text style={styles.expiryText}>
-                            {new Date(item.expiresAt).toLocaleDateString('tr-TR')} tarihine kadar
+                            {expiryDate.toLocaleDateString('tr-TR')} tarihine kadar
                         </Text>
                     </View>
                 )}
@@ -271,7 +356,7 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
                             onPress={() => handleToggleActive(item)}
                             activeOpacity={0.7}
                         >
-                            {item.isActive ? (
+                            {item.status === InvitationStatus.ACTIVE ? (
                                 <>
                                     <PowerOff size={18} color="#6B7280" strokeWidth={2} />
                                     <Text style={styles.actionText}>Devre Dışı Bırak</Text>
@@ -301,17 +386,20 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
     // ============================================
     // RENDER EMPTY STATE
     // ============================================
+
     const renderEmptyState = () => (
         <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-                <Share2 size={40} color="#D1D5DB" strokeWidth={2} />
+                <Text style={styles.emptyEmoji}>{sportEmoji}</Text>
             </View>
             <Text style={styles.emptyTitle}>Henüz Davet Kodu Yok</Text>
             <Text style={styles.emptyText}>
-                Yeni üye eklemek için davet kodu oluşturun
+                {type === 'league'
+                    ? 'Yeni üye eklemek için davet kodu oluşturun'
+                    : 'Oyuncu çağırmak için davet kodu oluşturun'}
             </Text>
             <TouchableOpacity
-                style={styles.emptyButton}
+                style={[styles.emptyButton, { backgroundColor: sportColor }]}
                 onPress={handleCreateNew}
                 activeOpacity={0.7}
             >
@@ -324,10 +412,11 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
     // ============================================
     // MAIN RENDER
     // ============================================
+
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#16a34a" />
+                <ActivityIndicator size="large" color={sportColor} />
                 <Text style={styles.loadingText}>Yükleniyor...</Text>
             </View>
         );
@@ -342,7 +431,8 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
                 onLeftPress={() => NavigationService.goBack()}
                 showCreate={true}
                 onCreatePress={handleCreateNew}
-                subtitle={leagueTitle}
+                subtitle={targetTitle}
+                sportType={sportType}
             />
 
             {/* Content */}
@@ -356,7 +446,8 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={handleRefresh}
-                        tintColor="#16a34a"
+                        tintColor={sportColor}
+                        colors={[sportColor]}
                     />
                 }
             />
@@ -367,6 +458,7 @@ export const ManageLeagueInvitationsScreen: React.FC = () => {
 // ============================================
 // STYLES
 // ============================================
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -389,10 +481,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: 'white',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
+        paddingTop: 50,
+        paddingBottom: 16,
     },
     headerButton: {
         width: 40,
@@ -401,16 +491,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     headerCenter: {
+        flex: 1,
         alignItems: 'center',
     },
     headerTitle: {
-        fontSize: 17,
+        fontSize: 18,
         fontWeight: '700',
-        color: '#1F2937',
+        color: 'white',
     },
     headerSubtitle: {
         fontSize: 13,
-        color: '#6B7280',
+        color: 'rgba(255,255,255,0.9)',
         marginTop: 2,
     },
     listContent: {
@@ -554,6 +645,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 24,
     },
+    emptyEmoji: {
+        fontSize: 40,
+    },
     emptyTitle: {
         fontSize: 20,
         fontWeight: '800',
@@ -574,7 +668,6 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
         paddingHorizontal: 24,
         borderRadius: 12,
-        backgroundColor: '#16a34a',
     },
     emptyButtonText: {
         fontSize: 15,

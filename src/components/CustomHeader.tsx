@@ -1,26 +1,36 @@
 // components/CustomHeader.tsx
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import { 
-  Menu, 
-  ChevronLeft, 
-  X, 
-  Plus, 
-  Search, 
-  Bell, 
-  Edit2, 
+import { View, Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native';
+import {
+  Menu,
+  ChevronLeft,
+  X,
+  Plus,
+  Search,
+  Bell,
+  Edit2,
   Save,
   Filter,
   MoreVertical,
   Settings,
+  Trophy,
+  Share2,
+  Bookmark,
 } from 'lucide-react-native';
 import { useSideMenu } from '../context/SideMenuContext';
+import type { SportType } from '../types/entity/types';
+import { getSportEmoji, getSportPrimaryColor } from '../utils/theme';
 
 interface CustomHeaderProps {
   // Title
   title: string;
   subtitle?: string;
+
+  // Sport icon - Branş ikonu göstermek için
+  sportType?: SportType;
+  showIcon?: boolean;
+  customIcon?: React.ComponentType<any> | string; // Lucide icon veya emoji string
 
   // LEFT BUTTON (Sadece biri seçilebilir)
   showMenu?: boolean;        // Ana tab ekranları için
@@ -37,6 +47,8 @@ interface CustomHeaderProps {
   showFilter?: boolean;
   showMore?: boolean;
   showSettings?: boolean;
+  showShare?: boolean;
+  showBookmark?: boolean;
 
   // Callbacks
   onNotificationPress?: () => void;
@@ -47,16 +59,23 @@ interface CustomHeaderProps {
   onFilterPress?: () => void;
   onMorePress?: () => void;
   onSettingsPress?: () => void;
+  onSharePress?: () => void;
+  onBookmarkPress?: () => void;
 
   // Styling
   backgroundColor?: string;
-  notificationCount?: number; // Badge için
-  loading?: boolean; // Save butonu için loading state
+  textColor?: string;          // Title ve subtitle text rengi
+  iconColor?: string;          // Icon renkleri
+  notificationCount?: number;  // Badge için
+  loading?: boolean;           // Save butonu için loading state
+  disableSave?: boolean;      // Save butonu için disable state
 }
 
 export const CustomHeader: React.FC<CustomHeaderProps> = ({
   title,
   subtitle,
+  sportType,
+  showIcon: showIcon = false,
   showMenu = false,
   showBack = false,
   showClose = false,
@@ -69,6 +88,8 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
   showFilter = false,
   showMore = false,
   showSettings = false,
+  showShare = false,
+  showBookmark = false,
   onNotificationPress,
   onSearchPress,
   onCreatePress,
@@ -77,11 +98,26 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
   onFilterPress,
   onMorePress,
   onSettingsPress,
+  onSharePress,
+  onBookmarkPress,
   backgroundColor = '#16a34a',
+  textColor = 'white',
+  iconColor = 'white',
   notificationCount,
   loading = false,
+  disableSave = false,
+  customIcon
 }) => {
   const { openMenu } = useSideMenu();
+
+  // Sport config'den icon ve renk al
+  const SportIcon = customIcon ? customIcon : (sportType ? getSportEmoji(sportType) || null : null);
+  const sportColor = sportType ? getSportPrimaryColor(sportType) || backgroundColor : backgroundColor;
+
+  // Eğer sportType varsa ve backgroundColor default ise, sport rengini kullan
+  const finalBackgroundColor = sportType && backgroundColor === '#16a34a'
+    ? sportColor
+    : backgroundColor;
 
   // LEFT BUTTON HANDLER
   const handleLeftPress = () => {
@@ -96,36 +132,36 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
   const renderLeftButton = () => {
     if (showMenu) {
       return (
-        <TouchableOpacity 
-          style={styles.button} 
-          onPress={handleLeftPress} 
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleLeftPress}
           activeOpacity={0.7}
         >
-          <Menu size={24} color="white" strokeWidth={2} />
+          <Menu size={24} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
 
     if (showBack) {
       return (
-        <TouchableOpacity 
-          style={styles.button} 
-          onPress={handleLeftPress} 
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleLeftPress}
           activeOpacity={0.7}
         >
-          <ChevronLeft size={24} color="white" strokeWidth={2} />
+          <ChevronLeft size={24} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
 
     if (showClose) {
       return (
-        <TouchableOpacity 
-          style={styles.button} 
-          onPress={handleLeftPress} 
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleLeftPress}
           activeOpacity={0.7}
         >
-          <X size={24} color="white" strokeWidth={2} />
+          <X size={24} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
@@ -140,13 +176,13 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
     // Settings Button
     if (showSettings && onSettingsPress) {
       buttons.push(
-        <TouchableOpacity 
-          key="settings" 
-          style={styles.iconButton} 
-          onPress={onSettingsPress} 
+        <TouchableOpacity
+          key="settings"
+          style={styles.iconButton}
+          onPress={onSettingsPress}
           activeOpacity={0.7}
         >
-          <Settings size={22} color="white" strokeWidth={2} />
+          <Settings size={22} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
@@ -154,13 +190,13 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
     // More Button
     if (showMore && onMorePress) {
       buttons.push(
-        <TouchableOpacity 
-          key="more" 
-          style={styles.iconButton} 
-          onPress={onMorePress} 
+        <TouchableOpacity
+          key="more"
+          style={styles.iconButton}
+          onPress={onMorePress}
           activeOpacity={0.7}
         >
-          <MoreVertical size={22} color="white" strokeWidth={2} />
+          <MoreVertical size={22} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
@@ -168,13 +204,13 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
     // Filter Button
     if (showFilter && onFilterPress) {
       buttons.push(
-        <TouchableOpacity 
-          key="filter" 
-          style={styles.iconButton} 
-          onPress={onFilterPress} 
+        <TouchableOpacity
+          key="filter"
+          style={styles.iconButton}
+          onPress={onFilterPress}
           activeOpacity={0.7}
         >
-          <Filter size={20} color="white" strokeWidth={2} />
+          <Filter size={20} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
@@ -182,13 +218,13 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
     // Search Button
     if (showSearch && onSearchPress) {
       buttons.push(
-        <TouchableOpacity 
-          key="search" 
-          style={styles.iconButton} 
-          onPress={onSearchPress} 
+        <TouchableOpacity
+          key="search"
+          style={styles.iconButton}
+          onPress={onSearchPress}
           activeOpacity={0.7}
         >
-          <Search size={22} color="white" strokeWidth={2} />
+          <Search size={22} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
@@ -196,13 +232,13 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
     // Create Button
     if (showCreate && onCreatePress) {
       buttons.push(
-        <TouchableOpacity 
-          key="create" 
-          style={styles.iconButton} 
-          onPress={onCreatePress} 
+        <TouchableOpacity
+          key="create"
+          style={styles.iconButton}
+          onPress={onCreatePress}
           activeOpacity={0.7}
         >
-          <Plus size={24} color="white" strokeWidth={2} />
+          <Plus size={24} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
@@ -210,13 +246,13 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
     // Edit Button
     if (showEdit && onEditPress) {
       buttons.push(
-        <TouchableOpacity 
-          key="edit" 
-          style={styles.iconButton} 
-          onPress={onEditPress} 
+        <TouchableOpacity
+          key="edit"
+          style={styles.iconButton}
+          onPress={onEditPress}
           activeOpacity={0.7}
         >
-          <Edit2 size={20} color="white" strokeWidth={2} />
+          <Edit2 size={20} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
@@ -224,18 +260,31 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
     // Save Button (with loading state)
     if (showSave && onSavePress) {
       buttons.push(
-        <TouchableOpacity 
-          key="save" 
-          style={styles.iconButton} 
-          onPress={onSavePress} 
+        <TouchableOpacity
+          key="save"
+          style={styles.iconButton}
+          onPress={onSavePress}
           activeOpacity={0.7}
-          disabled={loading}
+          disabled={disableSave || loading}
         >
           {loading ? (
-            <View style={styles.loadingDot} />
+            // <View style={styles.loadingDot} />
+            <ActivityIndicator size="small" color="white" />
           ) : (
-            <Save size={20} color="white" strokeWidth={2} />
+            <Save size={20} color={iconColor} strokeWidth={2} />
           )}
+        </TouchableOpacity>
+      );
+    }
+    if (showBookmark && onBookmarkPress) {
+      buttons.push(
+        <TouchableOpacity
+          key="bookmark"
+          style={styles.iconButton}
+          onPress={onBookmarkPress}
+          activeOpacity={0.7}
+        >
+          <Bookmark size={22} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
@@ -243,14 +292,14 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
     // Notification Button (with badge)
     if (showNotifications && onNotificationPress) {
       buttons.push(
-        <TouchableOpacity 
-          key="notification" 
-          style={styles.iconButton} 
-          onPress={onNotificationPress} 
+        <TouchableOpacity
+          key="notification"
+          style={styles.iconButton}
+          onPress={onNotificationPress}
           activeOpacity={0.7}
         >
           <View>
-            <Bell size={22} color="white" strokeWidth={2} />
+            <Bell size={22} color={iconColor} strokeWidth={2} />
             {notificationCount && notificationCount > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>
@@ -259,6 +308,19 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
               </View>
             )}
           </View>
+        </TouchableOpacity>
+      );
+    }
+    // Share Button
+    if (showShare && onSharePress) {
+      buttons.push(
+        <TouchableOpacity
+          key="share"
+          style={styles.iconButton}
+          onPress={onSharePress}
+          activeOpacity={0.7}
+        >
+          <Share2 size={22} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
       );
     }
@@ -271,17 +333,34 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
   };
 
   return (
-    <View style={[styles.header, { backgroundColor }]}>
+    <View style={[styles.header, { backgroundColor: finalBackgroundColor }]}>
       {/* Left Button */}
       {renderLeftButton()}
 
-      {/* Center Title */}
+      {/* Center Title with Sport Icon */}
       <View style={styles.titleContainer}>
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
+        <View style={styles.titleRow}>
+          {showIcon && SportIcon && (
+            <View style={styles.sportIconContainer}>
+              {typeof SportIcon === 'string' ? (
+                <Text style={styles.sportEmoji}>{SportIcon}</Text>
+              ) : (
+                <SportIcon size={20} color={textColor} strokeWidth={2} />
+              )}
+            </View>
+          )}
+          <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>
+            {title}
+          </Text>
+        </View>
         {subtitle && (
-          <Text style={styles.subtitle} numberOfLines={1}>
+          <Text
+            style={[
+              styles.subtitle,
+              { color: textColor === 'white' ? 'rgba(255, 255, 255, 0.9)' : textColor }
+            ]}
+            numberOfLines={1}
+          >
             {subtitle}
           </Text>
         )}
@@ -329,16 +408,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sportIconContainer: {
+    marginRight: 8,
+  },
+  sportEmoji: {
+  fontSize: 20,
+  lineHeight: 20,
+},
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'white',
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 12,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 2,
     textAlign: 'center',
   },
@@ -361,10 +450,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'white',
   },
-  loadingDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  headerEmoji: {
+    fontSize: 20,
   },
 });

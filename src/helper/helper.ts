@@ -1,3 +1,4 @@
+import { IMatch } from "../types/entity/types";
 import { IPlayer } from "../types/types";
 
 const formatPhoneNumber = (value: any) => {
@@ -15,7 +16,29 @@ const isProfileComplete = (user: IPlayer | null): boolean => {
     return requiredFields.every(field => user[field as keyof IPlayer]);
 };
 
+
+  const isPlayerInMatch = (eligiblePlayers: { all: string[]; squad: string[]; reserve: string[] }, match: IMatch, playerId: string): boolean => {
+    if (eligiblePlayers.all.some(id => id === playerId)) return true;
+
+    // Check registered
+    if (match.players.registered?.some(r => r.playerId === playerId)) return true;
+
+    // Check guests
+    if (match.players.guests?.includes(playerId)) return true;
+
+    // Check teams
+    if (match.players.teams) {
+      const inTeam1 = match.players.teams.team1.some(p => p.playerId === playerId);
+      const inTeam2 = match.players.teams.team2.some(p => p.playerId === playerId);
+      return inTeam1 || inTeam2;
+    }
+
+    return false;
+  };
+
+
 export {
     formatPhoneNumber,
-    isProfileComplete
+    isProfileComplete,
+    isPlayerInMatch
 }

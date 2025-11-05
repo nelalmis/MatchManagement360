@@ -1,6 +1,7 @@
-// screens/Match/MatchRegistrationScreen.tsx
+// src/screens/Match/MatchRegistrationScreen.tsx
+// 🎯 MODERN MATCH REGISTRATION - League & Friendly Support
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     View,
     Text,
@@ -11,8 +12,6 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import {
-    X,
-    Check,
     Calendar,
     MapPin,
     Users,
@@ -26,23 +25,29 @@ import {
     User,
     ArrowRight,
     Sparkles,
+    Trophy,
+    Globe,
+    Lock,
+    Check,
+    X,
+    CheckCircle,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import {
     IMatch,
-    IMatchFixture,
-    IPlayer,
-    getSportIcon,
-    getSportColor,
+    IFixture,
+    ILeague,
     MatchType,
-} from '../../types/types';
-import { canRegisterToMatch } from '../../helper/matchRegisterHelper';
-import { matchService } from '../../services/matchService';
-import { matchFixtureService } from '../../services/matchFixtureService';
-import { playerService } from '../../services/playerService';
+    MatchStatus,
+    SPORT_CONFIGS,
+} from '../../types/entity/types';
+import { MatchService } from '../../services/serviceLayer/matchService';
+import { FixtureService } from '../../services/serviceLayer/fixtureService';
+import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
 import { useAuth } from '../../hooks';
+import { CustomHeader } from '../../components/CustomHeader';
 
 export const MatchRegistrationScreen: React.FC = () => {
     const route: any = useRoute();
@@ -50,114 +55,144 @@ export const MatchRegistrationScreen: React.FC = () => {
     const matchId = route.params?.matchId;
 
     const [match, setMatch] = useState<IMatch | null>(null);
-    const [fixture, setFixture] = useState<IMatchFixture | null>(null);
-    const [registeredPlayers, setRegisteredPlayers] = useState<IPlayer[]>([]);
+    const [fixture, setFixture] = useState<IFixture | null>(null);
+    const [league, setLeague] = useState<ILeague | null>(null);
     const [loading, setLoading] = useState(true);
     const [registering, setRegistering] = useState(false);
 
     const [isRegistered, setIsRegistered] = useState(false);
-    const [isReserve, setIsReserve] = useState(false);
-    const [availableSlots, setAvailableSlots] = useState(0);
-    const [reserveSlots, setReserveSlots] = useState(0);
+    const [isInvited, setIsInvited] = useState(false);
 
     useEffect(() => {
         loadData();
     }, [matchId]);
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         if (!matchId || !user?.id) {
-            Alert.alert('Hata', 'Maç ID bulunamadı');
+            Alert.alert('Hata', 'Geçersiz bilgi');
             NavigationService.goBack();
             return;
         }
 
+        console.log('Loading match registration for matchId:', matchId);
+        console.log('Current userId:', user.id);
         try {
             setLoading(true);
 
-            const matchData = await matchService.getById(matchId);
-            if (!matchData) {
+            // Get match
+            const matchResult = await MatchService.getMatch(matchId);
+            if (!matchResult.success || !matchResult.data) {
                 Alert.alert('Hata', 'Maç bulunamadı');
                 NavigationService.goBack();
                 return;
             }
 
+            const matchData = matchResult.data;
             setMatch(matchData);
 
-            // Get fixture
-            const fixtureData = await matchFixtureService.getById(matchData.fixtureId);
-            setFixture(fixtureData);
+            const isFriendly = matchData.type === MatchType.FRIENDLY;
+
+            // Get fixture & league for League matches
+            if (!isFriendly && matchData.fixtureId) {
+                const fixtureResult = await FixtureService.getFixture(matchData.fixtureId);
+                if (fixtureResult.success && fixtureResult.data) {
+                    setFixture(fixtureResult.data);
+
+                    if (matchData.leagueId) {
+                        const leagueResult = await LeagueService.getLeague(matchData.leagueId);
+                        if (leagueResult.success && leagueResult.data) {
+                            setLeague(leagueResult.data);
+                        }
+                    }
+                }
+            } else if (isFriendly && matchData.linkedLeagueId) {
+                // Friendly match bağlı liga
+                const leagueResult = await LeagueService.getLeague(matchData.linkedLeagueId);
+                if (leagueResult.success && leagueResult.data) {
+                    setLeague(leagueResult.data);
+                }
+            }
 
             // Check registration status
-            const registered = matchData.registeredPlayerIds?.includes(user.id) || false;
-            const reserve = matchData.reservePlayerIds?.includes(user.id) || false;
-
+            const registered = isPlayerInMatch(matchData, user.id);
             setIsRegistered(registered);
-            setIsReserve(reserve);
 
-            // Calculate slots
-            const totalRegistered = matchData.registeredPlayerIds?.length || 0;
-            const totalDirect = matchData.directPlayerIds?.length || 0;
-            const totalPremium = matchData.premiumPlayerIds?.length || 0;
-
-            const staffSlots = fixtureData?.staffPlayerCount || 0;
-            const reserveCount = fixtureData?.reservePlayerCount || 0;
-
-            const occupied = totalRegistered + totalDirect;
-            const available = Math.max(0, staffSlots - occupied);
-            const reserveOccupied = matchData.reservePlayerIds?.length || 0;
-            const reserveAvailable = Math.max(0, reserveCount - reserveOccupied);
-
-            setAvailableSlots(available);
-            setReserveSlots(reserveAvailable);
-
-            // Load registered players
-            if (matchData.registeredPlayerIds && matchData.registeredPlayerIds.length > 0) {
-                const players = await playerService.getPlayersByIds(matchData.registeredPlayerIds);
-                setRegisteredPlayers(players);
+            // Check invitation status (friendly için)
+            if (isFriendly && matchData.friendlySettings && !matchData.friendlySettings.isPublic) {
+                const invited = matchData.friendlySettings.invitedPlayerIds?.includes(user.id) || false;
+                setIsInvited(invited);
             }
 
         } catch (error) {
             console.error('Error loading match:', error);
             Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu');
+            NavigationService.goBack();
         } finally {
             setLoading(false);
         }
+    }, [matchId, user?.id]);
+
+    const isPlayerInMatch = (match: IMatch, playerId: string): boolean => {
+        // Check registered
+        if (match.players.registered?.some(r => r.playerId === playerId)) return true;
+
+        // Check guests
+        if (match.players.guests?.includes(playerId)) return true;
+
+        // Check teams
+        if (match.players.teams) {
+            const inTeam1 = match.players.teams.team1.some(p => p.playerId === playerId);
+            const inTeam2 = match.players.teams.team2.some(p => p.playerId === playerId);
+            return inTeam1 || inTeam2;
+        }
+
+        return false;
     };
 
     const handleRegister = async () => {
         if (!match || !user?.id) return;
 
         // Check if registration is open
-        if (match.status !== 'Kayıt Açık') {
+        if (match.status !== MatchStatus.REGISTRATION_OPEN) {
             Alert.alert('Uyarı', 'Kayıtlar kapalı');
             return;
         }
 
         // Check registration time
         const now = new Date();
-        if (now < new Date(match.registrationTime)) {
-            Alert.alert('Uyarı', 'Kayıt henüz başlamadı');
-            return;
-        }
+        const registrationEnd = match.schedule.registrationEnd;
 
-        if (now > new Date(match.registrationEndTime)) {
+        if (registrationEnd && now > new Date(registrationEnd)) {
             Alert.alert('Uyarı', 'Kayıt süresi doldu');
             return;
         }
 
+        // Friendly match için davet kontrolü
+        if (isFriendly && match.friendlySettings && !match.friendlySettings.isPublic) {
+            if (!isInvited) {
+                Alert.alert('Uyarı', 'Bu maça davet edilmediniz');
+                return;
+            }
+        }
+
+        const alertTitle = isFriendly && !match.friendlySettings?.isPublic ? 'Daveti Kabul Et' : 'Kayıt Ol';
+        const alertMessage = isFriendly && !match.friendlySettings?.isPublic
+            ? `${match.title} maçına katılmak istediğinize emin misiniz?`
+            : `${match.title} maçına kayıt olmak istediğinize emin misiniz?`;
+
         Alert.alert(
-            'Kayıt Ol',
-            `${match.title} maçına kayıt olmak istediğinize emin misiniz?`,
+            alertTitle,
+            alertMessage,
             [
                 { text: 'İptal', style: 'cancel' },
                 {
-                    text: 'Kayıt Ol',
+                    text: 'Evet',
                     onPress: async () => {
                         try {
                             setRegistering(true);
-                            const success = await matchService.registerPlayer(match.id, user.id);
+                            const result = await MatchService.registerPlayer(match.id!, user.id);
 
-                            if (success) {
+                            if (result.success) {
                                 eventManager.emit(Events.MATCH_REGISTERED, {
                                     matchId: match.id,
                                     timestamp: Date.now()
@@ -165,9 +200,9 @@ export const MatchRegistrationScreen: React.FC = () => {
 
                                 Alert.alert(
                                     'Başarılı! 🎉',
-                                    availableSlots > 0
+                                    hasAvailableSlots
                                         ? 'Maça başarıyla kayıt oldunuz!'
-                                        : 'Yedek listesine eklendi. Kadro oluşturulduğunda bilgilendirileceksiniz.',
+                                        : 'Kadro dolu. Bir yer açılırsa bilgilendirileceksiniz.',
                                     [
                                         {
                                             text: 'Tamam',
@@ -176,9 +211,10 @@ export const MatchRegistrationScreen: React.FC = () => {
                                     ]
                                 );
                             } else {
-                                Alert.alert('Hata', 'Kayıt işlemi başarısız oldu');
+                                Alert.alert('Hata', result.error?.message || 'Kayıt işlemi başarısız oldu');
                             }
                         } catch (error) {
+                            console.error('Registration error:', error);
                             Alert.alert('Hata', 'Kayıt sırasında bir hata oluştu');
                         } finally {
                             setRegistering(false);
@@ -203,9 +239,9 @@ export const MatchRegistrationScreen: React.FC = () => {
                     onPress: async () => {
                         try {
                             setRegistering(true);
-                            const success = await matchService.unregisterPlayer(match.id, user.id);
+                            const result = await MatchService.unregisterPlayer(match.id!, user.id);
 
-                            if (success) {
+                            if (result.success) {
                                 eventManager.emit(Events.MATCH_UNREGISTERED, {
                                     matchId: match.id,
                                     timestamp: Date.now()
@@ -218,9 +254,10 @@ export const MatchRegistrationScreen: React.FC = () => {
                                     }
                                 ]);
                             } else {
-                                Alert.alert('Hata', 'İptal işlemi başarısız oldu');
+                                Alert.alert('Hata', result.error?.message || 'İptal işlemi başarısız oldu');
                             }
                         } catch (error) {
+                            console.error('Unregister error:', error);
                             Alert.alert('Hata', 'İptal sırasında bir hata oluştu');
                         } finally {
                             setRegistering(false);
@@ -236,47 +273,123 @@ export const MatchRegistrationScreen: React.FC = () => {
         NavigationService.navigateToMatch(match.id);
     };
 
-    const formatDateTime = (date: Date) => {
+    const formatDateTime = useCallback((date: Date) => {
         return new Date(date).toLocaleDateString('tr-TR', {
             day: 'numeric',
             month: 'long',
             hour: '2-digit',
             minute: '2-digit',
         });
-    };
+    }, []);
 
-    const formatDate = (date: Date) => {
+    const formatDate = useCallback((date: Date) => {
         return new Date(date).toLocaleDateString('tr-TR', {
             day: 'numeric',
             month: 'long',
             year: 'numeric',
         });
-    };
+    }, []);
 
-    const formatTime = (date: Date) => {
+    const formatTime = useCallback((date: Date) => {
         return new Date(date).toLocaleTimeString('tr-TR', {
             hour: '2-digit',
             minute: '2-digit',
         });
-    };
+    }, []);
 
-    const getRegistrationStatus = () => {
+    // Memoized values
+    const isFriendly = useMemo(() =>
+        match?.type === MatchType.FRIENDLY,
+        [match]
+    );
+
+    const sportType = useMemo(() => {
+        if (match?.sportType) return match.sportType;
+        if (league) return league.sportType;
+        return undefined;
+    }, [match, league]);
+
+    const sportColor = useMemo(() =>
+        sportType ? SPORT_CONFIGS[sportType].color : '#16a34a',
+        [sportType]
+    );
+
+    const eligiblePlayers = useMemo(() => {
+        if (!match) return { all: [], squad: [], reserve: [] };
+        return MatchService.getEligiblePlayers(match);
+    }, [match]);
+
+    const registeredCount = useMemo(() => {
+        if (!match) return 0;
+        return eligiblePlayers.all.length;
+    }, [eligiblePlayers, match]);
+
+    const totalSlots = useMemo(() => {
+        return (match?.squad?.totalPlayers || 0) + (match?.squad?.reservePlayers || 0);
+    }, [match]);
+
+    const hasAvailableSlots = useMemo(() => {
+        return registeredCount < totalSlots;
+    }, [registeredCount, totalSlots]);
+
+    const availableSlots = useMemo(() => {
+        return Math.max(0, totalSlots - registeredCount);
+    }, [totalSlots, registeredCount]);
+
+    const getRegistrationStatus = useCallback(() => {
         if (!match) return { color: '#9CA3AF', text: 'Bilinmiyor', icon: AlertCircle };
 
-        const now = new Date();
-        const regStart = new Date(match.registrationTime);
-        const regEnd = new Date(match.registrationEndTime);
-
-        if (now < regStart) {
-            return { color: '#F59E0B', text: 'Henüz Başlamadı', icon: Clock };
-        }
-        if (now > regEnd || match.status !== 'Kayıt Açık') {
+        if (match.status !== MatchStatus.REGISTRATION_OPEN) {
             return { color: '#DC2626', text: 'Kapandı', icon: X };
         }
-        return { color: '#10B981', text: 'Açık', icon: Check };
-    };
 
-    if (loading || !match || !fixture) {
+        const now = new Date();
+        const regEnd = match.schedule.registrationEnd;
+
+        if (regEnd && now > new Date(regEnd)) {
+            return { color: '#DC2626', text: 'Süresi Doldu', icon: X };
+        }
+
+        return { color: '#10B981', text: 'Açık', icon: Check };
+    }, [match]);
+
+    const canUnRegister = useMemo(() => {
+        if (!match || !user?.id) return false;
+        if (!isRegistered) return false;
+
+        const now = new Date();
+        const registrationEnd = match.schedule.registrationEnd;
+
+        if (registrationEnd && now > new Date(registrationEnd)) {
+            return false;
+        }
+        return isRegistered;
+    }, [isRegistered, match, user?.id]);
+
+    const canRegister = useMemo(() => {
+        if (!match || !user?.id) return false;
+
+        // Already registered
+        if (isRegistered) return false;
+
+        // Status check
+        if (match.status !== MatchStatus.REGISTRATION_OPEN) return false;
+
+        // Time check
+        const now = new Date();
+        const regEnd = match.schedule.registrationEnd;
+        if (regEnd && now > new Date(regEnd)) return false;
+
+        // Friendly match için özel kontrol
+        if (isFriendly && match.friendlySettings) {
+            // Public değilse ve davet listesinde değilse kayıt olamaz
+            if (!match.friendlySettings.isPublic && !isInvited) return false;
+        }
+
+        return true;
+    }, [match, user?.id, isRegistered, isFriendly, isInvited]);
+
+    if (loading || !match) {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#16a34a" />
@@ -285,46 +398,63 @@ export const MatchRegistrationScreen: React.FC = () => {
         );
     }
 
-    const sportColor = getSportColor(fixture.sportType);
     const regStatus = getRegistrationStatus();
-    const canRegister = canRegisterToMatch(match, user?.id, fixture);
     const StatusIcon = regStatus.icon;
-    const isFriendly = match.type === MatchType.FRIENDLY;
 
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <View style={[styles.header, { backgroundColor: sportColor }]}>
-                <TouchableOpacity
-                    onPress={() => NavigationService.goBack()}
-                    style={styles.headerButton}
-                    activeOpacity={0.7}
-                >
-                    <X size={24} color="white" strokeWidth={2} />
-                </TouchableOpacity>
+            {/* Custom Header */}
+            <CustomHeader
+                title={isFriendly ? 'Dostluk Maçı' : 'Maç Kaydı'}
+                subtitle={match.title}
+                sportType={sportType}
+                showIcon={!!sportType}
+                showBack={true}
+                onLeftPress={() => NavigationService.goBack()}
+            />
 
-                <View style={styles.headerCenter}>
-                    <Text style={styles.headerTitle}>
-                        {isFriendly ? 'Arkadaşlık Maçı' : 'Maç Kaydı'}
-                    </Text>
-                    <Text style={styles.headerSubtitle}>
-                        {getSportIcon(fixture.sportType)} {match.title}
-                    </Text>
+            <ScrollView
+                style={styles.content}
+                contentContainerStyle={styles.contentContainer}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Match Type Badges */}
+                <View style={styles.badgesContainer}>
+                    {isFriendly ? (
+                        <View style={[styles.typeBadge, { backgroundColor: '#10B981' + '20' }]}>
+                            <Sparkles size={16} color="#10B981" strokeWidth={2} />
+                            <Text style={[styles.typeBadgeText, { color: '#10B981' }]}>
+                                Dostluk Maçı
+                            </Text>
+                        </View>
+                    ) : (
+                        <View style={[styles.typeBadge, { backgroundColor: '#3B82F6' + '20' }]}>
+                            <Trophy size={16} color="#3B82F6" strokeWidth={2} />
+                            <Text style={[styles.typeBadgeText, { color: '#3B82F6' }]}>
+                                Lig Maçı
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Privacy Badge (Friendly) */}
+                    {isFriendly && match.friendlySettings && (
+                        <View style={[styles.privacyBadge, {
+                            backgroundColor: match.friendlySettings.isPublic ? '#10B981' + '15' : '#F59E0B' + '15'
+                        }]}>
+                            {match.friendlySettings.isPublic ? (
+                                <>
+                                    <Globe size={12} color="#10B981" strokeWidth={2} />
+                                    <Text style={[styles.privacyBadgeText, { color: '#10B981' }]}>Açık</Text>
+                                </>
+                            ) : (
+                                <>
+                                    <Lock size={12} color="#F59E0B" strokeWidth={2} />
+                                    <Text style={[styles.privacyBadgeText, { color: '#F59E0B' }]}>Özel Davet</Text>
+                                </>
+                            )}
+                        </View>
+                    )}
                 </View>
-
-                <View style={styles.headerButton} />
-            </View>
-
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {/* Friendly Match Badge */}
-                {isFriendly && (
-                    <View style={styles.friendlyBadge}>
-                        <Sparkles size={20} color="#F59E0B" strokeWidth={2} />
-                        <Text style={styles.friendlyBadgeText}>
-                            Bu bir arkadaşlık maçıdır
-                        </Text>
-                    </View>
-                )}
 
                 {/* Status Card */}
                 <View style={[styles.statusCard, { backgroundColor: regStatus.color + '20' }]}>
@@ -338,17 +468,30 @@ export const MatchRegistrationScreen: React.FC = () => {
                 </View>
 
                 {/* Current Status */}
-                {(isRegistered || isReserve) && (
+                {isRegistered && (
                     <View style={styles.currentStatusCard}>
-                        <UserCheck size={24} color="#16a34a" strokeWidth={2} />
+                        <CheckCircle size={24} color="#16a34a" strokeWidth={2} />
                         <View style={styles.currentStatusContent}>
                             <Text style={styles.currentStatusTitle}>
-                                {isReserve ? '✋ Yedek Listesinde' : '✅ Kayıtlısınız'}
+                                ✅ Kayıtlısınız
                             </Text>
                             <Text style={styles.currentStatusText}>
-                                {isReserve
-                                    ? 'Kadro oluşturulduğunda bilgilendirileceksiniz'
-                                    : 'Maça katılım onaylandı'}
+                                Maça katılım onaylandı
+                            </Text>
+                        </View>
+                    </View>
+                )}
+
+                {/* Invitation Status (Private Friendly) */}
+                {isFriendly && match.friendlySettings && !match.friendlySettings.isPublic && isInvited && !isRegistered && (
+                    <View style={styles.invitationCard}>
+                        <Sparkles size={24} color="#F59E0B" strokeWidth={2} />
+                        <View style={styles.invitationContent}>
+                            <Text style={styles.invitationTitle}>
+                                🎉 Davet Edildiniz!
+                            </Text>
+                            <Text style={styles.invitationText}>
+                                Bu özel maça davet edildiniz. Hemen katılın!
                             </Text>
                         </View>
                     </View>
@@ -362,65 +505,69 @@ export const MatchRegistrationScreen: React.FC = () => {
                         <Calendar size={20} color={sportColor} strokeWidth={2} />
                         <View style={styles.infoContent}>
                             <Text style={styles.infoLabel}>Maç Tarihi</Text>
-                            <Text style={styles.infoValue}>{formatDateTime(match.matchStartTime)}</Text>
+                            <Text style={styles.infoValue}>{formatDateTime(match.schedule.matchStart)}</Text>
                         </View>
                     </View>
 
-                    {match.location && (
+                    {match.venue?.location && (
                         <View style={styles.infoCard}>
                             <MapPin size={20} color="#3B82F6" strokeWidth={2} />
                             <View style={styles.infoContent}>
                                 <Text style={styles.infoLabel}>Lokasyon</Text>
-                                <Text style={styles.infoValue}>{match.location}</Text>
+                                <Text style={styles.infoValue}>{match.venue.location}</Text>
                             </View>
                         </View>
                     )}
 
-                    <View style={styles.infoCard}>
-                        <Clock size={20} color="#8B5CF6" strokeWidth={2} />
-                        <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>Kayıt Süresi</Text>
-                            <Text style={styles.infoValue}>
-                                {formatDate(match.registrationTime)} - {formatTime(match.registrationEndTime)}
-                            </Text>
+                    {match.schedule.registrationEnd && (
+                        <View style={styles.infoCard}>
+                            <Clock size={20} color="#8B5CF6" strokeWidth={2} />
+                            <View style={styles.infoContent}>
+                                <Text style={styles.infoLabel}>Kayıt Bitiş</Text>
+                                <Text style={styles.infoValue}>
+                                    {formatDate(match.schedule.registrationEnd)} - {formatTime(match.schedule.registrationEnd)}
+                                </Text>
+                            </View>
                         </View>
-                    </View>
+                    )}
 
-                    {match.pricePerPlayer && match.pricePerPlayer > 0 && (
+                    {match.venue?.pricePerPlayer && match.venue.pricePerPlayer > 0 && (
                         <View style={styles.infoCard}>
                             <DollarSign size={20} color="#10B981" strokeWidth={2} />
                             <View style={styles.infoContent}>
                                 <Text style={styles.infoLabel}>Ücret</Text>
-                                <Text style={styles.infoValue}>{match.pricePerPlayer} ₺ / Kişi</Text>
+                                <Text style={styles.infoValue}>{match.venue.pricePerPlayer} TL / Kişi</Text>
                             </View>
                         </View>
                     )}
-
-                    
                 </View>
 
                 {/* Payment Info - Friendly Match */}
-                {isFriendly && (match.peterIban || match.peterFullName) && (
+                {isFriendly && match.venue?.payment && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Ödeme Bilgileri</Text>
-                        
+
                         <View style={styles.paymentCard}>
-                            {match.peterFullName && (
+                            {match.venue.payment.accountName && (
                                 <View style={styles.paymentRow}>
                                     <User size={18} color="#6B7280" strokeWidth={2} />
                                     <View style={styles.paymentContent}>
                                         <Text style={styles.paymentLabel}>Hesap Sahibi</Text>
-                                        <Text style={styles.paymentValue}>{match.peterFullName}</Text>
+                                        <Text style={styles.paymentValue}>
+                                            {match.venue.payment.accountName}
+                                        </Text>
                                     </View>
                                 </View>
                             )}
 
-                            {match.peterIban && (
+                            {match.venue.payment.iban && (
                                 <View style={styles.paymentRow}>
                                     <CreditCard size={18} color="#6B7280" strokeWidth={2} />
                                     <View style={styles.paymentContent}>
                                         <Text style={styles.paymentLabel}>IBAN</Text>
-                                        <Text style={styles.paymentValue}>{match.peterIban}</Text>
+                                        <Text style={styles.paymentValue}>
+                                            {match.venue.payment.iban}
+                                        </Text>
                                     </View>
                                 </View>
                             )}
@@ -436,10 +583,10 @@ export const MatchRegistrationScreen: React.FC = () => {
                         <View style={styles.quotaRow}>
                             <View style={styles.quotaItem}>
                                 <Users size={20} color={sportColor} strokeWidth={2} />
-                                <Text style={styles.quotaLabel}>Kadro</Text>
+                                <Text style={styles.quotaLabel}>Oyuncu Sayısı</Text>
                             </View>
                             <Text style={styles.quotaValue}>
-                                {fixture.staffPlayerCount - availableSlots} / {fixture.staffPlayerCount}
+                                {registeredCount} / {totalSlots}
                             </Text>
                         </View>
 
@@ -448,14 +595,14 @@ export const MatchRegistrationScreen: React.FC = () => {
                                 style={[
                                     styles.quotaProgressBar,
                                     {
-                                        width: `${((fixture.staffPlayerCount - availableSlots) / fixture.staffPlayerCount) * 100}%`,
+                                        width: `${totalSlots > 0 ? (registeredCount / totalSlots) * 100 : 0}%`,
                                         backgroundColor: sportColor
                                     }
                                 ]}
                             />
                         </View>
 
-                        {availableSlots > 0 ? (
+                        {hasAvailableSlots ? (
                             <View style={styles.quotaBadge}>
                                 <Check size={14} color="#10B981" strokeWidth={2.5} />
                                 <Text style={styles.quotaBadgeText}>
@@ -471,60 +618,31 @@ export const MatchRegistrationScreen: React.FC = () => {
                             </View>
                         )}
                     </View>
-
-                    {fixture.reservePlayerCount > 0 && (
-                        <View style={styles.quotaCard}>
-                            <View style={styles.quotaRow}>
-                                <View style={styles.quotaItem}>
-                                    <Users size={20} color="#F59E0B" strokeWidth={2} />
-                                    <Text style={styles.quotaLabel}>Yedek</Text>
-                                </View>
-                                <Text style={styles.quotaValue}>
-                                    {fixture.reservePlayerCount - reserveSlots} / {fixture.reservePlayerCount}
-                                </Text>
-                            </View>
-
-                            <View style={styles.quotaProgress}>
-                                <View
-                                    style={[
-                                        styles.quotaProgressBar,
-                                        {
-                                            width: `${((fixture.reservePlayerCount - reserveSlots) / fixture.reservePlayerCount) * 100}%`,
-                                            backgroundColor: '#F59E0B'
-                                        }
-                                    ]}
-                                />
-                            </View>
-
-                            {reserveSlots > 0 && (
-                                <View style={[styles.quotaBadge, { backgroundColor: '#FEF3C7' }]}>
-                                    <Text style={[styles.quotaBadgeText, { color: '#F59E0B' }]}>
-                                        {reserveSlots} yedek kontenjanı
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
-                    )}
                 </View>
 
-                {/* Registered Players */}
-                {registeredPlayers.length > 0 && (
+                {/* Registered Players List */}
+                {registeredCount > 0 && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>
-                            Kayıtlı Oyuncular ({registeredPlayers.length})
+                            Kayıtlı Oyuncular ({registeredCount})
                         </Text>
                         <View style={styles.playersList}>
-                            {registeredPlayers.map((player, index) => (
-                                <View key={player.id} style={styles.playerItem}>
+                            {eligiblePlayers.all?.map((playerId, index) => (
+                                <View key={playerId} style={styles.playerItem}>
                                     <View style={styles.playerAvatar}>
                                         <Text style={styles.playerInitial}>
-                                            {player.name?.charAt(0).toUpperCase()}
+                                            {index + 1}
                                         </Text>
                                     </View>
                                     <View style={styles.playerInfo}>
-                                        <Text style={styles.playerName}>{player.name}</Text>
+                                        <Text style={styles.playerName}>Oyuncu {index + 1}</Text>
                                         <Text style={styles.playerOrder}>#{index + 1} sırada</Text>
                                     </View>
+                                    {playerId === user?.id && (
+                                        <View style={styles.youBadge}>
+                                            <Text style={styles.youBadgeText}>Siz</Text>
+                                        </View>
+                                    )}
                                 </View>
                             ))}
                         </View>
@@ -532,7 +650,7 @@ export const MatchRegistrationScreen: React.FC = () => {
                 )}
 
                 {/* Go to Match Button */}
-                {(isRegistered || isReserve) && (
+                {isRegistered && (
                     <View style={styles.section}>
                         <TouchableOpacity
                             style={[styles.goToMatchButton, { borderColor: sportColor }]}
@@ -555,16 +673,16 @@ export const MatchRegistrationScreen: React.FC = () => {
                         <Text style={styles.infoBoxText}>
                             {isFriendly ? (
                                 <>
-                                    • Arkadaşlık maçları için davet sistemi kullanılır{'\n'}
+                                    • Dostluk maçları esnek katılım imkanı sunar{'\n'}
                                     • Kayıt olduktan sonra maç detaylarına erişebilirsiniz{'\n'}
-                                    • Ödeme bilgileri yukarıda belirtilmiştir{'\n'}
+                                    {match.venue?.pricePerPlayer && '• Ödeme bilgileri yukarıda belirtilmiştir\n'}
                                     • Kayıt iptal ederseniz sıranızı kaybedersiniz
                                 </>
                             ) : (
                                 <>
-                                    • Kadro dolarsa yedek listesine alınırsınız{'\n'}
-                                    • Premium oyuncular önceliklidir{'\n'}
-                                    • Maç başlamadan 24 saat öncesine kadar iptal edebilirsiniz{'\n'}
+                                    • Kadro dolarsa bekleme listesine alınırsınız{'\n'}
+                                    • Maç başlamadan önce kayıt iptal edebilirsiniz{'\n'}
+                                    • Kayıt sıranız önemlidir{'\n'}
                                     • Kayıt iptal ederseniz sıranızı kaybedersiniz
                                 </>
                             )}
@@ -577,7 +695,7 @@ export const MatchRegistrationScreen: React.FC = () => {
 
             {/* Bottom Actions */}
             <View style={styles.bottomActions}>
-                {isRegistered || isReserve ? (
+                {canUnRegister ? (
                     <TouchableOpacity
                         style={styles.unregisterButton}
                         onPress={handleUnregister}
@@ -606,7 +724,7 @@ export const MatchRegistrationScreen: React.FC = () => {
                             <>
                                 <UserCheck size={20} color="white" strokeWidth={2.5} />
                                 <Text style={styles.registerButtonText}>
-                                    {availableSlots > 0 ? 'Kayıt Ol' : 'Yedek Listesine Kayıt Ol'}
+                                    {isFriendly && !match.friendlySettings?.isPublic ? 'Daveti Kabul Et' : 'Kayıt Ol'}
                                 </Text>
                             </>
                         )}
@@ -614,7 +732,13 @@ export const MatchRegistrationScreen: React.FC = () => {
                 ) : (
                     <View style={styles.disabledButton}>
                         <AlertCircle size={20} color="#9CA3AF" strokeWidth={2} />
-                        <Text style={styles.disabledButtonText}>Kayıt Yapılamıyor</Text>
+                        <Text style={styles.disabledButtonText}>
+                            {isRegistered
+                                ? 'Zaten kayıtlısınız'
+                                : isFriendly && !match.friendlySettings?.isPublic && !isInvited
+                                    ? 'Davet gerekli'
+                                    : 'Kayıt yapılamıyor'}
+                        </Text>
                     </View>
                 )}
             </View>
@@ -637,64 +761,53 @@ const styles = StyleSheet.create({
         marginTop: 12,
         fontSize: 14,
         color: '#6B7280',
-        fontWeight: '500',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 50,
-        paddingBottom: 16,
-    },
-    headerButton: {
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerCenter: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: 'white',
-    },
-    headerSubtitle: {
-        fontSize: 12,
-        color: 'rgba(255,255,255,0.9)',
-        marginTop: 2,
+        fontWeight: '600',
     },
     content: {
         flex: 1,
     },
-    friendlyBadge: {
+    contentContainer: {
+        paddingBottom: 20,
+    },
+    badgesContainer: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        marginHorizontal: 16,
-        marginTop: 16,
-        paddingVertical: 10,
         paddingHorizontal: 16,
-        backgroundColor: '#FEF3C7',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#F59E0B',
+        paddingTop: 12,
     },
-    friendlyBadgeText: {
-        fontSize: 13,
+    typeBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    typeBadgeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    privacyBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 16,
+    },
+    privacyBadgeText: {
+        fontSize: 11,
         fontWeight: '600',
-        color: '#92400E',
     },
     statusCard: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
         marginHorizontal: 16,
-        marginTop: 16,
+        marginTop: 12,
         padding: 16,
         borderRadius: 16,
     },
@@ -735,6 +848,31 @@ const styles = StyleSheet.create({
     currentStatusText: {
         fontSize: 13,
         color: '#166534',
+    },
+    invitationCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginHorizontal: 16,
+        marginTop: 12,
+        padding: 16,
+        borderRadius: 16,
+        backgroundColor: '#FEF3C7',
+        borderWidth: 2,
+        borderColor: '#F59E0B',
+    },
+    invitationContent: {
+        flex: 1,
+    },
+    invitationTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#92400E',
+        marginBottom: 4,
+    },
+    invitationText: {
+        fontSize: 13,
+        color: '#92400E',
     },
     section: {
         marginTop: 20,
@@ -808,7 +946,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderRadius: 12,
         padding: 16,
-        marginBottom: 12,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
@@ -905,6 +1042,17 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#6B7280',
     },
+    youBadge: {
+        backgroundColor: '#16a34a',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    youBadgeText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: 'white',
+    },
     goToMatchButton: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -917,7 +1065,7 @@ const styles = StyleSheet.create({
     },
     goToMatchText: {
         fontSize: 15,
-        fontWeight: '600',
+        fontWeight: '700',
     },
     infoBox: {
         flexDirection: 'row',
@@ -958,6 +1106,11 @@ const styles = StyleSheet.create({
         gap: 8,
         paddingVertical: 16,
         borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
     registerButtonText: {
         fontSize: 16,
@@ -972,6 +1125,11 @@ const styles = StyleSheet.create({
         backgroundColor: '#DC2626',
         paddingVertical: 16,
         borderRadius: 12,
+        shadowColor: '#DC2626',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
     },
     unregisterButtonText: {
         fontSize: 16,

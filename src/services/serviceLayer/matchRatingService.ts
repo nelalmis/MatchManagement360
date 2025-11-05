@@ -948,6 +948,7 @@ export class MatchRatingService {
   static validateRating(rating: number): boolean {
     return rating >= 1 && rating <= 5;
   }
+  
 }
 
 export default MatchRatingService;

@@ -34,6 +34,7 @@ import { LeagueInvitationService } from '../../services/serviceLayer/LeagueInvit
 import { SPORT_CONFIGS, SportType } from '../../types/entity/types';
 import { getSportEmoji, sportThemes } from '../../utils/theme';
 import * as Clipboard from 'expo-clipboard';
+import { CustomHeader } from '../../components/CustomHeader';
 
 // ============================================
 // MAIN COMPONENT
@@ -251,22 +252,14 @@ export const CreateLeagueScreen: React.FC = () => {
   // ============================================
 
   const renderHeader = () => (
-    <View style={styles.header}>
-      <TouchableOpacity
-        onPress={() => NavigationService.goBack()}
-        style={styles.headerButton}
-        activeOpacity={0.7}
-      >
-        <X size={24} color="#1F2937" strokeWidth={2} />
-      </TouchableOpacity>
-
-      <View style={styles.headerCenter}>
-        <Text style={styles.headerTitle}>Yeni Lig Oluştur</Text>
-        <Text style={styles.headerSubtitle}>Adım {currentStep}/2</Text>
-      </View>
-
-      <View style={styles.headerButton} />
-    </View>
+    <CustomHeader 
+      title="Yeni Lig Oluştur"
+      showBack={true}
+      onLeftPress={() => NavigationService.goBack()}
+      subtitle={`Adım ${currentStep}/2`}
+      sportType={sportType}
+      showIcon={true}
+    />
   );
 
   const renderStepIndicator = () => (

@@ -36,6 +36,7 @@ import { IFixture, ILeague } from '../../types/entity/types';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { getSportPrimaryColor } from '../../utils/theme';
+import { CustomHeader } from '../../components/CustomHeader';
 
 type TabType = 'active' | 'inactive';
 type SortType = 'nextMatch' | 'name' | 'totalMatches';
@@ -88,13 +89,13 @@ export const FixtureListScreen: React.FC = () => {
           if (!a.nextMatchDate) return 1;
           if (!b.nextMatchDate) return -1;
           return new Date(a.nextMatchDate).getTime() - new Date(b.nextMatchDate).getTime();
-        
+
         case 'name':
           return a.title.localeCompare(b.title);
-        
+
         case 'totalMatches':
           return b.totalMatches - a.totalMatches;
-        
+
         default:
           return 0;
       }
@@ -224,6 +225,17 @@ export const FixtureListScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Header */}
+      <CustomHeader
+        title="Fikstürler"
+        subtitle={league.title}
+        sportType={league.sportType}
+        showIcon={true}
+        showBack={true}
+        showCreate={isAdmin}
+        onLeftPress={() => NavigationService.goBack()}
+        onCreatePress={handleCreateFixture}
+      />
+      {/* 
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => NavigationService.goBack()}
@@ -252,7 +264,7 @@ export const FixtureListScreen: React.FC = () => {
         )}
 
         {!isAdmin && <View style={styles.headerRight} />}
-      </View>
+      </View> */}
 
       {/* Quick Stats */}
       <View style={styles.quickStats}>
@@ -482,17 +494,17 @@ export const FixtureListScreen: React.FC = () => {
               {searchQuery
                 ? 'Arama sonucu bulunamadı'
                 : activeTab === 'active'
-                ? 'Aktif fikstür yok'
-                : 'Pasif fikstür yok'}
+                  ? 'Aktif fikstür yok'
+                  : 'Pasif fikstür yok'}
             </Text>
             <Text style={styles.emptyDescription}>
               {searchQuery
                 ? 'Farklı anahtar kelimeler deneyin'
                 : activeTab === 'active'
-                ? isAdmin
-                  ? 'Yeni bir fikstür oluşturarak başlayın'
-                  : 'Henüz aktif fikstür bulunmuyor'
-                : 'Devre dışı bırakılmış fikstür yok'}
+                  ? isAdmin
+                    ? 'Yeni bir fikstür oluşturarak başlayın'
+                    : 'Henüz aktif fikstür bulunmuyor'
+                  : 'Devre dışı bırakılmış fikstür yok'}
             </Text>
             {isAdmin && activeTab === 'active' && !searchQuery && (
               <TouchableOpacity
@@ -653,7 +665,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-    paddingTop: 40,
+    // paddingTop: 40,
   },
   loadingContainer: {
     flex: 1,

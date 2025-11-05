@@ -1,4 +1,7 @@
-import React, { useState, useEffect, use } from 'react';
+// src/screens/Match/CreateFriendlyMatchScreen.tsx
+// 🎯 CREATE FRIENDLY MATCH - COMPLETE WITH ALL STATES
+
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,45 +25,37 @@ import {
   CreditCard,
   User,
   ChevronRight,
-  Search,
-  Star,
-  Check,
-  Plus,
-  X,
   Archive,
-  UserPlus,
   Timer,
   Globe,
-  Info
+  Info,
+  Lock,
+  Zap,
+  X,
 } from 'lucide-react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { matchService } from '../../services/matchService';
-import { friendlyMatchConfigService } from '../../services/friendlyMatchConfigService';
-import { playerService } from '../../services/playerService';
-import { IPlayer, SportType, SPORT_CONFIGS } from '../..//types/types';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import { NavigationService } from '../../navigation';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import { MatchService } from '../../services/serviceLayer/matchService';
+import { FriendlyMatchConfigService } from '../../services/serviceLayer/friendlyMatchConfigService';
+import { SportType, SPORT_CONFIGS, IFriendlyMatchConfig } from '../../types/entity/types';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
+import { CustomHeader } from '../../components/CustomHeader';
+import { CustomDateTimePicker } from '../../components';
 
-interface PlayerSelection extends IPlayer {
-  selected: boolean;
-  isFavorite: boolean;
-}
+type FriendlyMatchTemplate = IFriendlyMatchConfig['templates'][0];
 
-interface FriendlyMatchTemplate {
-  id: string;
-  name: string;
-  settings: any;
-}
-// Type definition ekle
 type CreateFriendlyMatchParams = {
   templateId?: string;
 };
 
 export const CreateFriendlyMatchScreen: React.FC = () => {
   const route = useRoute<RouteProp<{ params: CreateFriendlyMatchParams }, 'params'>>();
-  const { navigate, goBack } = useNavigation();
   const { user } = useAuth();
+
+  // ============================================
+  // STATES
+  // ============================================
 
   // Loading States
   const [loading, setLoading] = useState(false);
@@ -76,38 +71,48 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   // Match Details
-  const [matchDate, setMatchDate] = useState(new Date());
+  const [matchStartTime, setMatchStartTime] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(14, 0, 0, 0);
+    return tomorrow;
+  });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [title, setTitle] = useState('');
-  const [venue, setVenue] = useState('');
-  const [costPerPlayer, setCostPerPlayer] = useState('');
+  const [location, setLocation] = useState('');
+  const [pricePerPlayer, setPricePerPlayer] = useState('');
   const [description, setDescription] = useState('');
   const [staffCount, setStaffCount] = useState('10');
   const [reserveCount, setReserveCount] = useState('2');
+  const [matchDuration, setMatchDuration] = useState('90');
 
   // Settings
   const [affectsStandings, setAffectsStandings] = useState(false);
   const [affectsStats, setAffectsStats] = useState(true);
-  const [isPublic, setIsPublic] = useState(true);
+  const [isPublic, setIsPublic] = useState(false); // Varsayılan: Özel (kod ile)
 
-  // Player Selection
-  const [allPlayers, setAllPlayers] = useState<PlayerSelection[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showPlayerModal, setShowPlayerModal] = useState(false);
-  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  // Invitation Code Settings
+  const [codeExpiry, setCodeExpiry] = useState('48'); // Saat
+  const [codeMaxUses, setCodeMaxUses] = useState(''); // Boş = staffCount
+
+  // Payment Info
+  const [paymentIban, setPaymentIban] = useState('');
+  const [paymentAccountName, setPaymentAccountName] = useState('');
 
   // Template Save
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
   const [templateName, setTemplateName] = useState('');
 
-  // Payment Info
-  const [peterIban, setPeterIban] = useState('');
-  const [peterFullName, setPeterFullName] = useState('');
-  // Template ID'yi route'dan al
+  const selectedDateRef = useRef<Date>(matchStartTime);
+  const selectedTimeRef = useRef<Date>(matchStartTime);
+
   const templateId = route.params?.templateId;
 
-  // Ayrı bir useEffect ekle
+  // ============================================
+  // EFFECTS
+  // ============================================
+
   useEffect(() => {
     if (templateId && templates.length > 0 && !loadingTemplates) {
       const template = templates.find(t => t.id === templateId);
@@ -116,59 +121,51 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
       }
     }
   }, [templateId, templates, loadingTemplates]);
-  
-  // Load initial data
+
   useEffect(() => {
     loadInitialData();
   }, []);
 
-  // Update defaults when sport changes
   useEffect(() => {
     const config = SPORT_CONFIGS[selectedSport];
     setStaffCount(config.defaultPlayers.toString());
 
-    // Auto-generate title based on sport and date
-    const dateStr = matchDate.toLocaleDateString('tr-TR', {
+    // Auto-generate title
+    const dateStr = matchStartTime.toLocaleDateString('tr-TR', {
       day: 'numeric',
-      month: 'long'
+      month: 'long',
+      year: 'numeric',
     });
     setTitle(`${config.name} Dostluk Maçı - ${dateStr}`);
-  }, [selectedSport, matchDate]);
+  }, [selectedSport, matchStartTime]);
+
+  // ============================================
+  // FUNCTIONS
+  // ============================================
 
   const loadInitialData = async () => {
     try {
       setLoadingTemplates(true);
 
       // Load templates
-      const userTemplates = await friendlyMatchConfigService.getTemplates(user!.id!);
-      setTemplates(userTemplates as FriendlyMatchTemplate[]);
-
-      // Load default config
-      const config = await friendlyMatchConfigService.getConfig(user!.id!);
-      if (config) {
-        setVenue(config.defaultLocation || '');
-        setCostPerPlayer(config.defaultPrice?.toString() || '');
-        setStaffCount(config.defaultStaffCount?.toString() || '10');
-        setReserveCount(config.defaultReserveCount?.toString() || '2');
-        setPeterIban(config.defaultPeterIban || '');
-        setPeterFullName(config.defaultPeterFullName || '');
-
-        // Load favorite players
-        if (config.favoritePlayerIds && config.favoritePlayerIds.length > 0) {
-          setSelectedPlayers(config.favoritePlayerIds);
-        }
+      const templatesResult = await FriendlyMatchConfigService.getAllTemplates(user!.id!);
+      if (templatesResult.success && templatesResult.data) {
+        setTemplates(templatesResult.data);
       }
 
-      // Load all players
-      const players = await playerService.getAll();
-      const playerSelections: PlayerSelection[] = players
-        .filter((p: any) => p.id !== user!.id)
-        .map((player: any) => ({
-          ...player,
-          selected: config?.favoritePlayerIds?.includes(player.id!) || false,
-          isFavorite: config?.favoritePlayerIds?.includes(player.id!) || false,
-        }));
-      setAllPlayers(playerSelections);
+      // Load config
+      const configResult = await FriendlyMatchConfigService.getOrCreateConfig(user!.id!);
+      if (configResult.success && configResult.data) {
+        const config = configResult.data;
+
+        setLocation(config.defaultSettings.location || '');
+        setPricePerPlayer(config.defaultSettings.pricePerPlayer?.toString() || '');
+        setStaffCount(config.defaultSettings.staffCount?.toString() || '10');
+        setReserveCount(config.defaultSettings.reserveCount?.toString() || '2');
+
+        setPaymentIban(config.defaultSettings.paymentInfo?.iban || '');
+        setPaymentAccountName(config.defaultSettings.paymentInfo?.accountName || '');
+      }
 
     } catch (error) {
       console.error('Error loading initial data:', error);
@@ -181,105 +178,143 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
   const handleSportChange = async (sport: SportType) => {
     setSelectedSport(sport);
 
-    // Clear template if different sport
-    if (selectedTemplate && selectedTemplate.settings?.sportType !== sport) {
+    if (selectedTemplate && selectedTemplate.sportType !== sport) {
       setSelectedTemplate(null);
     }
 
-    // Filter templates by sport
-    const allTemplates = await friendlyMatchConfigService.getTemplates(user!.id!);
-    const sportTemplates = (allTemplates as FriendlyMatchTemplate[]).filter(
-      (t: any) => !t.settings?.sportType || t.settings.sportType === sport
-    );
-    setTemplates(sportTemplates);
+    const templatesResult = await FriendlyMatchConfigService.getAllTemplates(user!.id!);
+    if (templatesResult.success && templatesResult.data) {
+      const sportTemplates = templatesResult.data.filter(
+        (t) => !t.sportType || t.sportType === sport
+      );
+      setTemplates(sportTemplates);
+    }
   };
+
+  const handleTemplateOptions = (template: FriendlyMatchTemplate) => {
+    Alert.alert(
+      template.name,
+      'Ne yapmak istersiniz?',
+      [
+        {
+          text: 'Kullan',
+          onPress: () => loadTemplate(template)
+        },
+        {
+          text: 'Düzenle',
+          onPress: () => {
+            setShowTemplateModal(false);
+            NavigationService.navigateToEditFriendlyMatchTemplate(template.id);
+          }
+        },
+        {
+          text: 'Sil',
+          style: 'destructive',
+          onPress: () => handleDeleteTemplate(template)
+        },
+        {
+          text: 'Vazgeç',
+          style: 'cancel'
+        }
+      ]
+    );
+  };
+
+
+  const handleDeleteTemplate = async (template: FriendlyMatchTemplate) => {
+    Alert.alert(
+      'Şablonu Sil',
+      `"${template.name}" şablonunu silmek istediğinize emin misiniz?`,
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'Sil',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await FriendlyMatchConfigService.removeTemplate(
+                user!.id!,
+                template.id!
+              );
+
+              if (result.success) {
+                // Remove from local state
+                setTemplates(prev => prev.filter(t => t.id !== template.id));
+                Alert.alert('Başarılı', 'Şablon silindi');
+              } else {
+                Alert.alert('Hata', result.error?.message || 'Şablon silinemedi');
+              }
+            } catch (error) {
+              console.error('Error deleting template:', error);
+              Alert.alert('Hata', 'Şablon silinirken bir hata oluştu');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+
 
   const loadTemplate = (template: FriendlyMatchTemplate) => {
     setSelectedTemplate(template);
     const settings = template.settings;
 
-    if (settings.sportType) {
-      setSelectedSport(settings.sportType);
+    if (template.sportType) {
+      setSelectedSport(template.sportType as SportType);
     }
-    setVenue(settings.location || venue);
-    setCostPerPlayer(settings.pricePerPlayer?.toString() || costPerPlayer);
-    setStaffCount(settings.staffPlayerCount?.toString() || staffCount);
-    setReserveCount(settings.reservePlayerCount?.toString() || reserveCount);
+
+    // Match details
+    setLocation(settings.location || '');
+    setPricePerPlayer(settings.pricePerPlayer?.toString() || '');
+    setStaffCount(settings.staffCount?.toString() || '10');
+    setReserveCount(settings.reserveCount?.toString() || '2');
+    setMatchDuration(settings.matchDuration?.toString() || '90');
+
+    // Settings
     setAffectsStandings(settings.affectsStandings || false);
     setAffectsStats(settings.affectsStats !== false);
     setIsPublic(settings.isPublic !== false);
 
-    if (settings.invitedPlayerIds && settings.invitedPlayerIds.length > 0) {
-      setSelectedPlayers(settings.invitedPlayerIds);
-      setAllPlayers((prev: any) => prev.map((p: any) => ({
-        ...p,
-        selected: settings.invitedPlayerIds?.includes(p.id!) || false
-      })));
-    }
+    // Payment info (using old field names for backward compatibility)
+    setPaymentIban(settings.paymentInfo?.iban || '');
+    setPaymentAccountName(settings.paymentInfo?.accountName || '');
 
     setShowTemplateModal(false);
     Alert.alert('Başarılı', `"${template.name}" şablonu yüklendi`);
   };
+  // ============================================
+  // DATE PICKER HANDLERS
+  // ============================================
 
-  const handleDateChange = (event: any, date?: Date) => {
+  const handleDateChange = (date?: Date) => {
+    if (!date) return;
+    console.log('Selected date:', date);
     setShowDatePicker(false);
-    if (date) {
-      setMatchDate(date);
-    }
+
+    // Merge with existing time
+    const newDate = new Date(date.getTime());
+    newDate.setHours(matchStartTime.getHours());
+    newDate.setMinutes(matchStartTime.getMinutes());
+    newDate.setSeconds(0);
+    newDate.setMilliseconds(0);
+
+    setMatchStartTime(newDate);
   };
 
-  const handleTimeChange = (event: any, date?: Date) => {
+  const handleTimeChange = (time?: Date) => {
     setShowTimePicker(false);
-    if (date) {
-      setMatchDate(date);
-    }
+
+
+    // Merge with existing date
+    const newDate = new Date(matchStartTime.getTime());
+    newDate.setHours(time!.getHours());
+    newDate.setMinutes(time!.getMinutes());
+    newDate.setSeconds(0);
+    newDate.setMilliseconds(0);
+
+    setMatchStartTime(newDate);
   };
-
-  const togglePlayerSelection = (playerId: string) => {
-    setSelectedPlayers((prev: any) => {
-      if (prev.includes(playerId)) {
-        return prev.filter((id: any) => id !== playerId);
-      } else {
-        return [...prev, playerId];
-      }
-    });
-
-    setAllPlayers((prev: any) => prev.map((p: any) =>
-      p.id === playerId ? { ...p, selected: !p.selected } : p
-    ));
-  };
-
-  const selectAllPlayers = () => {
-    const filteredPlayerIds = filteredPlayers.map((p: any) => p.id!);
-    setSelectedPlayers((prev: any) => {
-      const allSelected = filteredPlayerIds.every((id: any) => prev.includes(id));
-      if (allSelected) {
-        return prev.filter((id: any) => !filteredPlayerIds.includes(id));
-      } else {
-        return [...new Set([...prev, ...filteredPlayerIds])];
-      }
-    });
-
-    setAllPlayers((prev: any) => prev.map((p: any) => ({
-      ...p,
-      selected: filteredPlayers.some((fp: any) => fp.id === p.id) ?
-        !filteredPlayers.every((fp: any) => selectedPlayers.includes(fp.id!)) : p.selected
-    })));
-  };
-
-  const selectFavoritesOnly = () => {
-    const favoriteIds = allPlayers.filter((p: any) => p.isFavorite).map((p: any) => p.id!);
-    setSelectedPlayers(favoriteIds);
-    setAllPlayers((prev: any) => prev.map((p: any) => ({
-      ...p,
-      selected: p.isFavorite
-    })));
-  };
-
-  const filteredPlayers = allPlayers.filter((player: any) =>
-    player.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    player.phone?.includes(searchQuery)
-  );
 
   const validateForm = (): boolean => {
     if (!title.trim()) {
@@ -287,18 +322,20 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
       return false;
     }
 
-    if (!venue.trim()) {
-      Alert.alert('Hata', 'Lütfen saha adı girin');
+    if (!location.trim()) {
+      Alert.alert('Hata', 'Lütfen saha adı/lokasyon girin');
       return false;
     }
 
-    if (!costPerPlayer || parseFloat(costPerPlayer) < 0) {
-      Alert.alert('Hata', 'Lütfen geçerli bir maliyet girin');
+    const price = parseFloat(pricePerPlayer);
+    if (pricePerPlayer && (isNaN(price) || price < 0)) {
+      Alert.alert('Hata', 'Lütfen geçerli bir ücret girin');
       return false;
     }
 
     const staff = parseInt(staffCount);
     const reserve = parseInt(reserveCount);
+    const duration = parseInt(matchDuration);
 
     if (isNaN(staff) || staff < 2) {
       Alert.alert('Hata', 'Kadro sayısı en az 2 olmalı');
@@ -306,13 +343,39 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
     }
 
     if (isNaN(reserve) || reserve < 0) {
-      Alert.alert('Hata', 'Yedek sayısı geçerli olmalı');
+      Alert.alert('Hata', 'Yedek sayısı 0 veya daha fazla olmalı');
       return false;
     }
 
-    if (!isPublic && selectedPlayers.length === 0) {
-      Alert.alert('Uyarı', 'Özel maç için en az bir oyuncu davet etmelisiniz');
+    if (isNaN(duration) || duration < 30 || duration > 180) {
+      Alert.alert('Hata', 'Maç süresi 30-180 dakika arası olmalı');
       return false;
+    }
+
+    // Kod ayarları validasyonu (özel maçlar için)
+    if (!isPublic) {
+      const expiry = parseInt(codeExpiry);
+      if (isNaN(expiry) || expiry < 1 || expiry > 168) {
+        Alert.alert('Hata', 'Kod süresi 1-168 saat arası olmalı');
+        return false;
+      }
+
+      if (codeMaxUses) {
+        const maxUses = parseInt(codeMaxUses);
+        if (isNaN(maxUses) || maxUses < 1) {
+          Alert.alert('Hata', 'Maksimum kullanım 1\'den büyük olmalı');
+          return false;
+        }
+      }
+    }
+
+    // IBAN validation (basic)
+    if (paymentIban.trim()) {
+      const cleanIban = paymentIban.replace(/\s/g, '').toUpperCase();
+      if (!cleanIban.startsWith('TR') || cleanIban.length !== 26) {
+        Alert.alert('Hata', 'Geçersiz IBAN formatı (TR ile başlamalı ve 26 karakter olmalı)');
+        return false;
+      }
     }
 
     return true;
@@ -324,52 +387,73 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
     try {
       setLoading(true);
 
-      const result = await matchService.createFriendlyMatch({
+      // Prepare payment info
+      const paymentInfo = paymentIban.trim() ? {
+        iban: paymentIban.trim(),
+        accountName: paymentAccountName.trim() || undefined,
+      } : undefined;
+
+      // Create match with new API
+      const result = await MatchService.createFriendlyMatch({
         organizerId: user!.id!,
-        sportType: selectedSport,
         title: title.trim(),
-        matchStartTime: matchDate,
-        location: venue,
+        sportType: selectedSport,
+        matchStartTime: matchStartTime,
+        matchDuration: parseInt(matchDuration),
+        location: location.trim(),
         staffPlayerCount: parseInt(staffCount),
         reservePlayerCount: parseInt(reserveCount),
+        pricePerPlayer: pricePerPlayer ? parseFloat(pricePerPlayer) : undefined,
+        paymentInfo,
+        description: description.trim() || undefined,
+
+        // Settings
         isPublic,
         affectsStats,
         affectsStandings,
-        invitedPlayerIds: !isPublic ? selectedPlayers : [],
-        pricePerPlayer: parseFloat(costPerPlayer),
-        peterIban: peterIban.trim() || undefined,
-        peterFullName: peterFullName.trim() || undefined,
-        useDefaults: true
+
+        // Invitation code (sadece özel maçlar için)
+        enableInvitationCode: !isPublic,
+        invitationCodeExpiry: !isPublic ? parseInt(codeExpiry) : undefined,
+        invitationCodeMaxUses: !isPublic && codeMaxUses
+          ? parseInt(codeMaxUses)
+          : parseInt(staffCount),
       });
 
-      if (!result.success) {
-        throw new Error('Maç oluşturulamadı');
+      if (!result.success || !result.data) {
+        throw new Error(result.error?.message || 'Maç oluşturulamadı');
       }
 
-      // Send invitations
-      if (!isPublic && selectedPlayers.length > 0) {
-        await matchService.invitePlayersToMatch(
-          result.id!,
-          user!.id!,
-          selectedPlayers,
-          description || undefined,
-          48
-        );
-      }
+      const match = result.data;
+      const matchId = match.id!;
 
-      const invitationText = isPublic
-        ? 'Herkese açık olarak oluşturuldu'
-        : `${selectedPlayers.length} oyuncuya davet gönderildi`;
+      // Record last used settings
+      await FriendlyMatchConfigService.recordLastUsedSettings(user!.id!, {
+        location: location.trim(),
+        pricePerPlayer: pricePerPlayer ? parseFloat(pricePerPlayer) : undefined,
+        staffCount: parseInt(staffCount),
+      });
+
+      // Success message
+      const sportConfig = SPORT_CONFIGS[selectedSport];
+      let successMessage = '';
+
+      if (isPublic) {
+        successMessage = 'Maç herkese açık olarak oluşturuldu. Herkes listeyi görebilir ve katılabilir.';
+      } else {
+        const code = match.invitationCode?.code;
+        successMessage = `Davet kodu: ${code}\n\nBu kodu paylaşarak oyuncuları maça davet edebilirsiniz.`;
+      }
 
       Alert.alert(
-        'Başarılı! 🎉',
-        `${SPORT_CONFIGS[selectedSport].emoji} ${SPORT_CONFIGS[selectedSport].name} dostluk maçı ${invitationText}.`,
+        `${sportConfig.emoji} Başarılı!`,
+        successMessage,
         [
           {
             text: 'Tamam',
             onPress: () => {
               NavigationService.goBack();
-              NavigationService.navigateToMatch(result.id);
+              NavigationService.navigateToMatch(matchId);
             }
           }
         ]
@@ -392,33 +476,43 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
     try {
       setSavingTemplate(true);
 
-      const settings = {
+      const template = {
+        name: templateName.trim(),
         sportType: selectedSport,
-        location: venue,
-        pricePerPlayer: parseFloat(costPerPlayer),
-        staffPlayerCount: parseInt(staffCount),
-        reservePlayerCount: parseInt(reserveCount),
-        affectsStandings,
-        affectsStats,
-        isPublic,
-        invitedPlayerIds: selectedPlayers,
-        peterIban,
-        peterFullName,
+        settings: {
+          location: location.trim(),
+          pricePerPlayer: pricePerPlayer ? parseFloat(pricePerPlayer) : 0,
+          staffCount: parseInt(staffCount),
+          reserveCount: parseInt(reserveCount),
+          matchDuration: parseInt(matchDuration),
+          affectsStandings,
+          affectsStats,
+          isPublic,
+
+          // Payment info (using old field names for backward compatibility)
+          peterIban: paymentIban.trim() || "",
+          peterFullName: paymentAccountName.trim() || "",
+        },
       };
 
-      await friendlyMatchConfigService.saveTemplate(
+      const result = await FriendlyMatchConfigService.addTemplate(
         user!.id!,
-        templateName,
-        settings
+        template
       );
+
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Şablon kaydedilemedi');
+      }
 
       Alert.alert('Başarılı', 'Şablon kaydedildi');
       setShowSaveTemplateModal(false);
       setTemplateName('');
 
       // Reload templates
-      const userTemplates = await friendlyMatchConfigService.getTemplates(user!.id!);
-      setTemplates(userTemplates as FriendlyMatchTemplate[]);
+      const templatesResult = await FriendlyMatchConfigService.getAllTemplates(user!.id!);
+      if (templatesResult.success && templatesResult.data) {
+        setTemplates(templatesResult.data);
+      }
 
     } catch (error) {
       console.error('Error saving template:', error);
@@ -428,10 +522,14 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
     }
   };
 
+  // ============================================
+  // RENDER
+  // ============================================
+
   if (loadingTemplates) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#10B981" />
         <Text style={styles.loadingText}>Yükleniyor...</Text>
       </View>
     );
@@ -440,18 +538,13 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => goBack()} style={styles.backButton}>
-          <ArrowLeft size={24} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dostluk Maçı Oluştur</Text>
-        <TouchableOpacity
-          onPress={() => setShowSaveTemplateModal(true)}
-          style={styles.saveTemplateButton}
-        >
-          <Bookmark size={24} color="#007AFF" />
-        </TouchableOpacity>
-      </View>
+      <CustomHeader
+        title="Dostluk Maçı Oluştur"
+        showBack={true}
+        onLeftPress={() => NavigationService.goBack()}
+        showBookmark={true}
+        onBookmarkPress={() => setShowSaveTemplateModal(true)}
+      />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Sport Selection */}
@@ -471,7 +564,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
                   {
                     borderColor: selectedSport === sport
                       ? SPORT_CONFIGS[sport].color
-                      : '#E0E0E0'
+                      : '#E5E7EB'
                   }
                 ]}
                 onPress={() => handleSportChange(sport)}
@@ -498,11 +591,11 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
               style={styles.templateButton}
               onPress={() => setShowTemplateModal(true)}
             >
-              <Archive size={20} color="#007AFF" />
+              <Archive size={20} color="#10B981" />
               <Text style={styles.templateButtonText}>
                 {selectedTemplate ? selectedTemplate.name : 'Kayıtlı şablonlardan yükle'}
               </Text>
-              <ChevronRight size={20} color="#999" />
+              <ChevronRight size={20} color="#9CA3AF" />
             </TouchableOpacity>
           </View>
         )}
@@ -523,14 +616,14 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
           </View>
 
           {/* Date & Time */}
-          <View style={styles.row}>
-            <TouchableOpacity
+          {/* <View style={styles.row}> */}
+          {/* <TouchableOpacity
               style={[styles.input, styles.halfInput]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Calendar size={20} color="#666" />
+              <Calendar size={20} color="#6B7280" />
               <Text style={styles.inputText}>
-                {matchDate.toLocaleDateString('tr-TR')}
+                {matchStartTime.toLocaleDateString('tr-TR')}
               </Text>
             </TouchableOpacity>
 
@@ -538,40 +631,91 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
               style={[styles.input, styles.halfInput]}
               onPress={() => setShowTimePicker(true)}
             >
-              <Clock size={20} color="#666" />
+              <Clock size={20} color="#6B7280" />
               <Text style={styles.inputText}>
-                {matchDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                {matchStartTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
               </Text>
-            </TouchableOpacity>
-          </View>
+            </TouchableOpacity> */}
 
-          {/* Venue */}
+          <CustomDateTimePicker
+            value={matchStartTime}
+            mode="date"
+            onChange={handleDateChange}
+            label="Maç Tarihi"
+            placeholder="Tarih seçiniz"
+            minimumDate={new Date()}
+          />
+
+          <CustomDateTimePicker
+            value={matchStartTime}
+            mode="time"
+            onChange={handleTimeChange}
+            label="Maç Saati"
+            placeholder="Saat seçiniz"
+          />
+
+          {/* Date Picker Modal */}
+          {/* <DateTimePickerModal
+              isVisible={showDatePicker}
+              mode="date"
+              date={selectedDateRef.current}
+              onConfirm={(date) => {
+                // Update ref immediately
+                if (date && date instanceof Date && !isNaN(date.getTime())) {
+                  selectedDateRef.current = date;
+                }
+                handleDateConfirm(date);
+              }}
+              onCancel={handleDateCancel}
+              minimumDate={new Date()}
+              locale="tr_TR"
+            /> */}
+
+          {/* Time Picker Modal */}
+          {/* <DateTimePickerModal
+              isVisible={showTimePicker}
+              mode="time"
+              date={selectedTimeRef.current}
+              onConfirm={(time) => {
+                // Update ref immediately
+                if (time && time instanceof Date && !isNaN(time.getTime())) {
+                  selectedTimeRef.current = time;
+                }
+                handleTimeConfirm(time);
+              }}
+              onCancel={handleTimeCancel}
+              locale="tr_TR"
+              is24Hour={true}
+            /> */}
+          {/* </View> */}
+
+          {/* Location */}
           <View style={styles.inputContainer}>
-            <MapPin size={20} color="#666" />
+            <MapPin size={20} color="#6B7280" />
             <TextInput
               style={styles.textInput}
-              placeholder="Saha Adı"
-              value={venue}
-              onChangeText={setVenue}
+              placeholder="Saha Adı / Lokasyon"
+              value={location}
+              onChangeText={setLocation}
             />
           </View>
 
-          {/* Cost */}
+          {/* Price Per Player */}
           <View style={styles.inputContainer}>
-            <DollarSign size={20} color="#666" />
+            <DollarSign size={20} color="#6B7280" />
             <TextInput
               style={styles.textInput}
-              placeholder="Kişi Başı Maliyet (₺)"
-              value={costPerPlayer}
-              onChangeText={setCostPerPlayer}
+              placeholder="Kişi Başı Ücret (₺) - Opsiyonel"
+              value={pricePerPlayer}
+              onChangeText={setPricePerPlayer}
               keyboardType="decimal-pad"
             />
           </View>
 
-          {/* Staff & Reserve Count */}
+          {/* Staff, Reserve, Duration */}
           <View style={styles.row}>
-            <View style={[styles.inputContainer, styles.halfInput]}>
-              <Users size={18} color="#666" />
+            <View style={[styles.inputContainer, styles.thirdInput]}>
+              <Users size={18} color="#6B7280" />
               <TextInput
                 style={styles.textInput}
                 placeholder="Kadro"
@@ -581,8 +725,8 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
               />
             </View>
 
-            <View style={[styles.inputContainer, styles.halfInput]}>
-              <Users size={18} color="#666" />
+            <View style={[styles.inputContainer, styles.thirdInput]}>
+              <Users size={18} color="#6B7280" />
               <TextInput
                 style={styles.textInput}
                 placeholder="Yedek"
@@ -591,33 +735,49 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
                 keyboardType="number-pad"
               />
             </View>
+
+            <View style={[styles.inputContainer, styles.thirdInput]}>
+              <Clock size={18} color="#6B7280" />
+              <TextInput
+                style={styles.textInput}
+                placeholder="Süre (dk)"
+                value={matchDuration}
+                onChangeText={setMatchDuration}
+                keyboardType="number-pad"
+              />
+            </View>
           </View>
 
           {/* Payment Info */}
-          <View style={styles.inputContainer}>
-            <CreditCard size={20} color="#666" />
-            <TextInput
-              style={styles.textInput}
-              placeholder="IBAN (opsiyonel)"
-              value={peterIban}
-              onChangeText={setPeterIban}
-            />
-          </View>
+          <View style={styles.paymentSection}>
+            <Text style={styles.subsectionTitle}>Ödeme Bilgileri (Opsiyonel)</Text>
 
-          <View style={styles.inputContainer}>
-            <User size={20} color="#666" />
-            <TextInput
-              style={styles.textInput}
-              placeholder="Hesap Sahibi Adı (opsiyonel)"
-              value={peterFullName}
-              onChangeText={setPeterFullName}
-            />
+            <View style={styles.inputContainer}>
+              <CreditCard size={20} color="#6B7280" />
+              <TextInput
+                style={styles.textInput}
+                placeholder="IBAN (TR ile başlamalı)"
+                value={paymentIban}
+                onChangeText={setPaymentIban}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <User size={20} color="#6B7280" />
+              <TextInput
+                style={styles.textInput}
+                placeholder="Hesap Sahibi Adı"
+                value={paymentAccountName}
+                onChangeText={setPaymentAccountName}
+              />
+            </View>
           </View>
 
           {/* Description */}
           <TextInput
             style={styles.textArea}
-            placeholder="Açıklama (opsiyonel)"
+            placeholder="Açıklama / Not (opsiyonel)"
             value={description}
             onChangeText={setDescription}
             multiline
@@ -633,15 +793,58 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>Herkese Açık</Text>
               <Text style={styles.settingDescription}>
-                Herkes görebilir ve katılabilir
+                {isPublic
+                  ? 'Herkes görebilir ve katılabilir'
+                  : 'Sadece davet kodu ile katılım'}
               </Text>
             </View>
             <Switch
               value={isPublic}
               onValueChange={setIsPublic}
-              trackColor={{ false: '#E0E0E0', true: '#007AFF' }}
+              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
             />
           </View>
+
+          {/* Kod Ayarları (Sadece özel maçlar için) */}
+          {!isPublic && (
+            <>
+              <View style={styles.codeSettingsHeader}>
+                <Lock size={16} color="#10B981" />
+                <Text style={styles.codeSettingsTitle}>Davet Kodu Ayarları</Text>
+              </View>
+
+              <View style={styles.row}>
+                <View style={[styles.inputContainer, styles.halfInput]}>
+                  <Timer size={18} color="#6B7280" />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Geçerlilik (saat)"
+                    value={codeExpiry}
+                    onChangeText={setCodeExpiry}
+                    keyboardType="number-pad"
+                  />
+                </View>
+
+                <View style={[styles.inputContainer, styles.halfInput]}>
+                  <Users size={18} color="#6B7280" />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Max kullanım"
+                    value={codeMaxUses}
+                    onChangeText={setCodeMaxUses}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.codeHelperText}>
+                Kod {codeExpiry || '48'} saat süreyle geçerli olacak.
+                {codeMaxUses
+                  ? ` Maksimum ${codeMaxUses} kişi kullanabilir.`
+                  : ' Kadro dolduğunda otomatik devre dışı kalacak.'}
+              </Text>
+            </>
+          )}
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
@@ -653,7 +856,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
             <Switch
               value={affectsStats}
               onValueChange={setAffectsStats}
-              trackColor={{ false: '#E0E0E0', true: '#007AFF' }}
+              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
             />
           </View>
 
@@ -667,78 +870,36 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
             <Switch
               value={affectsStandings}
               onValueChange={setAffectsStandings}
-              trackColor={{ false: '#E0E0E0', true: '#007AFF' }}
+              trackColor={{ false: '#E5E7EB', true: '#10B981' }}
             />
           </View>
         </View>
 
-        {/* Player Selection (Only for Private Matches) */}
-        {!isPublic && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Oyuncu Davet Et ({selectedPlayers.length})
-              </Text>
-              <TouchableOpacity onPress={selectFavoritesOnly}>
-                <Text style={styles.linkText}>Favorileri Seç</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={styles.playerSelectionButton}
-              onPress={() => setShowPlayerModal(true)}
-            >
-              <UserPlus size={20} color="#007AFF" />
-              <Text style={styles.playerSelectionText}>
-                {selectedPlayers.length > 0
-                  ? `${selectedPlayers.length} oyuncu seçildi`
-                  : 'Oyuncu seç'}
-              </Text>
-              <ChevronRight size={20} color="#999" />
-            </TouchableOpacity>
-
-            {/* Selected Players Preview */}
-            {selectedPlayers.length > 0 && (
-              <View style={styles.selectedPlayersPreview}>
-                {allPlayers
-                  .filter((p: any) => selectedPlayers.includes(p.id!))
-                  .slice(0, 5)
-                  .map((player: any) => (
-                    <View key={player.id} style={styles.playerChip}>
-                      <Text style={styles.playerChipText}>{player.name}</Text>
-                      {player.isFavorite && (
-                        <Star size={12} color="#FFD700" fill="#FFD700" />
-                      )}
-                    </View>
-                  ))}
-                {selectedPlayers.length > 5 && (
-                  <View style={styles.playerChip}>
-                    <Text style={styles.playerChipText}>
-                      +{selectedPlayers.length - 5} daha
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
-          </View>
-        )}
-
         {/* Info Boxes */}
         <View style={styles.infoContainer}>
-          {!affectsStandings && (
-            <View style={[styles.infoBox, { backgroundColor: '#FFF3CD' }]}>
-              <Info size={20} color="#856404" />
-              <Text style={[styles.infoText, { color: '#856404' }]}>
-                Bu maç puan durumunu etkilemeyecek
+          {!isPublic && (
+            <View style={[styles.infoBox, { backgroundColor: '#DCFCE7' }]}>
+              <Lock size={20} color="#15803d" />
+              <Text style={[styles.infoText, { color: '#15803d' }]}>
+                Maç oluşturduktan sonra davet kodunu paylaşabilirsiniz
               </Text>
             </View>
           )}
 
           {isPublic && (
-            <View style={[styles.infoBox, { backgroundColor: '#D1ECF1' }]}>
-              <Globe size={20} color="#0C5460" />
-              <Text style={[styles.infoText, { color: '#0C5460' }]}>
+            <View style={[styles.infoBox, { backgroundColor: '#DBEAFE' }]}>
+              <Globe size={20} color="#1E40AF" />
+              <Text style={[styles.infoText, { color: '#1E40AF' }]}>
                 Maç herkese açık, herkes katılabilir
+              </Text>
+            </View>
+          )}
+
+          {!affectsStandings && (
+            <View style={[styles.infoBox, { backgroundColor: '#FEF3C7' }]}>
+              <Info size={20} color="#92400E" />
+              <Text style={[styles.infoText, { color: '#92400E' }]}>
+                Bu maç puan durumunu etkilemeyecek
               </Text>
             </View>
           )}
@@ -760,34 +921,13 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
             <>
               <Text style={styles.sportEmoji}>{SPORT_CONFIGS[selectedSport].emoji}</Text>
               <Text style={styles.createButtonText}>Maç Oluştur</Text>
-              <ChevronRight size={20} color="#FFF" />
+              <Zap size={20} color="#FFF" />
             </>
           )}
         </TouchableOpacity>
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
-
-      {/* Date Picker */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={matchDate}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
-          minimumDate={new Date()}
-        />
-      )}
-
-      {/* Time Picker */}
-      {showTimePicker && (
-        <DateTimePicker
-          value={matchDate}
-          mode="time"
-          display="default"
-          onChange={handleTimeChange}
-        />
-      )}
 
       {/* Template Selection Modal */}
       <Modal
@@ -803,121 +943,35 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
                 {SPORT_CONFIGS[selectedSport].emoji} Şablon Seç
               </Text>
               <TouchableOpacity onPress={() => setShowTemplateModal(false)}>
-                <X size={24} color="#000" />
+                <X size={24} color="#1F2937" />
               </TouchableOpacity>
             </View>
 
             <ScrollView>
-              {templates.map((template: any) => (
+              {templates.map((template) => (
                 <TouchableOpacity
                   key={template.id}
                   style={styles.templateItem}
                   onPress={() => loadTemplate(template)}
+                  onLongPress={() => handleTemplateOptions(template)}
                 >
                   <View style={styles.templateInfo}>
                     <Text style={styles.templateName}>{template.name}</Text>
                     <Text style={styles.templateDetails}>
-                      {template.settings?.location} • ₺{template.settings?.pricePerPlayer} • {template.settings?.staffPlayerCount} kişi
+                      {template.settings?.location} •
+                      {template.settings?.pricePerPlayer ? ` ₺${template.settings.pricePerPlayer} • ` : ' '}
+                      {template.settings?.staffCount} kişi •
+                      {template.settings?.matchDuration || 90} dk
                     </Text>
                   </View>
-                  <ChevronRight size={20} color="#999" />
+                  <ChevronRight size={20} color="#9CA3AF" />
                 </TouchableOpacity>
               ))}
 
-              <TouchableOpacity
-                style={styles.emptyTemplateButton}
-                onPress={() => setShowTemplateModal(false)}
-              >
-                <Plus size={20} color="#007AFF" />
-                <Text style={styles.emptyTemplateText}>Boş Başlat</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Player Selection Modal */}
-      <Modal
-        visible={showPlayerModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowPlayerModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                Oyuncu Seç ({selectedPlayers.length})
-              </Text>
-              <TouchableOpacity onPress={() => setShowPlayerModal(false)}>
-                <Check size={24} color="#007AFF" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Search */}
-            <View style={styles.searchContainer}>
-              <Search size={20} color="#999" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Oyuncu ara..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-
-            {/* Actions */}
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={selectAllPlayers}
-              >
-                <Text style={styles.actionButtonText}>
-                  {filteredPlayers.every((p: any) => selectedPlayers.includes(p.id!))
-                    ? 'Tümünü Kaldır'
-                    : 'Tümünü Seç'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={selectFavoritesOnly}
-              >
-                <Star size={16} color="#FFD700" fill="#FFD700" />
-                <Text style={styles.actionButtonText}>Favoriler</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Player List */}
-            <ScrollView>
-              {filteredPlayers.map((player: any) => (
-                <TouchableOpacity
-                  key={player.id}
-                  style={styles.playerItem}
-                  onPress={() => togglePlayerSelection(player.id!)}
-                >
-                  <View style={styles.playerItemInfo}>
-                    <Text style={styles.playerItemName}>{player.name}</Text>
-                    <Text style={styles.playerItemPhone}>{player.phone}</Text>
-                  </View>
-                  <View style={styles.playerItemRight}>
-                    {player.isFavorite && (
-                      <Star size={16} color="#FFD700" fill="#FFD700" style={styles.favoriteIcon} />
-                    )}
-                    <View style={[
-                      styles.checkbox,
-                      selectedPlayers.includes(player.id!) && styles.checkboxChecked
-                    ]}>
-                      {selectedPlayers.includes(player.id!) && (
-                        <Check size={16} color="#FFF" />
-                      )}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-
-              {filteredPlayers.length === 0 && (
-                <View style={styles.emptyState}>
-                  <Search size={48} color="#CCC" />
-                  <Text style={styles.emptyStateText}>Oyuncu bulunamadı</Text>
+              {templates.length === 0 && (
+                <View style={styles.emptyTemplates}>
+                  <Archive size={48} color="#D1D5DB" />
+                  <Text style={styles.emptyTemplatesText}>Henüz şablon yok</Text>
                 </View>
               )}
             </ScrollView>
@@ -937,7 +991,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Şablon Olarak Kaydet</Text>
               <TouchableOpacity onPress={() => setShowSaveTemplateModal(false)}>
-                <X size={24} color="#000" />
+                <X size={24} color="#1F2937" />
               </TouchableOpacity>
             </View>
 
@@ -954,13 +1008,18 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
                 <Text style={styles.templatePreviewText}>
                   • Spor: {SPORT_CONFIGS[selectedSport].emoji} {SPORT_CONFIGS[selectedSport].name}
                 </Text>
-                <Text style={styles.templatePreviewText}>• Saha: {venue}</Text>
-                <Text style={styles.templatePreviewText}>• Maliyet: ₺{costPerPlayer}</Text>
+                <Text style={styles.templatePreviewText}>• Lokasyon: {location || 'Yok'}</Text>
                 <Text style={styles.templatePreviewText}>
-                  • Kadro: {staffCount}, Yedek: {reserveCount}
+                  • Ücret: {pricePerPlayer ? `₺${pricePerPlayer}` : 'Ücretsiz'}
                 </Text>
                 <Text style={styles.templatePreviewText}>
-                  • Seçili Oyuncular: {selectedPlayers.length}
+                  • Kadro: {staffCount} + {reserveCount} yedek
+                </Text>
+                <Text style={styles.templatePreviewText}>
+                  • Süre: {matchDuration} dakika
+                </Text>
+                <Text style={styles.templatePreviewText}>
+                  • Görünürlük: {isPublic ? 'Açık' : 'Özel (kod ile)'}
                 </Text>
               </View>
 
@@ -972,7 +1031,10 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
                 {savingTemplate ? (
                   <ActivityIndicator color="#FFF" />
                 ) : (
-                  <Text style={styles.saveButtonText}>Şablonu Kaydet</Text>
+                  <>
+                    <Bookmark size={20} color="#FFF" />
+                    <Text style={styles.saveButtonText}>Şablonu Kaydet</Text>
+                  </>
                 )}
               </TouchableOpacity>
             </View>
@@ -983,42 +1045,26 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
   );
 };
 
+// ============================================
+// STYLES
+// ============================================
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F9FAFB',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F9FAFB',
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
+    color: '#6B7280',
     fontWeight: '600',
-    color: '#000',
-  },
-  saveTemplateButton: {
-    padding: 8,
   },
   scrollView: {
     flex: 1,
@@ -1031,20 +1077,15 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: '700',
+    color: '#1F2937',
     marginBottom: 12,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  linkText: {
+  subsectionTitle: {
     fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 12,
   },
   sportScrollContent: {
     paddingRight: 16,
@@ -1054,10 +1095,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#F9FAFB',
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#E0E0E0',
+    borderColor: '#E5E7EB',
     marginRight: 12,
     minWidth: 100,
   },
@@ -1071,27 +1112,28 @@ const styles = StyleSheet.create({
   sportName: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#666',
+    color: '#6B7280',
   },
   templateButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     padding: 14,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#E5E7EB',
   },
   templateButtonText: {
     flex: 1,
     fontSize: 15,
-    color: '#000',
+    color: '#1F2937',
+    fontWeight: '500',
   },
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#666',
+    color: '#6B7280',
     marginBottom: 6,
   },
   row: {
@@ -1104,43 +1146,53 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 14,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#E5E7EB',
   },
   halfInput: {
+    flex: 1,
+  },
+  thirdInput: {
     flex: 1,
   },
   inputText: {
     flex: 1,
     fontSize: 15,
-    color: '#000',
+    color: '#1F2937',
+    fontWeight: '500',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     padding: 14,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#E5E7EB',
     marginBottom: 12,
   },
   textInput: {
     flex: 1,
     fontSize: 15,
-    color: '#000',
+    color: '#1F2937',
+  },
+  paymentSection: {
+    marginTop: 8,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
   },
   textArea: {
     padding: 14,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#E5E7EB',
     fontSize: 15,
-    color: '#000',
+    color: '#1F2937',
     minHeight: 80,
     textAlignVertical: 'top',
   },
@@ -1150,7 +1202,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#F3F4F6',
   },
   settingInfo: {
     flex: 1,
@@ -1158,48 +1210,32 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 15,
-    fontWeight: '500',
-    color: '#000',
+    fontWeight: '600',
+    color: '#1F2937',
     marginBottom: 4,
   },
   settingDescription: {
     fontSize: 13,
-    color: '#666',
+    color: '#6B7280',
   },
-  playerSelectionButton: {
+  codeSettingsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  playerSelectionText: {
-    flex: 1,
-    fontSize: 15,
-    color: '#000',
-  },
-  selectedPlayersPreview: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
     marginTop: 12,
+    marginBottom: 8,
   },
-  playerChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#E3F2FD',
-    borderRadius: 16,
+  codeSettingsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10B981',
   },
-  playerChipText: {
-    fontSize: 13,
-    color: '#007AFF',
-    fontWeight: '500',
+  codeHelperText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: -4,
+    marginBottom: 12,
+    lineHeight: 16,
   },
   infoContainer: {
     gap: 8,
@@ -1210,32 +1246,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#E3F2FD',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
   },
   infoText: {
     flex: 1,
     fontSize: 14,
-    color: '#007AFF',
+    fontWeight: '500',
   },
   createButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#007AFF',
     marginHorizontal: 16,
     marginTop: 16,
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   createButtonDisabled: {
     opacity: 0.6,
   },
   createButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFF',
   },
   bottomSpacing: {
@@ -1259,19 +1300,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#E5E7EB',
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: '700',
+    color: '#1F2937',
   },
   templateItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#F3F4F6',
   },
   templateInfo: {
     flex: 1,
@@ -1279,159 +1320,68 @@ const styles = StyleSheet.create({
   templateName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: '#1F2937',
     marginBottom: 4,
   },
   templateDetails: {
     fontSize: 14,
-    color: '#666',
+    color: '#6B7280',
   },
-  emptyTemplateButton: {
-    flexDirection: 'row',
+  emptyTemplates: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    paddingVertical: 60,
   },
-  emptyTemplateText: {
-    fontSize: 15,
-    color: '#007AFF',
-    fontWeight: '500',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#F8F9FA',
-    marginHorizontal: 16,
-    marginVertical: 12,
-    borderRadius: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#000',
-    paddingVertical: 8,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 16,
-  },
-  actionButtonText: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
-  },
-  playerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  playerItemInfo: {
-    flex: 1,
-  },
-  playerItemName: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#000',
-    marginBottom: 2,
-  },
-  playerItemPhone: {
-    fontSize: 13,
-    color: '#666',
-  },
-  playerItemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  favoriteIcon: {
-    marginRight: 4,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#CCC',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 48,
-  },
-  emptyStateText: {
+  emptyTemplatesText: {
     marginTop: 12,
     fontSize: 15,
-    color: '#999',
+    color: '#9CA3AF',
   },
   saveTemplateForm: {
     padding: 16,
   },
   templateNameInput: {
     padding: 14,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#E5E7EB',
     fontSize: 15,
-    color: '#000',
+    color: '#1F2937',
     marginBottom: 16,
   },
   templatePreview: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#F9FAFB',
     padding: 16,
-    borderRadius: 8,
-    marginVertical: 16,
+    borderRadius: 12,
+    marginBottom: 16,
   },
   templatePreviewTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#000',
+    color: '#1F2937',
     marginBottom: 8,
   },
   templatePreviewText: {
     fontSize: 14,
-    color: '#666',
+    color: '#6B7280',
     marginBottom: 4,
   },
   saveButton: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#10B981',
+    padding: 16,
+    borderRadius: 12,
   },
   saveButtonDisabled: {
-    backgroundColor: '#999',
+    opacity: 0.6,
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFF',
   },
 });
-

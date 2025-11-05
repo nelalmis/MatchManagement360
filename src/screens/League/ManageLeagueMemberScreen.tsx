@@ -42,6 +42,7 @@ import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
 import { ILeague, IPlayer, SportType } from '../../types/entity/types';
 import { getSportPrimaryColor, getSportEmoji } from '../../utils/theme';
+import { CustomHeader } from '../../components/CustomHeader';
 
 // ============================================
 // TYPES
@@ -515,26 +516,16 @@ export const ManageLeagueMembersScreen: React.FC = () => {
   // ============================================
 
   const renderHeader = () => {
-    const sportColor = league ? getSportPrimaryColor(league.sportType) : '#2563EB';
-
     return (
-      <View style={[styles.header, { borderBottomColor: sportColor }]}>
-        <TouchableOpacity onPress={() => NavigationService.goBack()} style={styles.backButton}>
-          <ChevronLeft size={24} color="#1F2937" strokeWidth={2} />
-        </TouchableOpacity>
-
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Üyeleri Yönet</Text>
-          <Text style={styles.headerSubtitle}>{leagueTitle}</Text>
-        </View>
-
-        <TouchableOpacity
-          onPress={() => setShowFilterModal(true)}
-          style={styles.headerButton}
-        >
-          <Filter size={22} color="#6B7280" strokeWidth={2} />
-        </TouchableOpacity>
-      </View>
+      <CustomHeader 
+        title="Üyeleri Yönet"
+        subtitle={league?.title || leagueTitle}
+        showBack={true}
+        onLeftPress={() => NavigationService.goBack()}
+        showFilter={true}
+        onFilterPress={() => setShowFilterModal(true)}
+        sportType={league?.sportType}        
+      />
     );
   };
 

@@ -54,6 +54,7 @@ import {
   getSportPrimaryColor,
 } from '../../utils/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { InvitationType } from '../../types/entity/invitation';
 
 // ============================================
 // CONSTANTS
@@ -749,7 +750,7 @@ export const HomeScreen: React.FC = () => {
   const handlePendingAction = useCallback((action: PendingAction) => {
     switch (action.type) {
       case 'payment':
-        NavigationService.navigateToPaymentTracking(action.matchId);
+        NavigationService.navigateToPlayerPayment(action.matchId);
         break;
       case 'rating':
         NavigationService.navigateToPlayerRating(action.matchId);
@@ -785,7 +786,7 @@ export const HomeScreen: React.FC = () => {
     } else if (action === 'payments') {
       Alert.alert('Ödemelerim', `Toplam: ${paymentSummary.total}₺\nBekleyen: ${paymentSummary.pending}₺`);
     } else if (action === 'joinLeague') {
-      NavigationService.navigateToJoinLeague();
+      NavigationService.navigateToJoinWithCodeHomeTab(InvitationType.LEAGUE);
     }
   }, [myLeagues.length, paymentSummary]);
 

@@ -36,6 +36,7 @@ import { getSportPrimaryColor } from '../../../utils/theme';
 import { PlayerSelectorModal } from '../../League/components/PlayerSelectorModal';
 import { DayOfWeek, getDayNameTR, RecurringPattern, RecurringPatternType } from '../../../types/entity/recurringPattern';
 import { getRegistrationTimingDescription, RegistrationSchedule, RegistrationTimingType } from '../../../types/entity/registrationScheduleType';
+import { CustomHeader } from '../../../components/CustomHeader';
 
 type StepType = 1 | 2 | 3 | 4;
 
@@ -381,24 +382,13 @@ export const FixtureForm: React.FC<FixtureFormProps> = ({
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onCancel} style={styles.headerButton} activeOpacity={0.7}>
-          <X size={24} color="#1F2937" strokeWidth={2} />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>
-            {mode === 'create' ? 'Yeni Fikstür' : 'Fikstür Düzenle'}
-          </Text>
-          <View style={styles.headerSubtitleRow}>
-            <Trophy size={14} color={sportColor} strokeWidth={2} />
-            <Text style={styles.headerSubtitle}>{league.title}</Text>
-          </View>
-        </View>
-
-        <View style={styles.headerButton} />
-      </View>
+      <CustomHeader 
+        title={mode === 'create' ? 'Yeni Fikstür' : 'Fikstür Düzenle'}
+        subtitle={league.title}
+        sportType={league.sportType}
+        showClose={true}
+        onLeftPress={onCancel}
+      />
 
       {/* Progress */}
       <View style={styles.progressContainer}>

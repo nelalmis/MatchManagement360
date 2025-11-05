@@ -23,6 +23,7 @@ import { useAuth } from '../../hooks';
 import { getSportIcon, getSportColor } from '../../types/types';
 import LeagueInvitationService from '../../services/serviceLayer/LeagueInvitationService';
 import { getSportDisplayName, getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
+import { CustomHeader } from '../../components/CustomHeader';
 
 interface JoinLeagueScreenProps {
   initialCode?: string; // Deep link'ten gelen kod
@@ -170,92 +171,92 @@ export const JoinLeagueScreen: React.FC<JoinLeagueScreenProps> = ({ initialCode 
   // RENDER LEAGUE PREVIEW
   // ============================================
   const renderLeaguePreview = () => {
-  if (!validation?.valid || !validation.league) return null;
+    if (!validation?.valid || !validation.league) return null;
 
-  const sportEmoji = getSportEmoji(validation.league.sportType as SportType); // ✅ Emoji
-  const sportColor = getSportPrimaryColor(validation.league.sportType as SportType); // ✅ Color
+    const sportEmoji = getSportEmoji(validation.league.sportType as SportType); // ✅ Emoji
+    const sportColor = getSportPrimaryColor(validation.league.sportType as SportType); // ✅ Color
 
-  return (
-    <View style={styles.previewSection}>
-      <View style={styles.previewHeader}>
-        {/* League Logo or Sport Icon */}
-        {validation.league.logo ? (
-          <View style={[styles.previewIcon, { backgroundColor: `${sportColor}20` }]}>
-            <Image 
-              source={{ uri: validation.league.logo }} 
-              style={styles.leagueLogo} 
-            />
+    return (
+      <View style={styles.previewSection}>
+        <View style={styles.previewHeader}>
+          {/* League Logo or Sport Icon */}
+          {validation.league.logo ? (
+            <View style={[styles.previewIcon, { backgroundColor: `${sportColor}20` }]}>
+              <Image
+                source={{ uri: validation.league.logo }}
+                style={styles.leagueLogo}
+              />
+            </View>
+          ) : (
+            <View style={[styles.previewIcon, { backgroundColor: sportColor + '20' }]}>
+              <Text style={styles.sportEmoji}>{sportEmoji}</Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.previewTitle}>{validation.league.title}</Text>
+        <Text style={styles.previewSport}>
+          {sportEmoji} {getSportDisplayName(validation.league.sportType as SportType)}
+        </Text>
+
+        <View style={styles.previewStats}>
+          <View style={styles.statItem}>
+            <Users size={20} color="#6B7280" strokeWidth={2} />
+            <Text style={styles.statValue}>{validation.league.memberCount}</Text>
+            <Text style={styles.statLabel}>Üye</Text>
           </View>
-        ) : (
-          <View style={[styles.previewIcon, { backgroundColor: sportColor + '20' }]}>
-            <Text style={styles.sportEmoji}>{sportEmoji}</Text>
+        </View>
+
+        {validation.invitation?.metadata.assignRole && (
+          <View style={styles.roleInfo}>
+            <Trophy size={16} color="#16a34a" strokeWidth={2} />
+            <Text style={styles.roleInfoText}>
+              {validation.invitation.metadata.assignRole === 'premium'
+                ? '👑 Premium Oyuncu olarak katılacaksınız'
+                : validation.invitation.metadata.assignRole === 'direct'
+                  ? '🛡️ Direkt Oyuncu olarak katılacaksınız'
+                  : '👤 Üye olarak katılacaksınız'}
+            </Text>
           </View>
         )}
-      </View>
 
-      <Text style={styles.previewTitle}>{validation.league.title}</Text>
-      <Text style={styles.previewSport}>
-        {sportEmoji} {getSportDisplayName(validation.league.sportType as SportType)}
-      </Text>
-
-      <View style={styles.previewStats}>
-        <View style={styles.statItem}>
-          <Users size={20} color="#6B7280" strokeWidth={2} />
-          <Text style={styles.statValue}>{validation.league.memberCount}</Text>
-          <Text style={styles.statLabel}>Üye</Text>
-        </View>
-      </View>
-
-      {validation.invitation?.metadata.assignRole && (
-        <View style={styles.roleInfo}>
-          <Trophy size={16} color="#16a34a" strokeWidth={2} />
-          <Text style={styles.roleInfoText}>
-            {validation.invitation.metadata.assignRole === 'premium'
-              ? '👑 Premium Oyuncu olarak katılacaksınız'
-              : validation.invitation.metadata.assignRole === 'direct'
-                ? '🛡️ Direkt Oyuncu olarak katılacaksınız'
-                : '👤 Üye olarak katılacaksınız'}
-          </Text>
-        </View>
-      )}
-
-      {validation.invitation?.metadata.description && (
-        <View style={styles.descriptionBox}>
-          <Text style={styles.descriptionText}>
-            {validation.invitation.metadata.description}
-          </Text>
-        </View>
-      )}
-
-      <TouchableOpacity
-        style={[styles.joinButton, { backgroundColor: sportColor }, joining && styles.buttonDisabled]}
-        onPress={handleJoinLeague}
-        disabled={joining}
-        activeOpacity={0.7}
-      >
-        {joining ? (
-          <ActivityIndicator size="small" color="white" />
-        ) : (
-          <>
-            <Text style={styles.joinButtonText}>Lige Katıl</Text>
-            <ArrowRight size={20} color="white" strokeWidth={2.5} />
-          </>
+        {validation.invitation?.metadata.description && (
+          <View style={styles.descriptionBox}>
+            <Text style={styles.descriptionText}>
+              {validation.invitation.metadata.description}
+            </Text>
+          </View>
         )}
-      </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => {
-          setCode('');
-          setValidation(null);
-        }}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.backButtonText}>Farklı Kod Dene</Text>
-      </TouchableOpacity>
-    </View>
-  );
-};
+        <TouchableOpacity
+          style={[styles.joinButton, { backgroundColor: sportColor }, joining && styles.buttonDisabled]}
+          onPress={handleJoinLeague}
+          disabled={joining}
+          activeOpacity={0.7}
+        >
+          {joining ? (
+            <ActivityIndicator size="small" color="white" />
+          ) : (
+            <>
+              <Text style={styles.joinButtonText}>Lige Katıl</Text>
+              <ArrowRight size={20} color="white" strokeWidth={2.5} />
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => {
+            setCode('');
+            setValidation(null);
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.backButtonText}>Farklı Kod Dene</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   // ============================================
   // RENDER ERROR
@@ -292,17 +293,11 @@ export const JoinLeagueScreen: React.FC<JoinLeagueScreenProps> = ({ initialCode 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => NavigationService.goBack()}
-          style={styles.headerButton}
-          activeOpacity={0.7}
-        >
-          <X size={24} color="#1F2937" strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Lige Katıl</Text>
-        <View style={styles.headerButton} />
-      </View>
+      <CustomHeader
+        title="Lige Katıl"
+        showBack={true}
+        onLeftPress={() => NavigationService.goBack()}
+      />
 
       {/* Content */}
       <View style={styles.content}>
@@ -416,7 +411,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-   statItem: {
+  statItem: {
     alignItems: 'center',
     gap: 6,
   },
@@ -575,5 +570,5 @@ const styles = StyleSheet.create({
     gap: 32,
     marginBottom: 20,
   },
- 
+
 });

@@ -1,3 +1,6 @@
+// src/screens/Match/ScoreEntryScreen.tsx
+// 🎯 SCORE ENTRY - Updated for new structure
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -23,17 +26,15 @@ import {
 import { useRoute } from '@react-navigation/native';
 import {
   IMatch,
-  IMatchFixture,
-  IPlayer,
-  getSportIcon,
-  getSportColor,
-} from '../../types/types';
-import { matchService } from '../../services/matchService';
-import { matchFixtureService } from '../../services/matchFixtureService';
-import { playerService } from '../../services/playerService';
-import { NavigationService } from '../../navigation/NavigationService';
+  MatchStatus,
+  SPORT_CONFIGS,
+} from '../../types/entity/types';
+import { MatchService } from '../../services/serviceLayer/matchService';
+import { PlayerService } from '../../services/serviceLayer/playerService';
+import { NavigationService } from '../../navigation';
 import { eventManager, Events } from '../../utils';
 import { useAuth } from '../../hooks';
+import { CustomHeader } from '../../components/CustomHeader';
 
 export const ScoreEntryScreen: React.FC = () => {
   const route: any = useRoute();
@@ -41,9 +42,8 @@ export const ScoreEntryScreen: React.FC = () => {
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);
-  const [fixture, setFixture] = useState<IMatchFixture | null>(null);
-  const [team1Players, setTeam1Players] = useState<IPlayer[]>([]);
-  const [team2Players, setTeam2Players] = useState<IPlayer[]>([]);
+  const [team1Players, setTeam1Players] = useState<any[]>([]);
+  const [team2Players, setTeam2Players] = useState<any[]>([]);
 
   const [team1Score, setTeam1Score] = useState<string>('0');
   const [team2Score, setTeam2Score] = useState<string>('0');
@@ -65,24 +65,39 @@ export const ScoreEntryScreen: React.FC = () => {
     try {
       setLoading(true);
 
-      const matchData = await matchService.getById(matchId);
-      if (!matchData) {
+      const result = await MatchService.getMatch(matchId);
+      
+      if (!result.success || !result.data) {
         Alert.alert('Hata', 'Maç bulunamadı');
         NavigationService.goBack();
         return;
       }
 
+      const matchData = result.data;
+
       // Check if user is organizer
-      const isOrganizer = matchData.organizerPlayerIds?.includes(user.id);
+      const isOrganizer = matchData.permissions.organizers.includes(user.id);
       if (!isOrganizer) {
-        Alert.alert('Hata', 'Bu işlem için yetkiniz yok');
+        Alert.alert('Hata', 'Bu işlem için yetkiniz yok. Sadece organizatörler skor girebilir.');
         NavigationService.goBack();
         return;
       }
 
       // Check if teams are built
-      if (!matchData.team1PlayerIds || !matchData.team2PlayerIds) {
+      if (!matchData.players.teams) {
         Alert.alert('Uyarı', 'Önce takımlar oluşturulmalı');
+        NavigationService.goBack();
+        return;
+      }
+
+      // Check status - can only enter score when IN_PROGRESS or AWAITING_SCORE
+      if (matchData.status !== MatchStatus.IN_PROGRESS && 
+          matchData.status !== MatchStatus.AWAITING_SCORE &&
+          matchData.status !== MatchStatus.TEAMS_SET) {
+        Alert.alert(
+          'Uyarı',
+          `Skor girişi yapılamaz.\nMevcut durum: ${matchData.status}`
+        );
         NavigationService.goBack();
         return;
       }
@@ -90,29 +105,37 @@ export const ScoreEntryScreen: React.FC = () => {
       setMatch(matchData);
 
       // If score already exists, load it
-      if (matchData.team1Score !== undefined && matchData.team2Score !== undefined) {
-        setTeam1Score(matchData.team1Score.toString());
-        setTeam2Score(matchData.team2Score.toString());
+      if (matchData.score) {
+        setTeam1Score(matchData.score.team1.toString());
+        setTeam2Score(matchData.score.team2.toString());
       }
 
-      // Get fixture
-      const fixtureData = await matchFixtureService.getById(matchData.fixtureId);
-      setFixture(fixtureData);
-
       // Load team players
-      if (matchData.team1PlayerIds.length > 0) {
-        const players = await playerService.getPlayersByIds(matchData.team1PlayerIds);
+      const team1PlayerIds = matchData.players.teams.team1.map(p => p.playerId);
+      const team2PlayerIds = matchData.players.teams.team2.map(p => p.playerId);
+
+      if (team1PlayerIds.length > 0) {
+        const playerDetailsPromises = team1PlayerIds.map(async (playerId) => {
+          const playerResult = await PlayerService.getPlayer(playerId);
+          return playerResult.success && playerResult.data ? playerResult.data : null;
+        });
+        const players = (await Promise.all(playerDetailsPromises)).filter(p => p !== null);
         setTeam1Players(players);
       }
 
-      if (matchData.team2PlayerIds.length > 0) {
-        const players = await playerService.getPlayersByIds(matchData.team2PlayerIds);
+      if (team2PlayerIds.length > 0) {
+        const playerDetailsPromises = team2PlayerIds.map(async (playerId) => {
+          const playerResult = await PlayerService.getPlayer(playerId);
+          return playerResult.success && playerResult.data ? playerResult.data : null;
+        });
+        const players = (await Promise.all(playerDetailsPromises)).filter(p => p !== null);
         setTeam2Players(players);
       }
 
     } catch (error) {
       console.error('Error loading match:', error);
       Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu');
+      NavigationService.goBack();
     } finally {
       setLoading(false);
     }
@@ -171,15 +194,15 @@ export const ScoreEntryScreen: React.FC = () => {
     }
 
     if (score1 > 99 || score2 > 99) {
-      Alert.alert('Hata', 'Skor çok yüksek');
+      Alert.alert('Hata', 'Skor çok yüksek (Max: 99)');
       return;
     }
 
     const resultText = score1 > score2
-      ? 'Takım 1 Kazandı'
+      ? 'Takım 1 Kazandı 🏆'
       : score1 < score2
-        ? 'Takım 2 Kazandı'
-        : 'Berabere';
+        ? 'Takım 2 Kazandı 🏆'
+        : 'Berabere 🤝';
 
     Alert.alert(
       'Skoru Kaydet',
@@ -192,22 +215,22 @@ export const ScoreEntryScreen: React.FC = () => {
             try {
               setSaving(true);
 
-              const success = await matchService.updateScore(
-                match.id,
-                score1,
-                score2
-              );
+              const result = await MatchService.submitScore(matchId, {
+                team1: score1,
+                team2: score2,
+                scorers: [], // Will be filled by players later
+              });
 
-              if (success) {
-                // ✅ Event tetikle
+              if (result.success) {
+                // Emit event
                 eventManager.emit(Events.SCORE_UPDATED, {
-                  matchId: match.id,
+                  matchId,
                   timestamp: Date.now()
                 });
-                
+
                 Alert.alert(
                   '✅ Başarılı!',
-                  'Maç skoru kaydedildi. Şimdi oyuncular gol/asist girişi yapabilir.',
+                  'Maç skoru kaydedildi.\n\n📊 Şimdi:\n• Oyuncular gol/asist girişi yapabilir\n• Oyuncular birbirlerini puanlayabilir\n• MVP hesaplanacak',
                   [
                     {
                       text: 'Tamam',
@@ -216,7 +239,7 @@ export const ScoreEntryScreen: React.FC = () => {
                   ]
                 );
               } else {
-                Alert.alert('Hata', 'Skor kaydedilemedi');
+                Alert.alert('Hata', result.error?.message || 'Skor kaydedilemedi');
               }
             } catch (error) {
               console.error('Error saving score:', error);
@@ -239,7 +262,13 @@ export const ScoreEntryScreen: React.FC = () => {
     return 0; // Draw
   };
 
-  if (loading || !match || !fixture) {
+  const getGoalDifference = () => {
+    const score1 = parseInt(team1Score) || 0;
+    const score2 = parseInt(team2Score) || 0;
+    return Math.abs(score1 - score2);
+  };
+
+  if (loading || !match) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#16a34a" />
@@ -248,30 +277,18 @@ export const ScoreEntryScreen: React.FC = () => {
     );
   }
 
-  const sportColor = getSportColor(fixture.sportType);
+  const sportColor = SPORT_CONFIGS[match.sportType].color;
   const winnerTeam = getWinnerTeam();
+  const goalDifference = getGoalDifference();
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: sportColor }]}>
-        <TouchableOpacity
-          onPress={() => NavigationService.goBack()}
-          style={styles.headerButton}
-          activeOpacity={0.7}
-        >
-          <ChevronLeft size={24} color="white" strokeWidth={2} />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Skor Girişi</Text>
-          <Text style={styles.headerSubtitle}>
-            {getSportIcon(fixture.sportType)} {match.title}
-          </Text>
-        </View>
-
-        <View style={styles.headerButton} />
-      </View>
+      <CustomHeader
+        title="Skor Girişi"
+        subtitle={`${SPORT_CONFIGS[match.sportType].emoji} ${match.title}`}
+        showBack={true}
+        onLeftPress={() => NavigationService.goBack()}
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Info Banner */}
@@ -280,7 +297,7 @@ export const ScoreEntryScreen: React.FC = () => {
           <View style={styles.infoBannerContent}>
             <Text style={styles.infoBannerTitle}>Skor Girişi</Text>
             <Text style={styles.infoBannerText}>
-              Final skorunu girin. Kaydedildikten sonra oyuncular gol/asist girişi yapabilir.
+              Final skorunu girin. Kaydedildikten sonra oyuncular gol/asist girebilir ve birbirlerini puanlayabilir.
             </Text>
           </View>
         </View>
@@ -341,6 +358,11 @@ export const ScoreEntryScreen: React.FC = () => {
             <View style={styles.vsCircle}>
               <Text style={styles.vsText}>VS</Text>
             </View>
+            {goalDifference > 0 && winnerTeam !== 0 && (
+              <View style={styles.goalDiffBadge}>
+                <Text style={styles.goalDiffText}>+{goalDifference}</Text>
+              </View>
+            )}
           </View>
 
           {/* Team 2 */}
@@ -397,10 +419,14 @@ export const ScoreEntryScreen: React.FC = () => {
         <View style={styles.resultPreview}>
           <Target size={20} color="#6B7280" strokeWidth={2} />
           <Text style={styles.resultPreviewLabel}>Sonuç:</Text>
-          <Text style={styles.resultPreviewText}>
+          <Text style={[
+            styles.resultPreviewText,
+            winnerTeam === 1 && { color: sportColor },
+            winnerTeam === 2 && { color: '#DC2626' },
+          ]}>
             {winnerTeam === 0
-              ? 'Berabere'
-              : `Takım ${winnerTeam} Kazandı`
+              ? 'Berabere 🤝'
+              : `Takım ${winnerTeam} Kazandı 🏆`
             }
           </Text>
         </View>
@@ -413,6 +439,13 @@ export const ScoreEntryScreen: React.FC = () => {
             <Text style={styles.summaryLabel}>Final Skoru</Text>
             <Text style={styles.summaryValue}>
               {team1Score} - {team2Score}
+            </Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Gol Farkı</Text>
+            <Text style={styles.summaryValue}>
+              {goalDifference === 0 ? 'Yok' : `±${goalDifference}`}
             </Text>
           </View>
 
@@ -440,10 +473,11 @@ export const ScoreEntryScreen: React.FC = () => {
           <View style={styles.nextStepsContent}>
             <Text style={styles.nextStepsTitle}>Sonraki Adımlar</Text>
             <Text style={styles.nextStepsText}>
-              • Skor kaydedildikten sonra oyuncular gol/asist girebilir{'\n'}
-              • Oyuncular birbirlerini puanlayabilir{'\n'}
-              • En yüksek puanlı oyuncu MVP olacak{'\n'}
-              • Organizatör tüm verileri onaylayacak
+              1️⃣ Oyuncular gol/asist girebilir{'\n'}
+              2️⃣ Oyuncular birbirlerini puanlayabilir{'\n'}
+              3️⃣ En yüksek puanlı oyuncu MVP olacak{'\n'}
+              4️⃣ Organizatör maçı tamamlayacak{'\n'}
+              5️⃣ Puan durumu ve istatistikler güncellenecek
             </Text>
           </View>
         </View>
@@ -464,7 +498,7 @@ export const ScoreEntryScreen: React.FC = () => {
           ) : (
             <>
               <Save size={20} color="white" strokeWidth={2.5} />
-              <Text style={styles.saveButtonText}>Skoru Kaydet</Text>
+              <Text style={styles.saveButtonText}>Skoru Kaydet ve Devam Et</Text>
             </>
           )}
         </TouchableOpacity>
@@ -488,35 +522,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: '#6B7280',
-    fontWeight: '500',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: 'white',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
+    fontWeight: '600',
   },
   content: {
     flex: 1,
@@ -635,6 +641,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#6B7280',
   },
+  goalDiffBadge: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+  },
+  goalDiffText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#78350F',
+  },
   resultPreview: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -642,7 +660,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginHorizontal: 16,
     marginTop: 24,
-    paddingVertical: 12,
+    paddingVertical: 14,
     backgroundColor: '#F3F4F6',
     borderRadius: 12,
   },
@@ -713,7 +731,7 @@ const styles = StyleSheet.create({
   nextStepsText: {
     fontSize: 12,
     color: '#78350F',
-    lineHeight: 18,
+    lineHeight: 20,
   },
   bottomSpacing: {
     height: 20,
@@ -731,6 +749,11 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   saveButtonText: {
     fontSize: 16,

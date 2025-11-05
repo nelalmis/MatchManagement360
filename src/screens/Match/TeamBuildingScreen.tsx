@@ -1,3 +1,6 @@
+// src/screens/Match/TeamBuildingScreen.tsx
+// 🏗️ TEAM BUILDING - Updated for new structure
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -23,22 +26,24 @@ import {
   Check,
   AlertCircle,
   Info,
+  TrendingUp,
+  MapPin,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import {
   IMatch,
-  IMatchFixture,
-  IPlayer,
-  getSportIcon,
-  getSportColor,
-  buildSquad,
-} from '../../types/types';
-import { matchService } from '../../services/matchService';
-import { matchFixtureService } from '../../services/matchFixtureService';
-import { playerService } from '../../services/playerService';
-import { NavigationService } from '../../navigation/NavigationService';
+  MatchStatus,
+  SportType,
+  SPORT_CONFIGS,
+} from '../../types/entity/types';
+import { MatchService } from '../../services/serviceLayer/matchService';
+import { PlayerService } from '../../services/serviceLayer/playerService';
+import { NavigationService } from '../../navigation';
 import { eventManager, Events } from '../../utils';
 import { useAuth } from '../../hooks';
+import { CustomHeader } from '../../components/CustomHeader';
+
+type BuildAlgorithm = 'random' | 'rating' | 'position';
 
 export const TeamBuildingScreen: React.FC = () => {
   const route: any = useRoute();
@@ -46,13 +51,11 @@ export const TeamBuildingScreen: React.FC = () => {
   const matchId = route.params?.matchId;
 
   const [match, setMatch] = useState<IMatch | null>(null);
-  const [fixture, setFixture] = useState<IMatchFixture | null>(null);
-  const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
+  const [allPlayers, setAllPlayers] = useState<any[]>([]);
   
-  const [team1, setTeam1] = useState<string[]>([]);
-  const [team2, setTeam2] = useState<string[]>([]);
-  const [availablePlayers, setAvailablePlayers] = useState<IPlayer[]>([]);
-  const [reservePlayers, setReservePlayers] = useState<IPlayer[]>([]);
+  const [team1, setTeam1] = useState<Array<{ playerId: string; position?: string }>>([]);
+  const [team2, setTeam2] = useState<Array<{ playerId: string; position?: string }>>([]);
+  const [availablePlayers, setAvailablePlayers] = useState<string[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,6 +63,9 @@ export const TeamBuildingScreen: React.FC = () => {
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<1 | 2>(1);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [showAlgorithmModal, setShowAlgorithmModal] = useState(false);
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<BuildAlgorithm>('random');
 
   useEffect(() => {
     loadData();
@@ -75,17 +81,20 @@ export const TeamBuildingScreen: React.FC = () => {
     try {
       setLoading(true);
 
-      const matchData = await matchService.getById(matchId);
-      if (!matchData) {
+      const result = await MatchService.getMatch(matchId);
+      
+      if (!result.success || !result.data) {
         Alert.alert('Hata', 'Maç bulunamadı');
         NavigationService.goBack();
         return;
       }
 
-      // Check permissions
+      const matchData = result.data;
+
+      // Check permissions - only organizers and teamBuilders can build teams
       const canBuild = 
-        matchData.organizerPlayerIds?.includes(user.id) ||
-        matchData.teamBuildingAuthorityPlayerIds?.includes(user.id);
+        matchData.permissions.organizers.includes(user.id) ||
+        matchData.permissions.teamBuilders?.includes(user.id);
 
       if (!canBuild) {
         Alert.alert('Hata', 'Takım kurma yetkiniz yok');
@@ -93,129 +102,139 @@ export const TeamBuildingScreen: React.FC = () => {
         return;
       }
 
-      setMatch(matchData);
-
-      // Get fixture
-      const fixtureData = await matchFixtureService.getById(matchData.fixtureId);
-      if (!fixtureData) {
-        Alert.alert('Hata', 'Fikstür bulunamadı');
+      // Check status - can only build teams when REGISTRATION_CLOSED
+      if (matchData.status !== MatchStatus.REGISTRATION_CLOSED) {
+        Alert.alert(
+          'Uyarı',
+          `Takım kurma sadece kayıtlar kapandıktan sonra yapılabilir.\nMevcut durum: ${matchData.status}`
+        );
         NavigationService.goBack();
         return;
       }
-      setFixture(fixtureData);
 
-      // Get all registered players
-      const allPlayerIds = [
-        ...(matchData.directPlayerIds || []),
-        ...(matchData.registeredPlayerIds || []),
-        ...(matchData.guestPlayerIds || []),
-      ];
+      setMatch(matchData);
 
-      const uniquePlayerIds = [...new Set(allPlayerIds)];
-      const players = await playerService.getPlayersByIds(uniquePlayerIds);
-      setAllPlayers(players);
+      // Get eligible players using service method
+      const eligiblePlayers = MatchService.getEligiblePlayers(matchData);
+      
+      // Load player details
+      const playerDetailsPromises = eligiblePlayers.all.map(async (playerId) => {
+        const playerResult = await PlayerService.getPlayer(playerId);
+        return playerResult.success && playerResult.data ? playerResult.data : null;
+      });
+
+      const playerDetails = (await Promise.all(playerDetailsPromises)).filter(p => p !== null);
+      setAllPlayers(playerDetails);
 
       // If teams already exist, load them
-      if (matchData.team1PlayerIds && matchData.team2PlayerIds) {
-        setTeam1(matchData.team1PlayerIds);
-        setTeam2(matchData.team2PlayerIds);
+      if (matchData.players.teams) {
+        setTeam1(matchData.players.teams.team1);
+        setTeam2(matchData.players.teams.team2);
         
-        // Available players = players not in teams
-        const inTeams = [...matchData.team1PlayerIds, ...matchData.team2PlayerIds];
-        const available = players.filter(p => !inTeams.includes(p.id!));
+        // Available players = players in squad but not in teams
+        const inTeams = [
+          ...matchData.players.teams.team1.map(p => p.playerId),
+          ...matchData.players.teams.team2.map(p => p.playerId),
+        ];
+        const available = eligiblePlayers.squad.filter(id => !inTeams.includes(id));
         setAvailablePlayers(available);
       } else {
-        // Build initial squad using algorithm
-        const { squad, reserves } = buildSquad(
-          matchData,
-          fixtureData.staffPlayerCount,
-          fixtureData.reservePlayerCount
-        );
-
-        const squadPlayers = players.filter(p => squad.includes(p.id!));
-        const reservePlayersData = players.filter(p => reserves.includes(p.id!));
-        
-        setAvailablePlayers(squadPlayers);
-        setReservePlayers(reservePlayersData);
+        // No teams yet - all squad players are available
+        setAvailablePlayers(eligiblePlayers.squad);
       }
 
     } catch (error) {
       console.error('Error loading match:', error);
       Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu');
+      NavigationService.goBack();
     } finally {
       setLoading(false);
     }
   };
 
   const handleAutoBalance = () => {
-    if (availablePlayers.length < 2) {
-      Alert.alert('Uyarı', 'Yeterli oyuncu yok');
-      return;
-    }
+    setShowAlgorithmModal(true);
+  };
+
+  const handleBuildWithAlgorithm = async (algorithm: BuildAlgorithm) => {
+    if (!match) return;
+
+    setShowAlgorithmModal(false);
+
+    const algorithmNames = {
+      random: 'Rastgele',
+      rating: 'Rating Dengeli',
+      position: 'Pozisyon Dengeli',
+    };
 
     Alert.alert(
-      'Otomatik Takım Kur',
-      'Oyuncular otomatik olarak dengeli takımlara dağıtılacak. Mevcut takımlar silinecek!',
+      `${algorithmNames[algorithm]} Takım Kur`,
+      'Oyuncular otomatik olarak takımlara dağıtılacak. Mevcut takımlar silinecek!',
       [
         { text: 'İptal', style: 'cancel' },
         {
           text: 'Devam',
-          onPress: () => {
-            // Shuffle players
-            const shuffled = [...availablePlayers].sort(() => Math.random() - 0.5);
-            const half = Math.ceil(shuffled.length / 2);
-            
-            const newTeam1 = shuffled.slice(0, half).map(p => p.id!);
-            const newTeam2 = shuffled.slice(half).map(p => p.id!);
-            
-            setTeam1(newTeam1);
-            setTeam2(newTeam2);
-            setAvailablePlayers([]);
-            
-            Alert.alert('✅ Başarılı!', 'Takımlar otomatik olarak oluşturuldu');
+          onPress: async () => {
+            try {
+              setSaving(true);
+
+              const result = await MatchService.buildTeams(matchId, algorithm);
+
+              if (result.success && result.data) {
+                // Reload match to get updated teams
+                await loadData();
+                
+                Alert.alert('✅ Başarılı!', 'Takımlar otomatik olarak oluşturuldu');
+              } else {
+                Alert.alert('Hata', result.error?.message || 'Takımlar oluşturulamadı');
+              }
+            } catch (error) {
+              console.error('Error building teams:', error);
+              Alert.alert('Hata', 'Takımlar oluşturulurken bir hata oluştu');
+            } finally {
+              setSaving(false);
+            }
           }
         }
       ]
     );
   };
 
-  const handleAddPlayerToTeam = (playerId: string, team: 1 | 2) => {
-    const player = availablePlayers.find(p => p.id === playerId);
-    if (!player) return;
+  const handleAddPlayerToTeam = (playerId: string, team: 1 | 2, position?: string) => {
+    if (!match) return;
 
     const teamCount = team === 1 ? team1.length : team2.length;
-    const maxPerTeam = Math.ceil((fixture?.staffPlayerCount || 10) / 2);
+    const maxPerTeam = Math.ceil(match.squad.totalPlayers / 2);
 
     if (teamCount >= maxPerTeam) {
       Alert.alert('Uyarı', `Takım ${team} kadrosu dolu (Max: ${maxPerTeam})`);
       return;
     }
 
+    const playerEntry = { playerId, position };
+
     if (team === 1) {
-      setTeam1([...team1, playerId]);
+      setTeam1([...team1, playerEntry]);
     } else {
-      setTeam2([...team2, playerId]);
+      setTeam2([...team2, playerEntry]);
     }
 
-    setAvailablePlayers(availablePlayers.filter(p => p.id !== playerId));
+    setAvailablePlayers(availablePlayers.filter(id => id !== playerId));
     setShowPlayerModal(false);
   };
 
   const handleRemovePlayerFromTeam = (playerId: string, team: 1 | 2) => {
-    const player = allPlayers.find(p => p.id === playerId);
-    if (!player) return;
-
     if (team === 1) {
-      setTeam1(team1.filter(id => id !== playerId));
+      setTeam1(team1.filter(p => p.playerId !== playerId));
     } else {
-      setTeam2(team2.filter(id => id !== playerId));
+      setTeam2(team2.filter(p => p.playerId !== playerId));
     }
 
-    setAvailablePlayers([...availablePlayers, player]);
+    setAvailablePlayers([...availablePlayers, playerId]);
   };
 
   const handleSaveTeams = async () => {
-    if (!match || !fixture) return;
+    if (!match) return;
 
     // Validation
     if (team1.length === 0 || team2.length === 0) {
@@ -224,14 +243,21 @@ export const TeamBuildingScreen: React.FC = () => {
     }
 
     const totalPlayers = team1.length + team2.length;
-    if (totalPlayers > fixture.staffPlayerCount) {
-      Alert.alert('Uyarı', `Toplam oyuncu sayısı ${fixture.staffPlayerCount}'i geçemez`);
+    const minPlayers = match.squad.minPlayersToStart;
+
+    if (totalPlayers < minPlayers) {
+      Alert.alert('Uyarı', `Toplam oyuncu sayısı en az ${minPlayers} olmalı`);
+      return;
+    }
+
+    if (totalPlayers > match.squad.totalPlayers) {
+      Alert.alert('Uyarı', `Toplam oyuncu sayısı ${match.squad.totalPlayers}'i geçemez`);
       return;
     }
 
     Alert.alert(
       'Takımları Kaydet',
-      `Takım 1: ${team1.length} oyuncu\nTakım 2: ${team2.length} oyuncu\n\nTakımlar kaydedilecek ve maç durumu güncellenecek. Devam edilsin mi?`,
+      `Takım 1: ${team1.length} oyuncu\nTakım 2: ${team2.length} oyuncu\n\nTakımlar kaydedilecek ve maç durumu "Takımlar Kuruldu" olarak güncellenecek. Devam edilsin mi?`,
       [
         { text: 'İptal', style: 'cancel' },
         {
@@ -240,18 +266,19 @@ export const TeamBuildingScreen: React.FC = () => {
             try {
               setSaving(true);
 
-              const success = await matchService.assignTeams(
-                match.id,
-                team1,
-                team2
+              const result = await MatchService.buildTeams(
+                matchId,
+                'manual',
+                { team1, team2 }
               );
 
-              if (success) {
-                 // ✅ Event tetikle
-                            eventManager.emit(Events.TEAM_UPDATED, {
-                              matchId: match.id,
-                              timestamp: Date.now()
-                            });
+              if (result.success) {
+                // Emit event
+                eventManager.emit(Events.TEAM_UPDATED, {
+                  matchId,
+                  timestamp: Date.now()
+                });
+
                 Alert.alert(
                   '✅ Başarılı!',
                   'Takımlar başarıyla kaydedildi',
@@ -263,7 +290,7 @@ export const TeamBuildingScreen: React.FC = () => {
                   ]
                 );
               } else {
-                Alert.alert('Hata', 'Takımlar kaydedilemedi');
+                Alert.alert('Hata', result.error?.message || 'Takımlar kaydedilemedi');
               }
             } catch (error) {
               console.error('Error saving teams:', error);
@@ -289,15 +316,26 @@ export const TeamBuildingScreen: React.FC = () => {
     return `${player.name} ${player.surname}`;
   };
 
-  const getFilteredAvailablePlayers = () => {
-    if (!searchQuery.trim()) return availablePlayers;
+  const getPlayerPosition = (playerId: string) => {
+    const player = allPlayers.find(p => p.id === playerId);
+    if (!player || !match) return undefined;
     
-    return availablePlayers.filter(p =>
+    const positions = player.sportPositions?.[match.sportType];
+    return positions?.[0];
+  };
+
+  const getFilteredAvailablePlayers = () => {
+    if (!searchQuery.trim()) {
+      return allPlayers.filter(p => availablePlayers.includes(p.id));
+    }
+    
+    return allPlayers.filter(p =>
+      availablePlayers.includes(p.id) &&
       `${p.name} ${p.surname}`.toLowerCase().includes(searchQuery.toLowerCase())
     );
   };
 
-  if (loading || !match || !fixture) {
+  if (loading || !match) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#16a34a" />
@@ -306,30 +344,16 @@ export const TeamBuildingScreen: React.FC = () => {
     );
   }
 
-  const sportColor = getSportColor(fixture.sportType);
-  const maxPerTeam = Math.ceil(fixture.staffPlayerCount / 2);
+  const sportColor = SPORT_CONFIGS[match.sportType].color;
+  const maxPerTeam = Math.ceil(match.squad.totalPlayers / 2);
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: sportColor }]}>
-        <TouchableOpacity
-          onPress={() => NavigationService.goBack()}
-          style={styles.headerButton}
-          activeOpacity={0.7}
-        >
-          <ChevronLeft size={24} color="white" strokeWidth={2} />
-        </TouchableOpacity>
-
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Takım Kur</Text>
-          <Text style={styles.headerSubtitle}>
-            {getSportIcon(fixture.sportType)} {match.title}
-          </Text>
-        </View>
-
-        <View style={styles.headerButton} />
-      </View>
+      <CustomHeader
+        title="Takım Kur"
+        subtitle={`${SPORT_CONFIGS[match.sportType].emoji} ${match.title}`}
+        showBack={true}
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Info Banner */}
@@ -339,21 +363,30 @@ export const TeamBuildingScreen: React.FC = () => {
             <Text style={styles.infoBannerText}>
               Toplam {allPlayers.length} oyuncu • Max {maxPerTeam} oyuncu/takım
             </Text>
+            <Text style={styles.infoBannerSubtext}>
+              Min {match.squad.minPlayersToStart} oyuncu gerekli
+            </Text>
           </View>
         </View>
 
-        {/* Auto Balance Button */}
+        {/* Algorithm Selection */}
         {availablePlayers.length >= 2 && (
-          <TouchableOpacity
-            style={[styles.autoButton, { borderColor: sportColor }]}
-            onPress={handleAutoBalance}
-            activeOpacity={0.7}
-          >
-            <Shuffle size={20} color={sportColor} strokeWidth={2} />
-            <Text style={[styles.autoButtonText, { color: sportColor }]}>
-              Otomatik Dengele
+          <View style={styles.algorithmSection}>
+            <TouchableOpacity
+              style={[styles.algorithmButton, { borderColor: sportColor }]}
+              onPress={handleAutoBalance}
+              activeOpacity={0.7}
+            >
+              <Shuffle size={20} color={sportColor} strokeWidth={2} />
+              <Text style={[styles.algorithmButtonText, { color: sportColor }]}>
+                Otomatik Takım Kur
+              </Text>
+            </TouchableOpacity>
+            
+            <Text style={styles.algorithmHint}>
+              Rastgele, rating dengeli veya pozisyon dengeli
             </Text>
-          </TouchableOpacity>
+          </View>
         )}
 
         {/* Teams */}
@@ -381,16 +414,24 @@ export const TeamBuildingScreen: React.FC = () => {
                   <Text style={styles.emptyTeamText}>Henüz oyuncu eklenmedi</Text>
                 </View>
               ) : (
-                team1.map((playerId, index) => (
-                  <View key={playerId} style={styles.playerRow}>
+                team1.map((player, index) => (
+                  <View key={player.playerId} style={styles.playerRow}>
                     <View style={styles.playerNumber}>
                       <Text style={styles.playerNumberText}>{index + 1}</Text>
                     </View>
-                    <Text style={styles.playerName} numberOfLines={1}>
-                      {getPlayerDisplay(playerId)}
-                    </Text>
+                    <View style={styles.playerInfo}>
+                      <Text style={styles.playerName} numberOfLines={1}>
+                        {getPlayerDisplay(player.playerId)}
+                      </Text>
+                      {player.position && (
+                        <View style={styles.positionBadge}>
+                          <MapPin size={10} color="#6B7280" strokeWidth={2} />
+                          <Text style={styles.positionText}>{player.position}</Text>
+                        </View>
+                      )}
+                    </View>
                     <TouchableOpacity
-                      onPress={() => handleRemovePlayerFromTeam(playerId, 1)}
+                      onPress={() => handleRemovePlayerFromTeam(player.playerId, 1)}
                       style={styles.removeButton}
                       activeOpacity={0.7}
                     >
@@ -438,16 +479,24 @@ export const TeamBuildingScreen: React.FC = () => {
                   <Text style={styles.emptyTeamText}>Henüz oyuncu eklenmedi</Text>
                 </View>
               ) : (
-                team2.map((playerId, index) => (
-                  <View key={playerId} style={styles.playerRow}>
+                team2.map((player, index) => (
+                  <View key={player.playerId} style={styles.playerRow}>
                     <View style={styles.playerNumber}>
                       <Text style={styles.playerNumberText}>{index + 1}</Text>
                     </View>
-                    <Text style={styles.playerName} numberOfLines={1}>
-                      {getPlayerDisplay(playerId)}
-                    </Text>
+                    <View style={styles.playerInfo}>
+                      <Text style={styles.playerName} numberOfLines={1}>
+                        {getPlayerDisplay(player.playerId)}
+                      </Text>
+                      {player.position && (
+                        <View style={styles.positionBadge}>
+                          <MapPin size={10} color="#6B7280" strokeWidth={2} />
+                          <Text style={styles.positionText}>{player.position}</Text>
+                        </View>
+                      )}
+                    </View>
                     <TouchableOpacity
-                      onPress={() => handleRemovePlayerFromTeam(playerId, 2)}
+                      onPress={() => handleRemovePlayerFromTeam(player.playerId, 2)}
                       style={styles.removeButton}
                       activeOpacity={0.7}
                     >
@@ -480,30 +529,12 @@ export const TeamBuildingScreen: React.FC = () => {
               Bekleyen Oyuncular ({availablePlayers.length})
             </Text>
             <View style={styles.availableList}>
-              {availablePlayers.map((player) => (
-                <View key={player.id} style={styles.availablePlayerItem}>
+              {availablePlayers.map((playerId) => (
+                <View key={playerId} style={styles.availablePlayerItem}>
                   <Text style={styles.availablePlayerName}>
-                    {player.name} {player.surname}
+                    {getPlayerDisplay(playerId)}
                   </Text>
                   <AlertCircle size={16} color="#F59E0B" strokeWidth={2} />
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Reserve Players */}
-        {reservePlayers.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Yedek Oyuncular ({reservePlayers.length})
-            </Text>
-            <View style={styles.reserveList}>
-              {reservePlayers.map((player) => (
-                <View key={player.id} style={styles.reservePlayerItem}>
-                  <Text style={styles.reservePlayerName}>
-                    {player.name} {player.surname}
-                  </Text>
                 </View>
               ))}
             </View>
@@ -535,6 +566,79 @@ export const TeamBuildingScreen: React.FC = () => {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Algorithm Selection Modal */}
+      <Modal
+        visible={showAlgorithmModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAlgorithmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Takım Kurma Algoritması</Text>
+              <TouchableOpacity
+                onPress={() => setShowAlgorithmModal(false)}
+                style={styles.modalClose}
+                activeOpacity={0.7}
+              >
+                <X size={24} color="#6B7280" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.algorithmList}>
+              <TouchableOpacity
+                style={styles.algorithmItem}
+                onPress={() => handleBuildWithAlgorithm('random')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.algorithmIcon}>
+                  <Shuffle size={24} color="#16a34a" strokeWidth={2} />
+                </View>
+                <View style={styles.algorithmInfo}>
+                  <Text style={styles.algorithmName}>Rastgele</Text>
+                  <Text style={styles.algorithmDesc}>
+                    Oyuncular rastgele dağıtılır
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.algorithmItem}
+                onPress={() => handleBuildWithAlgorithm('rating')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.algorithmIcon}>
+                  <TrendingUp size={24} color="#3B82F6" strokeWidth={2} />
+                </View>
+                <View style={styles.algorithmInfo}>
+                  <Text style={styles.algorithmName}>Rating Dengeli</Text>
+                  <Text style={styles.algorithmDesc}>
+                    Serpentine draft - takımlar rating'e göre dengelenir
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.algorithmItem}
+                onPress={() => handleBuildWithAlgorithm('position')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.algorithmIcon}>
+                  <MapPin size={24} color="#8B5CF6" strokeWidth={2} />
+                </View>
+                <View style={styles.algorithmInfo}>
+                  <Text style={styles.algorithmName}>Pozisyon Dengeli</Text>
+                  <Text style={styles.algorithmDesc}>
+                    Pozisyonlar eşit dağıtılır, sonra rating dengelenir
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Player Selection Modal */}
       <Modal
@@ -570,24 +674,35 @@ export const TeamBuildingScreen: React.FC = () => {
             </View>
 
             <ScrollView style={styles.modalList}>
-              {getFilteredAvailablePlayers().map((player) => (
-                <TouchableOpacity
-                  key={player.id}
-                  style={styles.modalPlayerItem}
-                  onPress={() => handleAddPlayerToTeam(player.id!, selectedTeam)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.modalPlayerAvatar}>
-                    <Text style={styles.modalPlayerInitial}>
-                      {player.name?.[0]}{player.surname?.[0]}
-                    </Text>
-                  </View>
-                  <Text style={styles.modalPlayerName}>
-                    {player.name} {player.surname}
-                  </Text>
-                  <Check size={18} color={selectedTeam === 1 ? sportColor : '#DC2626'} strokeWidth={2} />
-                </TouchableOpacity>
-              ))}
+              {getFilteredAvailablePlayers().map((player) => {
+                const position = getPlayerPosition(player.id);
+                return (
+                  <TouchableOpacity
+                    key={player.id}
+                    style={styles.modalPlayerItem}
+                    onPress={() => handleAddPlayerToTeam(player.id!, selectedTeam, position)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.modalPlayerAvatar}>
+                      <Text style={styles.modalPlayerInitial}>
+                        {player.name?.[0]}{player.surname?.[0]}
+                      </Text>
+                    </View>
+                    <View style={styles.modalPlayerInfo}>
+                      <Text style={styles.modalPlayerName}>
+                        {player.name} {player.surname}
+                      </Text>
+                      {position && (
+                        <View style={styles.modalPlayerPosition}>
+                          <MapPin size={12} color="#6B7280" strokeWidth={2} />
+                          <Text style={styles.modalPlayerPositionText}>{position}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Check size={18} color={selectedTeam === 1 ? sportColor : '#DC2626'} strokeWidth={2} />
+                  </TouchableOpacity>
+                );
+              })}
 
               {getFilteredAvailablePlayers().length === 0 && (
                 <View style={styles.modalEmpty}>
@@ -618,42 +733,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: '#6B7280',
-    fontWeight: '500',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: 'white',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
+    fontWeight: '600',
   },
   content: {
     flex: 1,
   },
   infoBanner: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
     marginHorizontal: 16,
     marginTop: 16,
@@ -669,21 +756,34 @@ const styles = StyleSheet.create({
     color: '#1E40AF',
     fontWeight: '600',
   },
-  autoButton: {
+  infoBannerSubtext: {
+    fontSize: 12,
+    color: '#3B82F6',
+    marginTop: 2,
+  },
+  algorithmSection: {
+    paddingHorizontal: 16,
+    marginTop: 12,
+  },
+  algorithmButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 2,
     backgroundColor: 'white',
   },
-  autoButtonText: {
+  algorithmButtonText: {
     fontSize: 15,
     fontWeight: '700',
+  },
+  algorithmHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 6,
   },
   teamsContainer: {
     paddingHorizontal: 16,
@@ -761,11 +861,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#6B7280',
   },
-  playerName: {
+  playerInfo: {
     flex: 1,
+  },
+  playerName: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1F2937',
+    marginBottom: 2,
+  },
+  positionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    alignSelf: 'flex-start',
+  },
+  positionText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   removeButton: {
     padding: 6,
@@ -820,20 +934,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
   },
-  reserveList: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 12,
-    padding: 12,
-  },
-  reservePlayerItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-  },
-  reservePlayerName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#78350F',
-  },
   bottomSpacing: {
     height: 20,
   },
@@ -886,6 +986,42 @@ const styles = StyleSheet.create({
   modalClose: {
     padding: 4,
   },
+  algorithmList: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  algorithmItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  algorithmIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  algorithmInfo: {
+    flex: 1,
+  },
+  algorithmName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  algorithmDesc: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
   modalSearch: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -928,11 +1064,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#16a34a',
   },
-  modalPlayerName: {
+  modalPlayerInfo: {
     flex: 1,
+  },
+  modalPlayerName: {
     fontSize: 15,
     fontWeight: '600',
     color: '#1F2937',
+    marginBottom: 2,
+  },
+  modalPlayerPosition: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  modalPlayerPositionText: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   modalEmpty: {
     alignItems: 'center',

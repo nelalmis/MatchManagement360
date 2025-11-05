@@ -823,6 +823,7 @@ export interface IMatch {
     amount: number;
     paid: boolean;
     paidAt?: Date;
+    method?: 'cash' | 'bank_transfer' | 'credit_card'; //TODO: sonra implemente edilecek
     confirmedBy?: string;       // Onaylayan organizatör ID
   }>;
 
@@ -848,6 +849,16 @@ export interface IMatch {
     invitedPlayerIds?: string[]; // Özel davetliler
     affectsStats: boolean;      // İstatistikleri etkiler mi
     affectsStandings: boolean;  // Puan durumunu etkiler mi
+  };
+
+   invitationCode?: {
+    code: string;              // 6 haneli kod (örn: "ABC123")
+    enabled: boolean;          // Kod aktif mi?
+    expiresAt?: Date;          // Kodu süre sınırı
+    maxUses?: number;          // Maksimum kullanım sayısı
+    currentUses: number;       // Şu ana kadar kullanım
+    createdAt: Date;
+    createdBy: string;
   };
 
   // ============================================
@@ -2017,7 +2028,15 @@ export interface IFriendlyMatchConfig {
       reserveCount: number;
       pricePerPlayer: number;
       matchDuration: number;
+      affectsStandings: boolean;
+      affectsStats: boolean;
+      isPublic: boolean;
+      paymentInfo?: {
+        iban?: string;
+        accountName?: string;
+      };
     };
+    
   }>;
 
   // ============================================
@@ -2066,6 +2085,7 @@ export const TimestampHelpers = {
 
 export interface Venue {
   location: string;               // Saha adresi
+  googleMapsUrl?: string;         // Google Maps link (optional)
   pricePerPlayer: number;         // Kişi başı ücret
   payment?: {
     iban?: string;                 // IBAN

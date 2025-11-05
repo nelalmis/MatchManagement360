@@ -31,6 +31,7 @@ import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { SPORT_CONFIGS, SportType, ILeague } from '../../types/entity/types';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { EditLeagueRouteProp, useRoute } from '../../navigation';
+import { CustomHeader } from '../../components/CustomHeader';
 
 // ============================================
 // MAIN COMPONENT
@@ -394,34 +395,47 @@ export const EditLeagueScreen: React.FC = () => {
   // ============================================
 
   const renderHeader = () => (
-    <View style={[styles.header, { borderBottomColor: sportColor }]}>
-      <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-        <X size={24} color="#1F2937" strokeWidth={2} />
-      </TouchableOpacity>
+    <CustomHeader 
+      showClose={true}
+      onLeftPress={handleBack}
+      title="Lig Düzenle"
+      subtitle={league.title}
+      sportType={league.sportType}
+      showIcon={true}
+      showSave={true}
+      onSavePress={handleSaveAll}
+      // saveDisabled={!hasChanges || saving}
+      loading={saving}
+      disableSave={!hasChanges || saving}
+    />
+    // <View style={[styles.header, { borderBottomColor: sportColor }]}>
+    //   <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+    //     <X size={24} color="#1F2937" strokeWidth={2} />
+    //   </TouchableOpacity>
 
-      <View style={styles.headerTitleContainer}>
-        <Text style={styles.headerEmoji}>{sportEmoji}</Text>
-        <View>
-          <Text style={styles.headerTitle}>Lig Düzenle</Text>
-          <Text style={styles.headerSubtitle}>{league.title}</Text>
-        </View>
-      </View>
+    //   <View style={styles.headerTitleContainer}>
+    //     <Text style={styles.headerEmoji}>{sportEmoji}</Text>
+    //     <View>
+    //       <Text style={styles.headerTitle}>Lig Düzenle</Text>
+    //       <Text style={styles.headerSubtitle}>{league.title}</Text>
+    //     </View>
+    //   </View>
 
-      <TouchableOpacity
-        onPress={handleSaveAll}
-        disabled={!hasChanges || saving}
-        style={[
-          styles.saveButton,
-          { backgroundColor: hasChanges ? sportColor : '#E5E7EB' },
-        ]}
-      >
-        {saving ? (
-          <ActivityIndicator size="small" color="white" />
-        ) : (
-          <Save size={20} color="white" strokeWidth={2.5} />
-        )}
-      </TouchableOpacity>
-    </View>
+    //   <TouchableOpacity
+    //     onPress={handleSaveAll}
+    //     disabled={!hasChanges || saving}
+    //     style={[
+    //       styles.saveButton,
+    //       { backgroundColor: hasChanges ? sportColor : '#E5E7EB' },
+    //     ]}
+    //   >
+    //     {saving ? (
+    //       <ActivityIndicator size="small" color="white" />
+    //     ) : (
+    //       <Save size={20} color="white" strokeWidth={2.5} />
+    //     )}
+    //   </TouchableOpacity>
+    // </View>
   );
 
   // ============================================

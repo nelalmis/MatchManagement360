@@ -1,6 +1,7 @@
 // src/navigation/NavigationService.ts
 
 import { createNavigationContainerRef, CommonActions } from '@react-navigation/native';
+import { InvitationType } from '../types/entity/invitation';
 
 export const navigationRef = createNavigationContainerRef();
 
@@ -139,6 +140,54 @@ export const NavigationService = {
     });
   },
 
+  navigateToJoinWithCodeHomeTab(type: InvitationType): void {
+    safeNavigate('homeTab', {
+      screen: 'joinWithCode',
+      params: { type }, 
+    });
+  },
+  navigateToJoinWithCodeMatchTab(type: InvitationType): void {
+    safeNavigate('matchesTab', {
+      screen: 'joinWithCode',
+      params: { type }, 
+    });
+  },
+
+  /**
+ * Navigate to Create Invitation Screen (Modal)
+ * Works for both League and Match
+ */
+  navigateToCreateInvitation(
+    type: InvitationType,
+    targetId: string,
+    targetTitle: string,
+    sportType?: string
+  ): void {
+    const tabName = type === 'league' ? 'leaguesTab' : 'matchesTab';
+
+    safeNavigate(tabName, {
+      screen: 'createInvitation',
+      params: { type, targetId, targetTitle, sportType },
+    });
+  },
+
+  /**
+   * Navigate to Manage Invitations Screen (Modal)
+   * Works for both League and Match
+   */
+  navigateToManageInvitations(
+    type: InvitationType,
+    targetId: string,
+    targetTitle: string,
+    sportType?: string
+  ): void {
+    const tabName = type === 'league' ? 'leaguesTab' : 'matchesTab';
+
+    safeNavigate(tabName, {
+      screen: 'manageInvitations',
+      params: { type, targetId, targetTitle, sportType },
+    });
+  },
   navigateToLeagueSettings(leagueId: string): void {
     safeNavigate('leaguesTab', {
       screen: 'leagueSettings',
@@ -219,12 +268,12 @@ export const NavigationService = {
     safeNavigate('matchesTab', { screen: 'friendlyMatchInvitations' });
   },
 
-  navigateToManageInvitations(matchId: string): void {
-    safeNavigate('matchesTab', {
-      screen: 'manageInvitations',
-      params: { matchId },
-    });
-  },
+  // navigateToManageInvitations(matchId: string): void {
+  //   safeNavigate('matchesTab', {
+  //     screen: 'manageInvitations',
+  //     params: { matchId },
+  //   });
+  // },
 
   navigateToEditFriendlyMatch(matchId: string): void {
     safeNavigate('matchesTab', {
@@ -294,6 +343,17 @@ export const NavigationService = {
     safeNavigate('matchesTab', {
       screen: 'paymentTracking',
       params: { matchId },
+    });
+  },
+  navigateToPlayerPayment(matchId: string): void {
+    safeNavigate('matchesTab', {
+      screen: 'playerPayment',
+      params: { matchId },
+    });
+  },
+  navigateToJoinMatchWithCode(): void {
+    safeNavigate('matchesTab', {
+      screen: 'joinMatchWithCode',
     });
   },
 

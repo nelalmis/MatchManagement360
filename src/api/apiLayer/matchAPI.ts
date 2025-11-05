@@ -286,14 +286,14 @@ export class MatchAPI extends BaseAPI<IMatch> {
   }
 
   /**
-   * Unregister player from match
-   */
+  * Unregister player from match
+  */
   async unregisterPlayer(matchId: string, playerId: string): Promise<ApiResponse<IMatch>> {
     try {
       ApiLogger.log('matches', 'unregisterPlayer', { matchId, playerId });
 
+      // 1. Get match
       const matchResult = await this.getById(matchId);
-
       if (!matchResult.success || !matchResult.data) {
         return {
           success: false,
@@ -307,28 +307,52 @@ export class MatchAPI extends BaseAPI<IMatch> {
 
       const match = matchResult.data;
 
-      // Find and remove the registration
-      const registrationToRemove = match.players.registered?.find(r => r.playerId === playerId);
+      // 2. Create updated players object
+      const updatedPlayers: any = {
+        registered: (match.players.registered || []).filter(r => r.playerId !== playerId),
 
-      if (!registrationToRemove) {
-        return {
-          success: true,
-          data: match,
+        direct: {
+          mode: match.players.direct?.mode || 'inherited',
+          inherited: (match.players.direct?.inherited || []).filter(id => id !== playerId),
+          overrides: (match.players.direct?.overrides || []).filter(id => id !== playerId),
+        },
+
+        premium: {
+          mode: match.players.premium?.mode || 'inherited',
+          inherited: (match.players.premium?.inherited || []).filter(id => id !== playerId),
+          overrides: (match.players.premium?.overrides || []).filter(id => id !== playerId),
+        },
+
+        guests: (match.players.guests || []).filter(id => id !== playerId),
+        reserves: (match.players.reserves || []).filter(id => id !== playerId),
+      };
+
+      // ✅ Only add teams if they exist (don't set to undefined)
+      if (match.players.teams) {
+        updatedPlayers.teams = {
+          team1: match.players.teams.team1.filter(p => p.playerId !== playerId),
+          team2: match.players.teams.team2.filter(p => p.playerId !== playerId),
         };
+      }else {
+        updatedPlayers.teams = { team1: [], team2: [] };
       }
 
-      const docRef = doc(db, this.collectionName, matchId);
+      // 3. Update payments
+      const updatedPayments = (match.payments || []).filter(p => p.playerId !== playerId);
 
-      await updateDoc(docRef, {
-        'players.registered': arrayRemove(registrationToRemove),
-        updatedAt: new Date().toISOString(),
+      // 4. Use matchAPI.update()
+      const result = await this.update(matchId, {
+        players: updatedPlayers,
+        payments: updatedPayments,
       });
 
-      const updatedMatch = await this.getById(matchId);
+      if (!result.success) {
+        return result;
+      }
 
       ApiLogger.success('matches', 'unregisterPlayer', { matchId, playerId });
 
-      return updatedMatch;
+      return result;
     } catch (error: any) {
       ApiLogger.error('matches', 'unregisterPlayer', error);
       return {

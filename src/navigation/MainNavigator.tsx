@@ -16,7 +16,7 @@ import {
 // ============================================
 
 // Home
-import { HomeScreen, LeagueSettingsScreen, ManageLeagueMembersScreen } from '../screens';
+import { CreateInvitationScreen, HomeScreen, JoinWithCodeScreen, LeagueSettingsScreen, ManageLeagueMembersScreen, PlayerPaymentScreen } from '../screens';
 
 // League
 import { LeagueListScreen } from '../screens';
@@ -36,10 +36,10 @@ import { EditFixtureScreen } from '../screens';
 import { MatchListScreen } from '../screens';
 import { MatchDetailScreen } from '../screens';
 import { CreateFriendlyMatchScreen } from '../screens';
-import { FriendlyMatchInvitationsScreen } from '../screens';
+// import { FriendlyMatchInvitationsScreen } from '../screens';
 import { ManageInvitationsScreen } from '../screens';
 import { EditMatchScreen } from '../screens';
-import { FriendlyMatchTemplatesScreen } from '../screens';
+// import { FriendlyMatchTemplatesScreen } from '../screens';
 // import { CreateFriendlyMatchTemplateScreen } from '../../screens/Match/CreateFriendlyMatchTemplateScreen';
 import { EditFriendlyMatchTemplateScreen } from '../screens';
 import { MatchRegistrationScreen } from '../screens';
@@ -86,6 +86,19 @@ const HomeStack = () => {
                     header: () => <CustomHeader title="Ana Sayfa" showMenu showNotifications />,
                 }}
             />
+             {/* Modal Screens Group */}
+            <Stack.Group 
+                screenOptions={{ 
+                    presentation: 'modal',
+                    animation: 'slide_from_bottom',
+                }}
+            >
+                <Stack.Screen
+                    name="joinWithCode"
+                    component={JoinWithCodeScreen}
+                    options={{ headerShown: false }}
+                />
+            </Stack.Group>
         </Stack.Navigator>
     );
 };
@@ -141,16 +154,7 @@ const LeaguesStack = () => {
                 component={JoinLeagueScreen}
                 options={{ headerShown: false }}
             />
-            <Stack.Screen
-                name="createLeagueInvitation"
-                component={CreateLeagueInvitationScreen}
-                options={{ headerShown: true }}
-            />
-            <Stack.Screen
-                name="manageLeagueInvitations"
-                component={ManageLeagueInvitationsScreen}
-                options={{ headerShown: false }}
-            />
+            
             <Stack.Screen
                 name="leagueSettings"
                 component={LeagueSettingsScreen}
@@ -162,6 +166,35 @@ const LeaguesStack = () => {
                 options={{ headerShown: false }}
             />
             
+             {/* Modal Screens Group */}
+            <Stack.Group 
+                screenOptions={{ 
+                    presentation: 'modal',
+                    animation: 'slide_from_bottom',
+                }}
+            >
+                <Stack.Screen
+                    name="manageInvitations"
+                    component={ManageInvitationsScreen}
+                    options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                    name="createInvitation"
+                    component={CreateInvitationScreen}
+                    options={{ headerShown: false }}
+                />
+                {/* Legacy screens - will be removed */}
+                <Stack.Screen
+                    name="createLeagueInvitation"
+                    component={CreateLeagueInvitationScreen}
+                    options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                    name="manageLeagueInvitations"
+                    component={ManageLeagueInvitationsScreen}
+                    options={{ headerShown: false }}
+                />
+            </Stack.Group>
         </Stack.Navigator>
     );
 };
@@ -173,9 +206,7 @@ const MatchesStack = () => {
             <Stack.Screen
                 name="matchList"
                 component={MatchListScreen}
-                options={{
-                    header: () => <CustomHeader title="Maçlar" showMenu showNotifications />,
-                }}
+                options={{ headerShown: false }}
             />
             <Stack.Screen
                 name="myMatches"
@@ -192,16 +223,12 @@ const MatchesStack = () => {
                 component={CreateFriendlyMatchScreen}
                 options={{ headerShown: false }}
             />
-            <Stack.Screen
+            {/* <Stack.Screen
                 name="friendlyMatchInvitations"
                 component={FriendlyMatchInvitationsScreen}
                 options={{ headerShown: false }}
-            />
-            <Stack.Screen
-                name="manageInvitations"
-                component={ManageInvitationsScreen}
-                options={{ headerShown: false }}
-            />
+            /> */}
+            
             {/* <Stack.Screen
         name="editFriendlyMatch"
         component={EditFriendlyMatchScreen}
@@ -212,11 +239,11 @@ const MatchesStack = () => {
                 component={EditMatchScreen}
                 options={{ headerShown: false }}
             />
-            <Stack.Screen
+            {/* <Stack.Screen
                 name="friendlyMatchTemplates"
                 component={FriendlyMatchTemplatesScreen}
                 options={{ headerShown: false }}
-            />
+            /> */}
             {/* <Stack.Screen
         name="createFriendlyMatchTemplate"
         component={CreateFriendlyMatchTemplateScreen}
@@ -257,6 +284,36 @@ const MatchesStack = () => {
                 component={PaymentTrackingScreen}
                 options={{ headerShown: false }}
             />
+            <Stack.Screen
+                name="playerPayment"
+                component={PlayerPaymentScreen}
+                options={{ headerShown: false }}
+            />
+             {/* Modal Screens Group */}
+            <Stack.Group 
+                screenOptions={{ 
+                    presentation: 'modal',
+                    animation: 'slide_from_bottom',
+                }}
+            >
+                <Stack.Screen
+                    name="manageInvitations"
+                    component={ManageInvitationsScreen}
+                    options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                    name="createInvitation"
+                    component={CreateInvitationScreen}
+                    options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                    name="joinWithCode"
+                    component={JoinWithCodeScreen}
+                    options={{ headerShown: false }}
+                />
+            </Stack.Group>
+            
+            
         </Stack.Navigator>
     );
 };

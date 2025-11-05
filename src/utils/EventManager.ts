@@ -112,6 +112,7 @@ export const Events = {
   MATCH_UPDATED: 'matchUpdated',
   MATCH_CREATED: 'matchCreated',
   MATCH_DELETED: 'matchDeleted',
+  MATCH_COMPLETED: 'matchCompleted',
   MATCH_REGISTERED: 'matchRegistered',
   MATCH_UNREGISTERED: 'matchUnregistered',
   INVITATION_SENT: 'invitationSent',

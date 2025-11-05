@@ -410,14 +410,14 @@ export type SportTheme = typeof sportThemes[SportType];
  * Spor emoji'sini getirir
  */
 export const getSportEmoji = (sport: SportType): string => {
-  return sportThemes[sport].emoji;
+  return sportThemes[sport]?.emoji;
 };
 
 /**
  * Spor ana rengini getirir
  */
 export const getSportPrimaryColor = (sport: SportType): string => {
-  return sportThemes[sport].primary;
+  return sportThemes[sport]?.primary;
 };
 
 /**

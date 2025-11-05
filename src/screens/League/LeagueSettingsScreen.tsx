@@ -35,6 +35,7 @@ import { useAuth } from '../../hooks';
 import { NavigationService } from '../../navigation/NavigationService';
 import { LeagueSettingsService } from '../../services/serviceLayer/leagueSettingsService';
 import { ILeagueSettings } from '../../types/entity/types';
+import { CustomHeader } from '../../components/CustomHeader';
 
 // ============================================
 // TYPES
@@ -75,7 +76,7 @@ export const LeagueSettingsScreen: React.FC = () => {
 
         try {
             setLoading(true);
-
+            
             const result = await LeagueSettingsService.getOrCreateSettings(leagueId, user.id);
 
             if (result.success && result.data) {
@@ -333,50 +334,32 @@ export const LeagueSettingsScreen: React.FC = () => {
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => {
-                        if (hasChanges) {
-                            Alert.alert(
-                                'Kaydedilmemiş Değişiklikler',
-                                'Değişiklikleriniz kaydedilmedi. Çıkmak istediğinize emin misiniz?',
-                                [
-                                    { text: 'Kalmaya Devam Et', style: 'cancel' },
-                                    { text: 'Çık', style: 'destructive', onPress: () => NavigationService.goBack() },
-                                ]
-                            );
-                        } else {
-                            NavigationService.goBack();
-                        }
-                    }}
-                    activeOpacity={0.7}
-                >
-                    <ChevronLeft size={24} color="#1F2937" strokeWidth={2} />
-                </TouchableOpacity>
-
-                <View style={styles.headerCenter}>
-                    <Settings size={24} color="#16a34a" strokeWidth={2} />
-                    <Text style={styles.headerTitle}>Lig Ayarları</Text>
-                </View>
-
-                <TouchableOpacity
-                    style={[styles.saveButton, !hasChanges && styles.saveButtonDisabled]}
-                    onPress={handleSave}
-                    disabled={!hasChanges || saving}
-                    activeOpacity={0.7}
-                >
-                    {saving ? (
-                        <ActivityIndicator size="small" color="white" />
-                    ) : (
-                        <>
-                            <Save size={20} color="white" strokeWidth={2} />
-                            <Text style={styles.saveButtonText}>Kaydet</Text>
-                        </>
-                    )}
-                </TouchableOpacity>
-            </View>
+            {/* HEADER */}
+            <CustomHeader 
+                title="Lig Ayarları"
+                showBack={true}
+                onLeftPress={() => {
+                    if (hasChanges) {
+                        Alert.alert(
+                            'Kaydedilmemiş Değişiklikler',
+                            'Değişiklikleriniz kaydedilmedi. Çıkmak istediğinize emin misiniz?',
+                            [
+                                { text: 'Kalmaya Devam Et', style: 'cancel' },
+                                { text: 'Çık', style: 'destructive', onPress: () => NavigationService.goBack() },
+                            ]
+                        );
+                    } else {
+                        NavigationService.goBack();
+                    }
+                }}
+                customIcon={Settings}
+                showIcon={true}
+                showSave={true}
+                // sportType={settings}
+                loading={saving}
+                disableSave={!hasChanges || saving}
+                onSavePress={handleSave}
+            />
 
             <ScrollView
                 style={styles.scrollView}
@@ -822,56 +805,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F9FAFB',
-    },
-
-    // Header
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 60,
-        paddingBottom: 16,
-        backgroundColor: 'white',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F3F4F6',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerCenter: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1F2937',
-    },
-    saveButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        backgroundColor: '#16a34a',
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 10,
-    },
-    saveButtonDisabled: {
-        backgroundColor: '#D1D5DB',
-    },
-    saveButtonText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: 'white',
     },
 
     // Content

@@ -74,6 +74,8 @@ import {
 } from '../../utils/theme';
 import * as Clipboard from 'expo-clipboard';
 import PlayerService from '../../services/serviceLayer/playerService';
+import { CustomHeader } from '../../components/CustomHeader';
+import { InvitationType } from '../../types/entity/invitation';
 
 // ============================================
 // TYPES
@@ -500,42 +502,7 @@ export const LeagueDetailScreen: React.FC = () => {
     });
   };
 
-  // ============================================
-  // RENDER HEADER
-  // ============================================
-
-  const renderHeader = () => {
-    if (!league) return null;
-
-    const sportColor = getSportPrimaryColor(league.sportType);
-    const sportEmoji = getSportEmoji(league.sportType);
-
-    return (
-      <View style={[styles.header, { borderBottomColor: sportColor }]}>
-        <TouchableOpacity onPress={() => NavigationService.goBack()} style={styles.backButton}>
-          <ChevronLeft size={24} color="#1F2937" strokeWidth={2} />
-        </TouchableOpacity>
-
-        <View style={styles.headerContent}>
-          <Text style={styles.headerEmoji}>{sportEmoji}</Text>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {league.title}
-            </Text>
-            <Text style={styles.headerSubtitle}>{league.sportType}</Text>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          onPress={() => Alert.alert('Bildirimler', 'Yakında eklenecek')}
-          style={styles.headerButton}
-        >
-          <Bell size={22} color="#6B7280" strokeWidth={2} />
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
+ 
   // ============================================
   // RENDER STATS CARDS
   // ============================================
@@ -664,7 +631,8 @@ export const LeagueDetailScreen: React.FC = () => {
         <TouchableOpacity
           style={[styles.quickActionButton, { borderColor: sportColor }]}
           onPress={() =>
-            NavigationService.navigateToManageLeagueInvitations(leagueId, league.title)
+            // NavigationService.navigateToManageLeagueInvitations(leagueId, league.title)
+            NavigationService.navigateToManageInvitations(InvitationType.LEAGUE, leagueId, league.title, league.sportType)
           }
           activeOpacity={0.7}
         >
@@ -1644,7 +1612,17 @@ export const LeagueDetailScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {renderHeader()}
+      {/* HEADER */}
+      <CustomHeader 
+        title={league.title}
+        subtitle={league.sportType}
+        sportType={league.sportType}
+        showBack={true}
+        onLeftPress={() => NavigationService.goBack()}
+        showNotifications={true}
+        showIcon={true}
+        onNotificationPress={() => Alert.alert('Bildirimler', 'Yakında eklenecek')}
+      />
 
       {/* <ScrollView
         style={styles.content}

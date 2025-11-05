@@ -43,6 +43,7 @@ import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import * as Clipboard from 'expo-clipboard';
 import { getPatternDisplayName } from '../../types/entity/recurringPattern';
 import { calculateRegistrationCloseTime, calculateRegistrationOpenTime, getRegistrationStatusColor, getRegistrationStatusText, getRegistrationTimingDescription } from '../../types/entity/registrationScheduleType';
+import { CustomHeader } from '../../components/CustomHeader';
 
 export const FixtureDetailScreen: React.FC = () => {
     const route = useRoute<FixtureDetailRouteProp>();
@@ -66,6 +67,8 @@ export const FixtureDetailScreen: React.FC = () => {
     const loadData = async () => {
         try {
             setLoading(true);
+
+            console.log('Loading fixture data for fixtureId:', fixtureId);
 
             const [fixtureResponse, matchResponse] = await Promise.all([
                 FixtureService.getFixture(fixtureId),
@@ -257,58 +260,53 @@ export const FixtureDetailScreen: React.FC = () => {
     return (
         <View style={styles.container}>
             {/* Gradient Header */}
-            <View style={[styles.header, { backgroundColor: sportColor }]}>
-                <View style={styles.headerTop}>
-                    <TouchableOpacity
-                        onPress={() => NavigationService.goBack()}
-                        style={styles.backButton}
-                        activeOpacity={0.7}
-                    >
-                        <ArrowLeft size={24} color="white" strokeWidth={2.5} />
-                    </TouchableOpacity>
+            <CustomHeader
+                title={fixture.title}
+                subtitle={league.title}
+                sportType={league.sportType}
+                showBack={true}
+                onLeftPress={() => NavigationService.goBack()}
+                showEdit={isOrganizer}
+                onEditPress={handleEdit}
+                showIcon={true}
 
-                    {isOrganizer && (
-                        <TouchableOpacity onPress={handleEdit} style={styles.editButton} activeOpacity={0.7}>
-                            <Edit size={20} color="white" strokeWidth={2.5} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                <View style={styles.headerContent}>
-                    <Text style={styles.headerEmoji}>{getSportEmoji(league.sportType)}</Text>
-                    <Text style={styles.headerTitle}>{fixture.title}</Text>
-                    <Text style={styles.headerSubtitle}>{league.title}</Text>
-
-                    {/* Status Badge */}
-                    <View
-                        style={[
-                            styles.statusBadge,
-                            {
-                                backgroundColor: fixture.status === 'active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                            },
-                        ]}
-                    >
-                        {fixture.status === 'active' ? (
-                            <CheckCircle size={14} color="white" strokeWidth={2.5} />
-                        ) : (
-                            <XCircle size={14} color="white" strokeWidth={2.5} />
-                        )}
-                        <Text style={styles.statusText}>{fixture.status === 'active' ? 'Aktif' : 'Pasif'}</Text>
-                        {isOrganizer && (
-                            <TouchableOpacity onPress={handleToggleStatus} style={styles.statusButton} activeOpacity={0.7}>
-                                <Settings size={12} color="white" strokeWidth={2.5} />
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </View>
-            </View>
-
+            />
             <ScrollView
                 style={styles.content}
                 contentContainerStyle={styles.contentContainer}
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[sportColor]} />}
             >
+                {/* Status Badge - Modern Version */}
+                <View style={styles.statusBadgeContainer}>
+                    <View
+                        style={[
+                            styles.statusBadge,
+                            {
+                                backgroundColor: fixture.status === 'active' ? '#10B981' : '#EF4444',
+                            },
+                        ]}
+                    >
+                        {fixture.status === 'active' ? (
+                            <CheckCircle size={16} color="white" strokeWidth={2.5} />
+                        ) : (
+                            <XCircle size={16} color="white" strokeWidth={2.5} />
+                        )}
+                        <Text style={styles.statusText}>
+                            {fixture.status === 'active' ? 'Aktif Fikstür' : 'Pasif Fikstür'}
+                        </Text>
+                    </View>
+
+                    {isOrganizer && (
+                        <TouchableOpacity
+                            onPress={handleToggleStatus}
+                            style={styles.statusSettingsButton}
+                            activeOpacity={0.7}
+                        >
+                            <Settings size={18} color="#6B7280" strokeWidth={2.5} />
+                        </TouchableOpacity>
+                    )}
+                </View>
                 {/* Description */}
                 {fixture.description && (
                     <View style={styles.card}>
@@ -776,18 +774,33 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.9)',
         marginBottom: 16,
     },
-    statusBadge: {
+    statusBadgeContainer: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 16,
+        gap: 12,
+    },
+    statusBadge: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
         gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
     statusText: {
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: '700',
         color: 'white',
+        letterSpacing: 0.3,
     },
     statusButton: {
         width: 24,
@@ -797,7 +810,19 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-
+    statusSettingsButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: 'white',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 2,
+    },
     registrationStatusBadge: {
         paddingHorizontal: 10,
         paddingVertical: 4,
@@ -819,7 +844,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#E5E7EB',
         marginVertical: 12,
     },
- 
+
 
     // Content
     content: {

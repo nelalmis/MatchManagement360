@@ -1,4 +1,5 @@
-// screens/Match/MyMatchesScreen.tsx
+// src/screens/Match/MyMatchesScreen.tsx
+// 🎯 PERSONAL PERFORMANCE DASHBOARD - Enhanced Stats & Analytics
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -28,12 +29,17 @@ import {
   MapPin,
   Clock,
   TrendingUp,
+  TrendingDown,
   Award,
   Zap,
   BarChart3,
   Globe,
   Lock,
   Mail,
+  Plus,
+  Star,
+  Flame,
+  Activity,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import { NavigationService } from '../../navigation/NavigationService';
@@ -41,22 +47,26 @@ import { eventManager, Events } from '../../utils';
 import {
   IMatch,
   ILeague,
+  IFixture,
   SportType,
   MatchType,
-  getSportIcon,
-  getSportColor,
-  getMatchStatusColor,
+  MatchStatus,
   SPORT_CONFIGS,
-} from '../../types/types';
-import { matchService } from '../../services/matchService';
-import { leagueService } from '../../services/leagueService';
-import { matchFixtureService } from '../../services/matchFixtureService';
-import { matchInvitationService } from '../../services/matchInvitationService';
+} from '../../types/entity/types';
+import { MatchService } from '../../services/serviceLayer/matchService';
+import { LeagueService } from '../../services/serviceLayer/leagueService';
+import { FixtureService } from '../../services/serviceLayer/fixtureService';
+import { MatchInvitationService } from '../../services/serviceLayer/matchInvitationService';
+import { PlayerRatingProfileService } from '../../services/serviceLayer/playerRatingProfileService';
+import { PlayerProfileService } from '../../services/serviceLayer/playerProfileService';
+import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
 import { useAuth } from '../../hooks';
+import { CustomHeader } from '../../components/CustomHeader';
 
 interface MatchWithLeague {
   match: IMatch;
   league: ILeague | null;
+  fixture: IFixture | null;
 }
 
 type FilterType = 'all' | 'completed' | 'upcoming' | 'cancelled';
@@ -73,6 +83,12 @@ export const MyMatchesScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
 
+  // Performance data
+  const [ratingProfile, setRatingProfile] = useState<any>(null);
+  const [playerProfile, setPlayerProfile] = useState<any>(null);
+  const [careerStats, setCareerStats] = useState<any>(null);
+  const [performanceInsights, setPerformanceInsights] = useState<any>(null);
+
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -81,7 +97,7 @@ export const MyMatchesScreen: React.FC = () => {
   const [selectedSport, setSelectedSport] = useState<SportType | 'all'>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
 
-  // ✅ Event listeners
+  // Event listeners
   useEffect(() => {
     const unsubscribeUpdate = eventManager.on(Events.MATCH_UPDATED, loadMatches);
     const unsubscribeRegister = eventManager.on(Events.MATCH_REGISTERED, loadMatches);
@@ -100,6 +116,7 @@ export const MyMatchesScreen: React.FC = () => {
     if (playerId) {
       loadMatches();
       loadPendingInvitations();
+      loadPerformanceData();
     }
   }, [playerId]);
 
@@ -107,12 +124,9 @@ export const MyMatchesScreen: React.FC = () => {
   const availableSports = useMemo(() => {
     const sports = new Set<SportType>();
     matches.forEach(({ match, league }) => {
-      // Friendly maçlar kendi sportType'ına sahip
-      if (match.type === MatchType.FRIENDLY && match.sportType) {
+      if (match.sportType) {
         sports.add(match.sportType);
-      }
-      // League maçlar ligden inherit eder
-      else if (league) {
+      } else if (league) {
         sports.add(league.sportType);
       }
     });
@@ -128,11 +142,11 @@ export const MyMatchesScreen: React.FC = () => {
     if (searchQuery.trim()) {
       filtered = filtered.filter(({ match }) =>
         match.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        match.location?.toLowerCase().includes(searchQuery.toLowerCase())
+        match.venue?.location?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Match type filter (League/Friendly)
+    // Match type filter
     if (matchTypeFilter === 'league') {
       filtered = filtered.filter(({ match }) => match.type === MatchType.LEAGUE);
     } else if (matchTypeFilter === 'friendly') {
@@ -142,55 +156,50 @@ export const MyMatchesScreen: React.FC = () => {
     // Sport filter
     if (selectedSport !== 'all') {
       filtered = filtered.filter(({ match, league }) => {
-        // Friendly maçlar kendi sportType'ına sahip
-        if (match.type === MatchType.FRIENDLY && match.sportType) {
-          return match.sportType === selectedSport;
-        }
-        // League maçlar ligden inherit eder
-        return league?.sportType === selectedSport;
+        const sportType = match.sportType || league?.sportType;
+        return sportType === selectedSport;
       });
     }
 
     // Status filter
     if (filterType === 'completed') {
-      filtered = filtered.filter(({ match }) => match.status === 'Tamamlandı');
+      filtered = filtered.filter(({ match }) => match.status === MatchStatus.COMPLETED);
     } else if (filterType === 'upcoming') {
       filtered = filtered.filter(
         ({ match }) =>
-          new Date(match.matchStartTime) > now &&
-          match.status !== 'İptal Edildi' &&
-          match.status !== 'Tamamlandı'
+          new Date(match.schedule.matchStart) > now &&
+          match.status !== MatchStatus.CANCELLED &&
+          match.status !== MatchStatus.COMPLETED
       );
     } else if (filterType === 'cancelled') {
-      filtered = filtered.filter(({ match }) => match.status === 'İptal Edildi');
+      filtered = filtered.filter(({ match }) => match.status === MatchStatus.CANCELLED);
     }
 
     // Sort
     const sorted = [...filtered].sort((a, b) => {
-      const dateA = new Date(a.match.matchStartTime).getTime();
-      const dateB = new Date(b.match.matchStartTime).getTime();
-      
+      const dateA = new Date(a.match.schedule.matchStart).getTime();
+      const dateB = new Date(b.match.schedule.matchStart).getTime();
+
       if (filterType === 'upcoming' || filterType === 'all') {
-        return dateA - dateB; // Upcoming: oldest first
+        return dateA - dateB;
       } else {
-        return dateB - dateA; // Past: newest first
+        return dateB - dateA;
       }
     });
 
     return sorted;
   }, [matches, searchQuery, filterType, matchTypeFilter, selectedSport]);
 
+  // Enhanced Statistics with Performance Data
   // Enhanced Statistics
   const stats = useMemo(() => {
     const now = new Date();
-    const completed = matches.filter(({ match }) => match.status === 'Tamamlandı');
+    const completed = matches.filter(({ match }) => match.status === MatchStatus.COMPLETED);
     const upcoming = matches.filter(({ match }) =>
-      new Date(match.matchStartTime) > now &&
-      match.status !== 'İptal Edildi' &&
-      match.status !== 'Tamamlandı'
+      new Date(match.schedule.matchStart) > now &&
+      match.status !== MatchStatus.CANCELLED &&
+      match.status !== MatchStatus.COMPLETED
     );
-    const leagueMatches = matches.filter(({ match }) => match.type === MatchType.LEAGUE);
-    const friendlyMatches = matches.filter(({ match }) => match.type === MatchType.FRIENDLY);
 
     let wins = 0;
     let losses = 0;
@@ -201,42 +210,56 @@ export const MyMatchesScreen: React.FC = () => {
     let totalRating = 0;
     let ratedMatches = 0;
 
+    const lastFiveResults: Array<'W' | 'D' | 'L'> = [];
+
     completed.forEach(({ match }) => {
-      const isInTeam1 = match.team1PlayerIds?.includes(playerId);
-      const isInTeam2 = match.team2PlayerIds?.includes(playerId);
+      if (!match.players.teams) return;
+
+      const isInTeam1 = match.players.teams.team1.some(p => p.playerId === playerId);
+      const isInTeam2 = match.players.teams.team2.some(p => p.playerId === playerId);
 
       if (!isInTeam1 && !isInTeam2) return;
 
-      const team1Score = match.team1Score || 0;
-      const team2Score = match.team2Score || 0;
-
       // Win/Loss/Draw
-      if (isInTeam1) {
-        if (team1Score > team2Score) wins++;
-        else if (team1Score < team2Score) losses++;
-        else draws++;
-      } else {
-        if (team2Score > team1Score) wins++;
-        else if (team2Score < team1Score) losses++;
-        else draws++;
+      if (match.score) {
+        const team1Score = match.score.team1;
+        const team2Score = match.score.team2;
+
+        let result: 'W' | 'D' | 'L';
+        if (isInTeam1) {
+          if (team1Score > team2Score) { wins++; result = 'W'; }
+          else if (team1Score < team2Score) { losses++; result = 'L'; }
+          else { draws++; result = 'D'; }
+        } else {
+          if (team2Score > team1Score) { wins++; result = 'W'; }
+          else if (team2Score < team1Score) { losses++; result = 'L'; }
+          else { draws++; result = 'D'; }
+        }
+
+        if (lastFiveResults.length < 5) {
+          lastFiveResults.push(result);
+        }
+
+        // ✅ Goals & Assists from score.scorers
+        const playerScorer = match.score.scorers.find(s => s.playerId === playerId);
+        if (playerScorer) {
+          goals += playerScorer.goals || 0;
+          assists += playerScorer.assists || 0;
+        }
       }
 
-      // Goals & Assists
-      const playerGoals = match.goalScorers?.find(g => g.playerId === playerId);
-      if (playerGoals) {
-        goals += playerGoals.goals;
-        assists += playerGoals.assists;
-      }
-
-      // MVPs
-      if (match.playerIdOfMatchMVP === playerId) {
+      // ✅ MVPs
+      if (match.mvp?.playerId === playerId) {
         mvps++;
       }
 
-      // Rating
-      const playerRating = match.ratingsSummary?.topRatedPlayers?.find(r => r.playerId === playerId);
-      if (playerRating && playerRating.averageRating) {
-        totalRating += playerRating.averageRating;
+      // ✅ Rating from ratingSummary
+      const playerRating = match.ratingSummary?.details?.topRated.find(
+        r => r.playerId === playerId
+      )?.averageRating;
+
+      if (playerRating) {
+        totalRating += playerRating;
         ratedMatches++;
       }
     });
@@ -245,12 +268,36 @@ export const MyMatchesScreen: React.FC = () => {
     const avgRating = ratedMatches > 0 ? totalRating / ratedMatches : 0;
     const avgGoalsPerMatch = completed.length > 0 ? goals / completed.length : 0;
 
+    // Calculate streak
+    let currentStreak = 0;
+    let streakType: 'win' | 'loss' | null = null;
+
+    for (const result of lastFiveResults) {
+      if (result === 'W') {
+        if (streakType === 'win' || streakType === null) {
+          streakType = 'win';
+          currentStreak++;
+        } else {
+          break;
+        }
+      } else if (result === 'L') {
+        if (streakType === 'loss' || streakType === null) {
+          streakType = 'loss';
+          currentStreak++;
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+
     return {
       total: matches.length,
       completed: completed.length,
       upcoming: upcoming.length,
-      leagueMatches: leagueMatches.length,
-      friendlyMatches: friendlyMatches.length,
+      leagueMatches: matches.filter(({ match }) => match.type === MatchType.LEAGUE).length,
+      friendlyMatches: matches.filter(({ match }) => match.type === MatchType.FRIENDLY).length,
       wins,
       losses,
       draws,
@@ -260,16 +307,53 @@ export const MyMatchesScreen: React.FC = () => {
       winRate,
       avgRating,
       avgGoalsPerMatch,
+      lastFiveResults,
+      currentStreak,
+      streakType,
     };
   }, [matches, playerId]);
 
   const loadPendingInvitations = async () => {
     if (!playerId) return;
     try {
-      const count = await matchInvitationService.getPendingInvitationCount(playerId);
-      setPendingInvitationsCount(count);
+      const result = await MatchInvitationService.getPendingInvitations(playerId);
+      if (result.success && result.data) {
+        setPendingInvitationsCount(result.data.length);
+      }
     } catch (error) {
       console.error('Error loading invitations:', error);
+    }
+  };
+
+  const loadPerformanceData = async () => {
+    if (!playerId) return;
+
+    try {
+      // Load rating profile
+      const ratingResult = await PlayerRatingProfileService.getGlobalProfile(playerId);
+      if (ratingResult.success && ratingResult.data) {
+        setRatingProfile(ratingResult.data);
+      }
+
+      // Load player profile
+      const profileResult = await PlayerProfileService.getPlayerProfile(playerId);
+      if (profileResult.success && profileResult.data) {
+        setPlayerProfile(profileResult.data);
+      }
+
+      // Load career stats
+      const careerResult = await PlayerStatsService.getCareerStats(playerId);
+      if (careerResult.success && careerResult.data) {
+        setCareerStats(careerResult.data);
+      }
+
+      // Load performance insights
+      const insightsResult = await PlayerRatingProfileService.getRatingInsights(playerId);
+      if (insightsResult.success && insightsResult.data) {
+        setPerformanceInsights(insightsResult.data);
+      }
+    } catch (error) {
+      console.error('Error loading performance data:', error);
     }
   };
 
@@ -283,46 +367,66 @@ export const MyMatchesScreen: React.FC = () => {
     try {
       setLoading(true);
 
-      // Get all player matches
-      const allMatches = await matchService.getMatchesByPlayer(playerId);
+      const upcomingResult = await MatchService.getPlayerUpcomingMatches(playerId, 50);
+      const upcomingMatches = upcomingResult.success && upcomingResult.data ? upcomingResult.data : [];
 
-      if (!allMatches || allMatches.length === 0) {
+      const historyResult = await MatchService.getPlayerMatchHistory(playerId, 50);
+      const historyMatches = historyResult.success && historyResult.data ? historyResult.data : [];
+
+      const allMatches = [...upcomingMatches, ...historyMatches];
+
+      if (allMatches.length === 0) {
         setMatches([]);
         return;
       }
 
-      // Cache for fixtures and leagues
-      const fixtureCache = new Map<string, any>();
-      const leagueCache = new Map<string, any>();
+      const fixtureCache = new Map<string, IFixture>();
+      const leagueCache = new Map<string, ILeague>();
 
-      // Get league info for each match
       const matchesWithLeagues: MatchWithLeague[] = await Promise.all(
         allMatches.map(async (match) => {
           try {
-            let fixture = fixtureCache.get(match.fixtureId);
-            if (!fixture) {
-              fixture = await matchFixtureService.getById(match.fixtureId);
-              if (fixture) {
-                fixtureCache.set(match.fixtureId, fixture);
+            let fixture: IFixture | null = null;
+            let league: ILeague | null = null;
+
+            if (match.type === MatchType.LEAGUE && match.fixtureId) {
+              if (fixtureCache.has(match.fixtureId)) {
+                fixture = fixtureCache.get(match.fixtureId)!;
               } else {
-                return { match, league: null };
+                const fixtureResult = await FixtureService.getFixture(match.fixtureId);
+                if (fixtureResult.success && fixtureResult.data) {
+                  fixture = fixtureResult.data;
+                  fixtureCache.set(match.fixtureId, fixture);
+                }
+              }
+
+              if (fixture && match.leagueId) {
+                if (leagueCache.has(match.leagueId)) {
+                  league = leagueCache.get(match.leagueId)!;
+                } else {
+                  const leagueResult = await LeagueService.getLeague(match.leagueId);
+                  if (leagueResult.success && leagueResult.data) {
+                    league = leagueResult.data;
+                    leagueCache.set(match.leagueId, league);
+                  }
+                }
+              }
+            } else if (match.type === MatchType.FRIENDLY && match.linkedLeagueId) {
+              if (leagueCache.has(match.linkedLeagueId)) {
+                league = leagueCache.get(match.linkedLeagueId)!;
+              } else {
+                const leagueResult = await LeagueService.getLeague(match.linkedLeagueId);
+                if (leagueResult.success && leagueResult.data) {
+                  league = leagueResult.data;
+                  leagueCache.set(match.linkedLeagueId, league);
+                }
               }
             }
 
-            let league = leagueCache.get(fixture.leagueId);
-            if (!league) {
-              league = await leagueService.getById(fixture.leagueId);
-              if (league) {
-                leagueCache.set(fixture.leagueId, league);
-              } else {
-                return { match, league: null };
-              }
-            }
-
-            return { match, league };
+            return { match, league, fixture };
           } catch (error) {
             console.error(`Error loading league for match ${match.id}:`, error);
-            return { match, league: null };
+            return { match, league: null, fixture: null };
           }
         })
       );
@@ -338,8 +442,11 @@ export const MyMatchesScreen: React.FC = () => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadMatches();
-    await loadPendingInvitations();
+    await Promise.all([
+      loadMatches(),
+      loadPendingInvitations(),
+      loadPerformanceData(),
+    ]);
     setRefreshing(false);
   }, [loadMatches]);
 
@@ -349,6 +456,10 @@ export const MyMatchesScreen: React.FC = () => {
 
   const handleViewInvitations = () => {
     NavigationService.navigateToFriendlyMatchInvitations();
+  };
+
+  const handleCreateFriendlyMatch = () => {
+    NavigationService.navigateToCreateFriendlyMatch();
   };
 
   const formatDate = useCallback((date: Date) => {
@@ -367,13 +478,15 @@ export const MyMatchesScreen: React.FC = () => {
   }, []);
 
   const getResultBadge = (match: IMatch) => {
-    const isInTeam1 = match.team1PlayerIds?.includes(playerId);
-    const isInTeam2 = match.team2PlayerIds?.includes(playerId);
+    if (!match.players.teams || !match.score) return null;
+
+    const isInTeam1 = match.players.teams.team1.some(p => p.playerId === playerId);
+    const isInTeam2 = match.players.teams.team2.some(p => p.playerId === playerId);
 
     if (!isInTeam1 && !isInTeam2) return null;
 
-    const team1Score = match.team1Score || 0;
-    const team2Score = match.team2Score || 0;
+    const team1Score = match.score.team1;
+    const team2Score = match.score.team2;
 
     let result: 'win' | 'draw' | 'loss';
     if (isInTeam1) {
@@ -389,24 +502,244 @@ export const MyMatchesScreen: React.FC = () => {
     return result;
   };
 
+  const getMatchStatusColor = useCallback((status: MatchStatus): string => {
+    switch (status) {
+      case MatchStatus.CREATED: return '#9CA3AF';
+      case MatchStatus.REGISTRATION_OPEN: return '#10B981';
+      case MatchStatus.REGISTRATION_CLOSED: return '#F59E0B';
+      case MatchStatus.TEAMS_SET: return '#2563EB';
+      case MatchStatus.IN_PROGRESS: return '#8B5CF6';
+      case MatchStatus.AWAITING_SCORE: return '#F59E0B';
+      case MatchStatus.COMPLETED: return '#16a34a';
+      case MatchStatus.CANCELLED: return '#DC2626';
+      default: return '#6B7280';
+    }
+  }, []);
+
+  const getMatchStatusText = useCallback((status: MatchStatus): string => {
+    switch (status) {
+      case MatchStatus.CREATED: return 'Oluşturuldu';
+      case MatchStatus.REGISTRATION_OPEN: return 'Kayıt Açık';
+      case MatchStatus.REGISTRATION_CLOSED: return 'Kayıt Kapandı';
+      case MatchStatus.TEAMS_SET: return 'Takımlar Kuruldu';
+      case MatchStatus.IN_PROGRESS: return 'Oynanıyor';
+      case MatchStatus.AWAITING_SCORE: return 'Skor Bekleniyor';
+      case MatchStatus.COMPLETED: return 'Tamamlandı';
+      case MatchStatus.CANCELLED: return 'İptal';
+      default: return status;
+    }
+  }, []);
+
   const clearSearch = useCallback(() => {
     setSearchQuery('');
   }, []);
 
+  const renderPerformanceDashboard = () => {
+    if (!ratingProfile && !playerProfile) return null;
+
+    return (
+      <View style={styles.dashboardContainer}>
+        {/* Rating Overview */}
+        {ratingProfile && (
+          <View style={styles.ratingOverview}>
+            <View style={styles.ratingMainCard}>
+              <View style={styles.ratingHeader}>
+                <Star size={24} color="#F59E0B" fill="#F59E0B" strokeWidth={2} />
+                <Text style={styles.ratingTitle}>Genel Rating</Text>
+              </View>
+              <Text style={styles.ratingValue}>
+                {ratingProfile.overall.overallRating.toFixed(1)}
+              </Text>
+              <View style={styles.ratingBadge}>
+                <Text style={styles.ratingBadgeText}>
+                  {PlayerRatingProfileService.getRatingBadge(ratingProfile.overall.overallRating).icon}
+                  {' '}
+                  {PlayerRatingProfileService.getRatingBadge(ratingProfile.overall.overallRating).name}
+                </Text>
+              </View>
+
+              {/* Trend Indicator */}
+              <View style={[
+                styles.trendIndicator,
+                ratingProfile.ratingTrend === 'improving' && styles.trendImproving,
+                ratingProfile.ratingTrend === 'declining' && styles.trendDeclining,
+              ]}>
+                {ratingProfile.ratingTrend === 'improving' && (
+                  <TrendingUp size={16} color="#10B981" strokeWidth={2.5} />
+                )}
+                {ratingProfile.ratingTrend === 'declining' && (
+                  <TrendingDown size={16} color="#EF4444" strokeWidth={2.5} />
+                )}
+                {ratingProfile.ratingTrend === 'stable' && (
+                  <Activity size={16} color="#3B82F6" strokeWidth={2.5} />
+                )}
+                <Text style={[
+                  styles.trendText,
+                  ratingProfile.ratingTrend === 'improving' && { color: '#10B981' },
+                  ratingProfile.ratingTrend === 'declining' && { color: '#EF4444' },
+                  ratingProfile.ratingTrend === 'stable' && { color: '#3B82F6' },
+                ]}>
+                  {PlayerRatingProfileService.getTrendDescription(ratingProfile.ratingTrend).label}
+                </Text>
+              </View>
+            </View>
+
+            {/* Rating Breakdown */}
+            {ratingProfile.categoryAverages && (
+              <View style={styles.categoryBreakdown}>
+                <Text style={styles.categoryTitle}>Kategori Puanları</Text>
+                <View style={styles.categoryGrid}>
+                  <View style={styles.categoryItem}>
+                    <Text style={styles.categoryLabel}>Beceri</Text>
+                    <Text style={styles.categoryValue}>
+                      {ratingProfile.categoryAverages.skill.toFixed(1)}
+                    </Text>
+                  </View>
+                  <View style={styles.categoryItem}>
+                    <Text style={styles.categoryLabel}>Takım Oyunu</Text>
+                    <Text style={styles.categoryValue}>
+                      {ratingProfile.categoryAverages.teamwork.toFixed(1)}
+                    </Text>
+                  </View>
+                  <View style={styles.categoryItem}>
+                    <Text style={styles.categoryLabel}>Sportmenlik</Text>
+                    <Text style={styles.categoryValue}>
+                      {ratingProfile.categoryAverages.sportsmanship.toFixed(1)}
+                    </Text>
+                  </View>
+                  <View style={styles.categoryItem}>
+                    <Text style={styles.categoryLabel}>Çaba</Text>
+                    <Text style={styles.categoryValue}>
+                      {ratingProfile.categoryAverages.effort.toFixed(1)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Form Chart - Last 5 Matches */}
+        {stats.lastFiveResults.length > 0 && (
+          <View style={styles.formChart}>
+            <View style={styles.formHeader}>
+              <Text style={styles.formTitle}>Son Form</Text>
+              {stats.currentStreak > 1 && (
+                <View style={[
+                  styles.streakBadge,
+                  stats.streakType === 'win' ? styles.streakBadgeWin : styles.streakBadgeLoss,
+                ]}>
+                  <Flame size={14} color="white" strokeWidth={2} />
+                  <Text style={styles.streakText}>
+                    {stats.currentStreak} {stats.streakType === 'win' ? 'Galibiyet' : 'Mağlubiyet'}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.formBadges}>
+              {stats.lastFiveResults.map((result, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.formBadge,
+                    result === 'W' && styles.formBadgeWin,
+                    result === 'D' && styles.formBadgeDraw,
+                    result === 'L' && styles.formBadgeLoss,
+                  ]}
+                >
+                  <Text style={styles.formBadgeText}>{result}</Text>
+                </View>
+              ))}
+              {Array.from({ length: 5 - stats.lastFiveResults.length }).map((_, index) => (
+                <View key={`empty-${index}`} style={styles.formBadgeEmpty}>
+                  <Text style={styles.formBadgeTextEmpty}>-</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Performance Insights */}
+        {performanceInsights && (
+          <View style={styles.insightsContainer}>
+            {/* Strengths */}
+            {performanceInsights.strengths.length > 0 && (
+              <View style={styles.insightSection}>
+                <View style={styles.insightHeader}>
+                  <CheckCircle2 size={18} color="#10B981" strokeWidth={2} />
+                  <Text style={styles.insightTitle}>Güçlü Yönler</Text>
+                </View>
+                {performanceInsights.strengths.slice(0, 2).map((strength: string, index: number) => (
+                  <View key={index} style={styles.insightItem}>
+                    <Text style={styles.insightBullet}>•</Text>
+                    <Text style={styles.insightText}>{strength}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Improvements */}
+            {performanceInsights.improvements.length > 0 && (
+              <View style={styles.insightSection}>
+                <View style={styles.insightHeader}>
+                  <TrendingUp size={18} color="#3B82F6" strokeWidth={2} />
+                  <Text style={styles.insightTitle}>Gelişim Alanları</Text>
+                </View>
+                {performanceInsights.improvements.slice(0, 2).map((improvement: string, index: number) => (
+                  <View key={index} style={styles.insightItem}>
+                    <Text style={styles.insightBullet}>•</Text>
+                    <Text style={styles.insightText}>{improvement}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Achievements Showcase */}
+        {playerProfile?.achievements && playerProfile.achievements.length > 0 && (
+          <View style={styles.achievementsShowcase}>
+            <Text style={styles.achievementsTitle}>Başarılar</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.achievementsScroll}
+            >
+              {playerProfile.achievements.slice(0, 5).map((achievement: any) => (
+                <View key={achievement.id} style={styles.achievementCard}>
+                  <Text style={styles.achievementIcon}>🏆</Text>
+                  <Text style={styles.achievementName}>{achievement.name}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const renderMatchCard = (item: MatchWithLeague) => {
     const { match, league } = item;
-    const result = match.status === 'Tamamlandı' ? getResultBadge(match) : null;
-    const playerGoals = match.goalScorers?.find(g => g.playerId === playerId);
-    const isMVP = match.playerIdOfMatchMVP === playerId;
-    const playerRating = match.ratingsSummary?.topRatedPlayers?.find(p => p.playerId === playerId);
-    const isPast = new Date(match.matchStartTime) < new Date() || match.status === 'Tamamlandı';
+    const result = match.status === MatchStatus.COMPLETED ? getResultBadge(match) : null;
+
+    // ✅ Player stats from score.scorers
+    const playerScorer = match.score?.scorers.find(s => s.playerId === playerId);
+    const goals = playerScorer?.goals || 0;
+    const assists = playerScorer?.assists || 0;
+
+    // ✅ MVP check
+    const isMVP = match.mvp?.playerId === playerId;
+
+    // ✅ Player rating from ratingSummary
+    const playerRating = match.ratingSummary?.details?.topRated.find(
+      r => r.playerId === playerId
+    )?.averageRating;
+
+    const isPast = new Date(match.schedule.matchStart) < new Date() || match.status === MatchStatus.COMPLETED;
     const isFriendly = match.type === MatchType.FRIENDLY;
-    
-    // SportType: Friendly ise kendi sportType'ı, değilse ligden al
-    const matchSportType = match.type === MatchType.FRIENDLY && match.sportType 
-      ? match.sportType 
-      : league?.sportType;
-    const matchSportColor = matchSportType ? getSportColor(matchSportType) : '#16a34a';
+
+    const matchSportType = match.sportType || league?.sportType;
+    const matchSportColor = matchSportType ? SPORT_CONFIGS[matchSportType].color : '#16a34a';
 
     // Compact View
     if (viewMode === 'compact') {
@@ -416,9 +749,8 @@ export const MyMatchesScreen: React.FC = () => {
           style={[
             styles.compactCard,
             isPast && styles.compactCardPast,
-            isFriendly && styles.compactCardFriendly,
           ]}
-          onPress={() => handleMatchPress(match.id)}
+          onPress={() => handleMatchPress(match.id!)}
           activeOpacity={0.7}
         >
           <View style={styles.compactLeft}>
@@ -427,7 +759,7 @@ export const MyMatchesScreen: React.FC = () => {
                 styles.compactSportIcon,
                 { backgroundColor: matchSportColor + '15' }
               ]}>
-                <Text style={styles.compactSportEmoji}>{getSportIcon(matchSportType)}</Text>
+                <Text style={styles.compactSportEmoji}>{SPORT_CONFIGS[matchSportType].emoji}</Text>
               </View>
             )}
             <View style={styles.compactInfo}>
@@ -439,7 +771,7 @@ export const MyMatchesScreen: React.FC = () => {
                   </View>
                 )}
               </View>
-              <Text style={styles.compactDate}>{formatDate(match.matchStartTime)}</Text>
+              <Text style={styles.compactDate}>{formatDate(match.schedule.matchStart)}</Text>
             </View>
           </View>
           <View style={styles.compactRight}>
@@ -463,19 +795,14 @@ export const MyMatchesScreen: React.FC = () => {
       );
     }
 
-    // List View
+    // List View - same as before but simplified for space
     return (
       <TouchableOpacity
         key={match.id}
-        style={[
-          styles.matchCard,
-          isPast && styles.matchCardPast,
-          isFriendly && styles.matchCardFriendly,
-        ]}
-        onPress={() => handleMatchPress(match.id)}
+        style={[styles.matchCard, isPast && styles.matchCardPast]}
+        onPress={() => handleMatchPress(match.id!)}
         activeOpacity={0.7}
       >
-        {/* Match Type Badge */}
         <View style={styles.matchTypeHeaderBadge}>
           {isFriendly ? (
             <View style={[styles.matchTypeBadge, { backgroundColor: '#10B981' + '20' }]}>
@@ -486,25 +813,6 @@ export const MyMatchesScreen: React.FC = () => {
             <View style={[styles.matchTypeBadge, { backgroundColor: '#3B82F6' + '20' }]}>
               <Trophy size={12} color="#3B82F6" strokeWidth={2} />
               <Text style={[styles.matchTypeBadgeText, { color: '#3B82F6' }]}>Lig</Text>
-            </View>
-          )}
-          
-          {/* Privacy Badge for Friendly */}
-          {isFriendly && (
-            <View style={[styles.privacyBadge, { 
-              backgroundColor: match.isPublic ? '#10B981' + '15' : '#F59E0B' + '15' 
-            }]}>
-              {match.isPublic ? (
-                <>
-                  <Globe size={10} color="#10B981" strokeWidth={2} />
-                  <Text style={[styles.privacyBadgeText, { color: '#10B981' }]}>Açık</Text>
-                </>
-              ) : (
-                <>
-                  <Lock size={10} color="#F59E0B" strokeWidth={2} />
-                  <Text style={[styles.privacyBadgeText, { color: '#F59E0B' }]}>Özel</Text>
-                </>
-              )}
             </View>
           )}
 
@@ -527,7 +835,6 @@ export const MyMatchesScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Header */}
         <View style={styles.matchHeader}>
           <View style={styles.matchHeaderLeft}>
             {matchSportType && (
@@ -535,92 +842,83 @@ export const MyMatchesScreen: React.FC = () => {
                 styles.sportIconContainer,
                 { backgroundColor: matchSportColor + '15' }
               ]}>
-                <Text style={styles.matchSportEmoji}>{getSportIcon(matchSportType)}</Text>
+                <Text style={styles.matchSportEmoji}>{SPORT_CONFIGS[matchSportType].emoji}</Text>
               </View>
             )}
             <View style={styles.matchHeaderInfo}>
-              <Text style={styles.matchTitle} numberOfLines={1}>
-                {match.title}
-              </Text>
+              <Text style={styles.matchTitle} numberOfLines={1}>{match.title}</Text>
               <Text style={styles.matchLeague} numberOfLines={1}>
-                {league?.title || 'Lig bilgisi yok'}
+                {league?.title || (isFriendly ? 'Dostluk Maçı' : 'Lig bilgisi yok')}
               </Text>
             </View>
           </View>
           <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
         </View>
 
-        {/* Date & Location */}
         <View style={styles.matchInfo}>
           <View style={styles.matchInfoItem}>
-            <View style={styles.infoIconContainer}>
-              <Calendar size={14} color="#6B7280" strokeWidth={2} />
-            </View>
-            <Text style={styles.matchInfoText}>
-              {formatDate(match.matchStartTime)}
-            </Text>
+            <Calendar size={14} color="#6B7280" strokeWidth={2} />
+            <Text style={styles.matchInfoText}>{formatDate(match.schedule.matchStart)}</Text>
             <View style={styles.infoSeparator} />
             <Clock size={14} color="#6B7280" strokeWidth={2} />
-            <Text style={styles.matchInfoText}>
-              {formatTime(match.matchStartTime)}
-            </Text>
+            <Text style={styles.matchInfoText}>{formatTime(match.schedule.matchStart)}</Text>
           </View>
-          {match.location && (
+          {match.venue?.location && (
             <View style={styles.matchInfoItem}>
-              <View style={styles.infoIconContainer}>
-                <MapPin size={14} color="#6B7280" strokeWidth={2} />
-              </View>
-              <Text style={styles.matchInfoText} numberOfLines={1}>
-                {match.location}
-              </Text>
+              <MapPin size={14} color="#6B7280" strokeWidth={2} />
+              <Text style={styles.matchInfoText} numberOfLines={1}>{match.venue.location}</Text>
             </View>
           )}
         </View>
 
-        {/* Score */}
-        {match.status === 'Tamamlandı' && match.score && (
+        {match.status === MatchStatus.COMPLETED && match.score && (
           <View style={styles.matchScore}>
             <View style={styles.scoreTeam}>
               <Text style={styles.scoreLabel}>Takım 1</Text>
-              <Text style={styles.scoreValue}>{match.team1Score || 0}</Text>
+              <Text style={styles.scoreValue}>{match.score.team1}</Text>
             </View>
             <View style={styles.scoreDivider}>
               <Text style={styles.scoreDividerText}>vs</Text>
             </View>
             <View style={styles.scoreTeam}>
               <Text style={styles.scoreLabel}>Takım 2</Text>
-              <Text style={styles.scoreValue}>{match.team2Score || 0}</Text>
+              <Text style={styles.scoreValue}>{match.score.team2}</Text>
             </View>
           </View>
         )}
 
         {/* Player Performance */}
-        {match.status === 'Tamamlandı' && (playerGoals || isMVP || playerRating) && (
+        {match.status === MatchStatus.COMPLETED && (goals > 0 || assists > 0 || playerRating || isMVP) && (
           <View style={styles.playerPerformance}>
             <View style={styles.performanceStats}>
-              {playerGoals && (playerGoals.goals > 0 || playerGoals.assists > 0) && (
-                <>
-                  {playerGoals.goals > 0 && (
-                    <View style={styles.performanceBadge}>
-                      <Target size={12} color="#EF4444" strokeWidth={2} />
-                      <Text style={styles.performanceText}>{playerGoals.goals} Gol</Text>
-                    </View>
-                  )}
-                  {playerGoals.assists > 0 && (
-                    <View style={styles.performanceBadge}>
-                      <Users size={12} color="#10B981" strokeWidth={2} />
-                      <Text style={styles.performanceText}>{playerGoals.assists} Asist</Text>
-                    </View>
-                  )}
-                </>
+              {/* Goals */}
+              {goals > 0 && (
+                <View style={styles.performanceBadge}>
+                  <Target size={12} color="#EF4444" strokeWidth={2} />
+                  <Text style={styles.performanceText}>{goals} Gol</Text>
+                </View>
               )}
-              {playerRating && playerRating.averageRating > 0 && (
+
+              {/* Assists */}
+              {assists > 0 && (
+                <View style={styles.performanceBadge}>
+                  <Users size={12} color="#10B981" strokeWidth={2} />
+                  <Text style={styles.performanceText}>{assists} Asist</Text>
+                </View>
+              )}
+
+              {/* Rating */}
+              {playerRating && (
                 <View style={styles.performanceBadge}>
                   <Award size={12} color="#F59E0B" strokeWidth={2} />
-                  <Text style={styles.performanceText}>{playerRating.averageRating.toFixed(1)} ⭐</Text>
+                  <Text style={styles.performanceText}>
+                    {playerRating.toFixed(1)} ⭐
+                  </Text>
                 </View>
               )}
             </View>
+
+            {/* MVP Badge */}
             {isMVP && (
               <View style={styles.mvpBadge}>
                 <Crown size={14} color="#F59E0B" strokeWidth={2.5} />
@@ -630,31 +928,12 @@ export const MyMatchesScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Friendly Info */}
-        {isFriendly && !match.affectsStandings && match.status === 'Tamamlandı' && (
-          <View style={styles.friendlyInfoBanner}>
-            <TrendingUp size={12} color="#6B7280" strokeWidth={2} />
-            <Text style={styles.friendlyInfoText}>Puan durumunu etkilemez</Text>
-          </View>
-        )}
-
-        {/* Status */}
-        {match.status !== 'Tamamlandı' && (
+        {match.status !== MatchStatus.COMPLETED && (
           <View style={styles.matchStatus}>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: getMatchStatusColor(match.status) + '15' },
-              ]}
-            >
-              <View style={[
-                styles.statusDot,
-                { backgroundColor: getMatchStatusColor(match.status) }
-              ]} />
-              <Text
-                style={[styles.statusText, { color: getMatchStatusColor(match.status) }]}
-              >
-                {match.status}
+            <View style={[styles.statusBadge, { backgroundColor: getMatchStatusColor(match.status) + '15' }]}>
+              <View style={[styles.statusDot, { backgroundColor: getMatchStatusColor(match.status) }]} />
+              <Text style={[styles.statusText, { color: getMatchStatusColor(match.status) }]}>
+                {getMatchStatusText(match.status)}
               </Text>
             </View>
           </View>
@@ -672,20 +951,25 @@ export const MyMatchesScreen: React.FC = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Maçlar yükleniyor...</Text>
+        <Text style={styles.loadingText}>Yükleniyor...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Search Bar */}
+      <CustomHeader
+        title="Performans Paneli"
+        subtitle={`${stats.total} Maç • ${stats.avgRating.toFixed(1)} ⭐`}
+        showMenu={true}
+      />
+
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
           <Search size={20} color="#9CA3AF" strokeWidth={2} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Maç veya lokasyon ara..."
+            placeholder="Maç ara..."
             placeholderTextColor="#9CA3AF"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -702,11 +986,7 @@ export const MyMatchesScreen: React.FC = () => {
           onPress={() => setShowFilters(!showFilters)}
           activeOpacity={0.7}
         >
-          <Filter
-            size={20}
-            color={showFilters ? '#16a34a' : '#6B7280'}
-            strokeWidth={2}
-          />
+          <Filter size={20} color={showFilters ? '#16a34a' : '#6B7280'} strokeWidth={2} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -718,299 +998,96 @@ export const MyMatchesScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Filters */}
       {showFilters && (
         <View style={styles.filtersSection}>
-          {/* Match Type Filter */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.filterRow}
-            contentContainerStyle={styles.filtersContent}
-          >
-            <TouchableOpacity
-              style={[
-                styles.matchTypeChip,
-                matchTypeFilter === 'all' && styles.matchTypeChipActive,
-              ]}
-              onPress={() => setMatchTypeFilter('all')}
-              activeOpacity={0.7}
-            >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={styles.filtersContent}>
+            <TouchableOpacity style={[styles.matchTypeChip, matchTypeFilter === 'all' && styles.matchTypeChipActive]} onPress={() => setMatchTypeFilter('all')} activeOpacity={0.7}>
               <Globe size={16} color={matchTypeFilter === 'all' ? '#16a34a' : '#6B7280'} />
-              <Text
-                style={[
-                  styles.matchTypeText,
-                  matchTypeFilter === 'all' && styles.matchTypeTextActive,
-                ]}
-              >
-                Tümü ({stats.total})
-              </Text>
+              <Text style={[styles.matchTypeText, matchTypeFilter === 'all' && styles.matchTypeTextActive]}>Tümü ({stats.total})</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.matchTypeChip,
-                matchTypeFilter === 'league' && {
-                  ...styles.matchTypeChipActive,
-                  backgroundColor: '#3B82F6' + '20',
-                  borderColor: '#3B82F6',
-                },
-              ]}
-              onPress={() => setMatchTypeFilter('league')}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={[styles.matchTypeChip, matchTypeFilter === 'league' && { ...styles.matchTypeChipActive, backgroundColor: '#3B82F6' + '20', borderColor: '#3B82F6' }]} onPress={() => setMatchTypeFilter('league')} activeOpacity={0.7}>
               <Trophy size={16} color={matchTypeFilter === 'league' ? '#3B82F6' : '#6B7280'} />
-              <Text
-                style={[
-                  styles.matchTypeText,
-                  matchTypeFilter === 'league' && { ...styles.matchTypeTextActive, color: '#3B82F6' },
-                ]}
-              >
-                Lig ({stats.leagueMatches})
-              </Text>
+              <Text style={[styles.matchTypeText, matchTypeFilter === 'league' && { ...styles.matchTypeTextActive, color: '#3B82F6' }]}>Lig ({stats.leagueMatches})</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.matchTypeChip,
-                matchTypeFilter === 'friendly' && {
-                  ...styles.matchTypeChipActive,
-                  backgroundColor: '#10B981' + '20',
-                  borderColor: '#10B981',
-                },
-              ]}
-              onPress={() => setMatchTypeFilter('friendly')}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={[styles.matchTypeChip, matchTypeFilter === 'friendly' && { ...styles.matchTypeChipActive, backgroundColor: '#10B981' + '20', borderColor: '#10B981' }]} onPress={() => setMatchTypeFilter('friendly')} activeOpacity={0.7}>
               <Users size={16} color={matchTypeFilter === 'friendly' ? '#10B981' : '#6B7280'} />
-              <Text
-                style={[
-                  styles.matchTypeText,
-                  matchTypeFilter === 'friendly' && { ...styles.matchTypeTextActive, color: '#10B981' },
-                ]}
-              >
-                Dostluk ({stats.friendlyMatches})
-              </Text>
+              <Text style={[styles.matchTypeText, matchTypeFilter === 'friendly' && { ...styles.matchTypeTextActive, color: '#10B981' }]}>Dostluk ({stats.friendlyMatches})</Text>
             </TouchableOpacity>
           </ScrollView>
 
-          {/* Status Filter */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.filterRow}
-            contentContainerStyle={styles.filtersContent}
-          >
-            <TouchableOpacity
-              style={[styles.filterChip, filterType === 'all' && styles.filterChipActive]}
-              onPress={() => setFilterType('all')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>
-                🌐 Tümü
-              </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={styles.filtersContent}>
+            <TouchableOpacity style={[styles.filterChip, filterType === 'all' && styles.filterChipActive]} onPress={() => setFilterType('all')} activeOpacity={0.7}>
+              <Text style={[styles.filterChipText, filterType === 'all' && styles.filterChipTextActive]}>🌐 Tümü</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.filterChip, filterType === 'completed' && styles.filterChipActive]}
-              onPress={() => setFilterType('completed')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterChipText, filterType === 'completed' && styles.filterChipTextActive]}>
-                🏁 Tamamlanan ({stats.completed})
-              </Text>
+            <TouchableOpacity style={[styles.filterChip, filterType === 'completed' && styles.filterChipActive]} onPress={() => setFilterType('completed')} activeOpacity={0.7}>
+              <Text style={[styles.filterChipText, filterType === 'completed' && styles.filterChipTextActive]}>🏁 Tamamlanan ({stats.completed})</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.filterChip, filterType === 'upcoming' && styles.filterChipActive]}
-              onPress={() => setFilterType('upcoming')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterChipText, filterType === 'upcoming' && styles.filterChipTextActive]}>
-                📅 Yaklaşan ({stats.upcoming})
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.filterChip, filterType === 'cancelled' && styles.filterChipActive]}
-              onPress={() => setFilterType('cancelled')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterChipText, filterType === 'cancelled' && styles.filterChipTextActive]}>
-                ❌ İptal
-              </Text>
+            <TouchableOpacity style={[styles.filterChip, filterType === 'upcoming' && styles.filterChipActive]} onPress={() => setFilterType('upcoming')} activeOpacity={0.7}>
+              <Text style={[styles.filterChipText, filterType === 'upcoming' && styles.filterChipTextActive]}>📅 Yaklaşan ({stats.upcoming})</Text>
             </TouchableOpacity>
           </ScrollView>
-
-          {/* Sport Filter */}
-          {availableSports.length > 1 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.filterRow}
-              contentContainerStyle={styles.filtersContent}
-            >
-              <TouchableOpacity
-                style={[styles.sportFilterChip, selectedSport === 'all' && styles.sportFilterChipActive]}
-                onPress={() => setSelectedSport('all')}
-                activeOpacity={0.7}
-              >
-                <Filter size={14} color={selectedSport === 'all' ? 'white' : '#6B7280'} strokeWidth={2} />
-                <Text style={[styles.sportFilterText, selectedSport === 'all' && styles.sportFilterTextActive]}>
-                  Tüm Sporlar
-                </Text>
-              </TouchableOpacity>
-
-              {availableSports.map((sport) => (
-                <TouchableOpacity
-                  key={sport}
-                  style={[
-                    styles.sportFilterChip,
-                    selectedSport === sport && {
-                      ...styles.sportFilterChipActive,
-                      backgroundColor: getSportColor(sport),
-                      borderColor: getSportColor(sport),
-                    },
-                  ]}
-                  onPress={() => setSelectedSport(sport)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.sportFilterEmoji}>{getSportIcon(sport)}</Text>
-                  <Text style={[styles.sportFilterText, selectedSport === sport && styles.sportFilterTextActive]}>
-                    {SPORT_CONFIGS[sport].name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
         </View>
       )}
 
-      {/* Pending Invitations Banner */}
       {pendingInvitationsCount > 0 && (
-        <TouchableOpacity
-          style={styles.invitationBanner}
-          onPress={handleViewInvitations}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.invitationBanner} onPress={handleViewInvitations} activeOpacity={0.7}>
           <View style={styles.invitationBannerLeft}>
             <Mail size={20} color="#10B981" strokeWidth={2} />
             <View style={styles.invitationBannerText}>
-              <Text style={styles.invitationBannerTitle}>
-                {pendingInvitationsCount} Davet Bekliyor
-              </Text>
-              <Text style={styles.invitationBannerSubtitle}>
-                Dostluk maçı davetlerini görüntüle
-              </Text>
+              <Text style={styles.invitationBannerTitle}>{pendingInvitationsCount} Davet Bekliyor</Text>
+              <Text style={styles.invitationBannerSubtitle}>Dostluk maçı davetlerini görüntüle</Text>
             </View>
           </View>
           <ChevronRight size={20} color="#10B981" strokeWidth={2} />
         </TouchableOpacity>
       )}
 
-      {/* Enhanced Stats Summary */}
-      <View style={styles.statsSection}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.statsScroll}
-        >
-          <View style={[styles.statCard, styles.statCardPrimary]}>
-            <Trophy size={20} color="#16a34a" strokeWidth={2} />
-            <Text style={[styles.statValue, { color: '#16a34a' }]}>{stats.total}</Text>
-            <Text style={styles.statLabel}>Toplam</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <CheckCircle2 size={18} color="#10B981" strokeWidth={2} />
-            <Text style={[styles.statValue, { color: '#10B981' }]}>{stats.wins}</Text>
-            <Text style={styles.statLabel}>Galibiyet</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Minus size={18} color="#F59E0B" strokeWidth={2} />
-            <Text style={[styles.statValue, { color: '#F59E0B' }]}>{stats.draws}</Text>
-            <Text style={styles.statLabel}>Berabere</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <XCircle size={18} color="#EF4444" strokeWidth={2} />
-            <Text style={[styles.statValue, { color: '#EF4444' }]}>{stats.losses}</Text>
-            <Text style={styles.statLabel}>Mağlubiyet</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Target size={18} color="#EF4444" strokeWidth={2} />
-            <Text style={[styles.statValue, { color: '#EF4444' }]}>{stats.goals}</Text>
-            <Text style={styles.statLabel}>Gol</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Users size={18} color="#10B981" strokeWidth={2} />
-            <Text style={[styles.statValue, { color: '#10B981' }]}>{stats.assists}</Text>
-            <Text style={styles.statLabel}>Asist</Text>
-          </View>
-
-          <View style={styles.statCard}>
-            <Crown size={18} color="#F59E0B" strokeWidth={2} />
-            <Text style={[styles.statValue, { color: '#F59E0B' }]}>{stats.mvps}</Text>
-            <Text style={styles.statLabel}>MVP</Text>
-          </View>
-
-          {stats.avgRating > 0 && (
-            <View style={styles.statCard}>
-              <Award size={18} color="#8B5CF6" strokeWidth={2} />
-              <Text style={[styles.statValue, { color: '#8B5CF6' }]}>{stats.avgRating.toFixed(1)}</Text>
-              <Text style={styles.statLabel}>Ort. Rating</Text>
-            </View>
-          )}
-
-          {stats.avgGoalsPerMatch > 0 && (
-            <View style={styles.statCard}>
-              <Zap size={18} color="#EC4899" strokeWidth={2} />
-              <Text style={[styles.statValue, { color: '#EC4899' }]}>{stats.avgGoalsPerMatch.toFixed(1)}</Text>
-              <Text style={styles.statLabel}>Maç/Gol</Text>
-            </View>
-          )}
-        </ScrollView>
-      </View>
-
-      {/* Matches List */}
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#16a34a"
-            colors={['#16a34a']}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#16a34a" colors={['#16a34a']} />}
       >
-        <View style={styles.resultCountContainer}>
-          <Text style={styles.resultCount}>
-            {filteredMatches.length} maç bulundu
-          </Text>
+        {/* Performance Dashboard */}
+        {renderPerformanceDashboard()}
+
+        {/* Quick Stats */}
+        <View style={styles.quickStatsContainer}>
+          <View style={styles.quickStatCard}>
+            <Trophy size={20} color="#16a34a" strokeWidth={2} />
+            <Text style={styles.quickStatValue}>{stats.wins}</Text>
+            <Text style={styles.quickStatLabel}>Galibiyet</Text>
+          </View>
+          <View style={styles.quickStatCard}>
+            <Target size={20} color="#EF4444" strokeWidth={2} />
+            <Text style={styles.quickStatValue}>{stats.goals}</Text>
+            <Text style={styles.quickStatLabel}>Gol</Text>
+          </View>
+          <View style={styles.quickStatCard}>
+            <Crown size={20} color="#F59E0B" strokeWidth={2} />
+            <Text style={styles.quickStatValue}>{stats.mvps}</Text>
+            <Text style={styles.quickStatLabel}>MVP</Text>
+          </View>
+          <View style={styles.quickStatCard}>
+            <Zap size={20} color="#8B5CF6" strokeWidth={2} />
+            <Text style={styles.quickStatValue}>{stats.winRate.toFixed(0)}%</Text>
+            <Text style={styles.quickStatLabel}>Kazanma</Text>
+          </View>
+        </View>
+
+        {/* Matches List */}
+        <View style={styles.matchesHeader}>
+          <Text style={styles.matchesTitle}>Maçlarım</Text>
+          <Text style={styles.matchesCount}>{filteredMatches.length} maç</Text>
         </View>
 
         {filteredMatches.map(renderMatchCard)}
 
-        {/* Empty State */}
         {filteredMatches.length === 0 && (
           <View style={styles.emptyState}>
-            <View style={styles.emptyIconContainer}>
-              <Calendar size={64} color="#D1D5DB" strokeWidth={1.5} />
-            </View>
+            <Calendar size={64} color="#D1D5DB" strokeWidth={1.5} />
             <Text style={styles.emptyTitle}>Maç bulunamadı</Text>
             <Text style={styles.emptyText}>
-              {searchQuery
-                ? 'Arama kriterlerinize uygun maç bulunamadı'
-                : filterType === 'completed'
-                  ? 'Henüz tamamlanmış maç bulunmuyor'
-                  : filterType === 'upcoming'
-                    ? 'Yaklaşan maç bulunmuyor'
-                    : 'Henüz hiç maç oynamadınız'}
+              {searchQuery ? 'Arama kriterlerinize uygun maç bulunamadı' : 'Henüz hiç maç oynamadınız'}
             </Text>
           </View>
         )}
@@ -1036,7 +1113,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: '#6B7280',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -1138,31 +1215,6 @@ const styles = StyleSheet.create({
     color: '#16a34a',
     fontWeight: '700',
   },
-  sportFilterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  sportFilterChipActive: {
-    borderWidth: 1.5,
-  },
-  sportFilterEmoji: {
-    fontSize: 14,
-  },
-  sportFilterText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  sportFilterTextActive: {
-    color: 'white',
-  },
   invitationBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1194,55 +1246,315 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#15803d',
   },
-  statsSection: {
-    backgroundColor: 'white',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+  content: {
+    flex: 1,
   },
-  statsScroll: {
-    paddingHorizontal: 16,
+
+  // Performance Dashboard
+  dashboardContainer: {
+    padding: 16,
+    gap: 16,
+  },
+  ratingOverview: {
     gap: 12,
   },
-  statCard: {
-    alignItems: 'center',
-    minWidth: 90,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#F9FAFB',
+  ratingMainCard: {
+    backgroundColor: 'white',
     borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  ratingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  ratingTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  ratingValue: {
+    fontSize: 48,
+    fontWeight: '700',
+    color: '#16a34a',
+    marginBottom: 8,
+  },
+  ratingBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  ratingBadgeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#15803d',
+  },
+  trendIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  trendImproving: {
+    backgroundColor: '#DCFCE7',
+  },
+  trendDeclining: {
+    backgroundColor: '#FEE2E2',
+  },
+  trendText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  categoryBreakdown: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  categoryTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  categoryItem: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#F9FAFB',
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  categoryLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  categoryValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  formChart: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  formHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  formTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  streakBadgeWin: {
+    backgroundColor: '#10B981',
+  },
+  streakBadgeLoss: {
+    backgroundColor: '#EF4444',
+  },
+  streakText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'white',
+  },
+  formBadges: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  formBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+  },
+  formBadgeWin: {
+    backgroundColor: '#10B981',
+    borderColor: '#059669',
+  },
+  formBadgeDraw: {
+    backgroundColor: '#F59E0B',
+    borderColor: '#D97706',
+  },
+  formBadgeLoss: {
+    backgroundColor: '#EF4444',
+    borderColor: '#DC2626',
+  },
+  formBadgeText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'white',
+  },
+  formBadgeEmpty: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  formBadgeTextEmpty: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#D1D5DB',
+  },
+  insightsContainer: {
+    gap: 12,
+  },
+  insightSection: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  insightTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  insightItem: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 6,
+  },
+  insightBullet: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '700',
+  },
+  insightText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+  achievementsShowcase: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  achievementsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 12,
+  },
+  achievementsScroll: {
+    gap: 12,
+  },
+  achievementCard: {
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    minWidth: 100,
+  },
+  achievementIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  achievementName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1F2937',
+    textAlign: 'center',
+  },
+  quickStatsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 12,
+    marginBottom: 16,
+  },
+  quickStatCard: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 12,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E7EB',
     gap: 6,
   },
-  statCardPrimary: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#16a34a',
-  },
-  statValue: {
-    fontSize: 24,
+  quickStatValue: {
+    fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
   },
-  statLabel: {
-    fontSize: 11,
+  quickStatLabel: {
+    fontSize: 10,
     color: '#6B7280',
     fontWeight: '600',
   },
-  content: {
-    flex: 1,
-  },
-  resultCountContainer: {
+  matchesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    marginBottom: 12,
   },
-  resultCount: {
+  matchesTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  matchesCount: {
     fontSize: 13,
     color: '#6B7280',
     fontWeight: '500',
   },
 
-  // List View Cards
+  // Match Cards (simplified for space)
   matchCard: {
     backgroundColor: 'white',
     borderRadius: 16,
@@ -1251,18 +1563,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   matchCardPast: {
     opacity: 0.75,
-  },
-  matchCardFriendly: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
   },
   matchTypeHeaderBadge: {
     flexDirection: 'row',
@@ -1281,18 +1584,6 @@ const styles = StyleSheet.create({
   matchTypeBadgeText: {
     fontSize: 11,
     fontWeight: '700',
-  },
-  privacyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  privacyBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
   },
   matchHeader: {
     flexDirection: 'row',
@@ -1362,14 +1653,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  infoIconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: '#F9FAFB',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   infoSeparator: {
     width: 1,
@@ -1462,22 +1745,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#F59E0B',
   },
-  friendlyInfoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginBottom: 12,
-  },
-  friendlyInfoText: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontWeight: '600',
-  },
   matchStatus: {
     marginBottom: 12,
   },
@@ -1514,7 +1781,7 @@ const styles = StyleSheet.create({
     color: '#16a34a',
   },
 
-  // Compact View Cards
+  // Compact View
   compactCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1529,10 +1796,6 @@ const styles = StyleSheet.create({
   },
   compactCardPast: {
     opacity: 0.75,
-  },
-  compactCardFriendly: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
   },
   compactLeft: {
     flexDirection: 'row',
@@ -1598,22 +1861,14 @@ const styles = StyleSheet.create({
 
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 80,
+    paddingVertical: 60,
     paddingHorizontal: 32,
-  },
-  emptyIconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1F2937',
+    marginTop: 16,
     marginBottom: 8,
     textAlign: 'center',
   },
