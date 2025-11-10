@@ -1,2 +1,4 @@
 // screens/Settings/components/index.ts
-// export { SettingItem } from './SettingItem';
+export { SettingsToggle } from './SettingsToggle';
+export { SettingsSection } from './SettingsSection';
+export { SettingsItem } from './SettingsItem';

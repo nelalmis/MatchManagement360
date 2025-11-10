@@ -11,7 +11,6 @@ import {
     ActivityIndicator,
     Animated,
 } from "react-native";
-import { NavigationService } from '../../navigation/NavigationService';
 import { PlayerService } from "../../services/serviceLayer/playerService";
 import {
     Award,
@@ -19,8 +18,10 @@ import {
     ArrowRight,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { IPlayer, SportType, SPORT_CONFIGS } from "../../types/entity/types";
+import { IPlayer, SportType } from "../../types/entity/types";
 import { useAuth } from "../../hooks";
+import { getSportPositions, sportThemes } from "../../utils/theme";
+import { TabNavigationService } from "../../navigation";
 
 export const CompleteProfileScreen: React.FC = () => {
     const { user } = useAuth();
@@ -75,10 +76,6 @@ export const CompleteProfileScreen: React.FC = () => {
         }));
     };
 
-    const getSportPositions = (sport: SportType) => {
-        return SPORT_CONFIGS[sport]?.positions || [];
-    };
-
     const isPositionSelected = (sport: SportType, position: string) => {
         return sportPositions[sport]?.includes(position) || false;
     };
@@ -97,7 +94,7 @@ export const CompleteProfileScreen: React.FC = () => {
             if (!sportPositions[sport] || sportPositions[sport]!.length === 0) {
                 Alert.alert(
                     "Eksik Bilgi", 
-                    `${SPORT_CONFIGS[sport].name} için pozisyon seçmelisiniz`
+                    `${sportThemes[sport].label} için pozisyon seçmelisiniz`
                 );
                 return;
             }
@@ -136,7 +133,7 @@ export const CompleteProfileScreen: React.FC = () => {
                 [
                     {
                         text: "Hadi Başlayalım",
-                        onPress: () => NavigationService.navigateToHomeTab()
+                        onPress: () => TabNavigationService.navigateToHomeTab()
                     },
                 ]
             );
@@ -176,8 +173,8 @@ export const CompleteProfileScreen: React.FC = () => {
                     </Text>
 
                     <View style={styles.sportGrid}>
-                        {(Object.keys(SPORT_CONFIGS) as SportType[]).map((sport) => {
-                            const config = SPORT_CONFIGS[sport];
+                        {(Object.keys(sportThemes) as SportType[]).map((sport) => {
+                            const config = sportThemes[sport];
                             const isSelected = selectedSports.includes(sport);
 
                             return (
@@ -195,7 +192,7 @@ export const CompleteProfileScreen: React.FC = () => {
                                         styles.sportName,
                                         isSelected && styles.sportNameSelected
                                     ]}>
-                                        {config.name}
+                                        {config.label}
                                     </Text>
                                     {isSelected && (
                                         <View style={styles.sportCheck}>
@@ -210,7 +207,7 @@ export const CompleteProfileScreen: React.FC = () => {
 
                 {/* Position Selection for Each Sport */}
                 {selectedSports.map((sport) => {
-                    const config = SPORT_CONFIGS[sport];
+                    const config = sportThemes[sport];
                     const positions = getSportPositions(sport);
                     const hasSelectedPosition = sportPositions[sport] && sportPositions[sport]!.length > 0;
 
@@ -219,7 +216,7 @@ export const CompleteProfileScreen: React.FC = () => {
                             <View style={styles.cardHeader}>
                                 <Text style={styles.sportEmojiSmall}>{config.emoji}</Text>
                                 <View style={styles.cardHeaderText}>
-                                    <Text style={styles.cardTitle}>{config.name} Pozisyonun</Text>
+                                    <Text style={styles.cardTitle}>{config.label} Pozisyonun</Text>
                                     <Text style={styles.cardSubtitle}>
                                         {hasSelectedPosition 
                                             ? `Seçili: ${sportPositions[sport]![0]}` 

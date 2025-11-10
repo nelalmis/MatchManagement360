@@ -33,11 +33,11 @@ import { useRoute } from '@react-navigation/native';
 import { IMatch, SportType, MatchStatus } from '../../types/entity/types';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
-import { NavigationService } from '../../navigation';
 import { eventManager, Events } from '../../utils';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { getSportBackgroundColor, getSportEmoji } from '../../utils/theme';
+import { goBack } from '../../navigation';
 
 export const GoalAssistEntryScreen: React.FC = () => {
   const route: any = useRoute();
@@ -67,7 +67,7 @@ export const GoalAssistEntryScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -77,7 +77,7 @@ export const GoalAssistEntryScreen: React.FC = () => {
       const result = await MatchService.getMatch(matchId);
       if (!result.success || !result.data) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -87,7 +87,7 @@ export const GoalAssistEntryScreen: React.FC = () => {
       if (matchData.status !== MatchStatus.AWAITING_SCORE && 
           matchData.status !== MatchStatus.COMPLETED) {
         Alert.alert('Uyarı', 'Önce maç skoru girilmeli');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -337,7 +337,7 @@ export const GoalAssistEntryScreen: React.FC = () => {
                   [
                     {
                       text: 'Tamam',
-                      onPress: () => NavigationService.goBack()
+                      onPress: () => goBack()
                     }
                   ]
                 );

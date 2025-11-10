@@ -29,17 +29,13 @@ import {
   Check,
   Image as ImageIcon,
 } from 'lucide-react-native';
-import {
-  IPlayer,
-  SportType,
-  SPORT_CONFIGS,
-  getSportIcon,
-  getSportColor,
-} from '../../types/types';
-import { PlayerService } from '../../services/serviceLayer/playerService';
-import { NavigationService } from '../../navigation/NavigationService';
-import { useAuth } from '../../hooks';
-import { CustomHeader } from '../../components/CustomHeader';
+
+import { PlayerService } from '../../../services/serviceLayer/playerService';
+import { useAuth } from '../../../hooks';
+import { CustomHeader } from '../../../components/CustomHeader';
+import { IPlayer, SportType } from '../../../types/entity/types';
+import { sportThemes } from '../../../utils/theme';
+import { goBack } from '../../../navigation';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -86,6 +82,7 @@ const isValidPhone = (formattedPhone: string) => {
 };
 
 export const EditProfileScreen: React.FC = () => {
+  // Alert.alert('Düzenleme Ekranı', 'Bu ekran düzenleme için kullanılır.');
   const { user, updateProfile } = useAuth();
   console.log('EditProfileScreen - Current user:', user.favoriteSports);
   const [loading, setLoading] = useState(false);
@@ -190,7 +187,7 @@ export const EditProfileScreen: React.FC = () => {
         Alert.alert('Başarılı', 'Profil güncellendi', [
           {
             text: 'Tamam',
-            onPress: () => NavigationService.goBack(),
+            onPress: () => goBack(),
           },
         ]);
       } else {
@@ -216,7 +213,7 @@ export const EditProfileScreen: React.FC = () => {
   ]);
 
   const handleCancel = useCallback(() => {
-    NavigationService.goBack();
+    goBack();
   }, []);
 
   const pickImageFromGallery = async () => {
@@ -478,6 +475,7 @@ export const EditProfileScreen: React.FC = () => {
               placeholderTextColor="#9CA3AF"
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={false} // Email is not editable
             />
             {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
           </View>
@@ -559,8 +557,8 @@ export const EditProfileScreen: React.FC = () => {
           </Text>
 
           <View style={styles.sportsGrid}>
-            {(Object.keys(SPORT_CONFIGS) as SportType[]).map((sport) => {
-              const config = SPORT_CONFIGS[sport];
+            {(Object.keys(sportThemes) as SportType[]).map((sport) => {
+              const config = sportThemes[sport];
               const isSelected = favoriteSports.includes(sport);
 
               return (
@@ -569,8 +567,8 @@ export const EditProfileScreen: React.FC = () => {
                   style={[
                     styles.sportCard,
                     isSelected && {
-                      borderColor: config.color,
-                      backgroundColor: `${config.color}10`,
+                      borderColor: config.primary,
+                      backgroundColor: `${config.primary}10`,
                     },
                   ]}
                   onPress={() => toggleFavoriteSport(sport)}
@@ -580,10 +578,10 @@ export const EditProfileScreen: React.FC = () => {
                   <Text
                     style={[
                       styles.sportCardName,
-                      isSelected && { color: config.color },
+                      isSelected && { color: config.primary },
                     ]}
                   >
-                    {config.name}
+                    {config.label}
                   </Text>
                 </TouchableOpacity>
               );
@@ -600,7 +598,7 @@ export const EditProfileScreen: React.FC = () => {
             </Text>
 
             {favoriteSports.map((sport) => {
-              const config = SPORT_CONFIGS[sport];
+              const config = sportThemes[sport];
               const positions = sportPositions[sport] || [];
               const hasPositions = config.positions.length > 0;
 
@@ -615,7 +613,7 @@ export const EditProfileScreen: React.FC = () => {
                   <View style={styles.positionCardLeft}>
                     <Text style={styles.sportCardEmoji}>{config.emoji}</Text>
                     <View style={styles.positionCardInfo}>
-                      <Text style={styles.positionCardTitle}>{config.name}</Text>
+                      <Text style={styles.positionCardTitle}>{config.label}</Text>
                       {hasPositions ? (
                         <Text style={styles.positionCardSubtitle}>
                           {positions.length > 0
@@ -663,10 +661,10 @@ export const EditProfileScreen: React.FC = () => {
                   {selectedSport && (
                     <>
                       <Text style={styles.modalEmoji}>
-                        {SPORT_CONFIGS[selectedSport].emoji}
+                        {sportThemes[selectedSport].emoji}
                       </Text>
                       <Text style={styles.modalTitle}>
-                        {SPORT_CONFIGS[selectedSport].name} Pozisyonları
+                        {sportThemes[selectedSport].label} Pozisyonları
                       </Text>
                     </>
                   )}
@@ -679,7 +677,7 @@ export const EditProfileScreen: React.FC = () => {
               {/* Positions List */}
               <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
                 <View style={styles.positionsGrid}>
-                  {selectedSport && SPORT_CONFIGS[selectedSport].positions.map((position) => {
+                  {selectedSport && sportThemes[selectedSport].positions.map((position) => {
                     const isSelected = sportPositions[selectedSport]?.includes(position) || false;
 
                     return (

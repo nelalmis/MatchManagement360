@@ -30,7 +30,7 @@ import {
   TrendingUp,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { FixtureListRouteProp, NavigationService } from '../../navigation';
+import { FixtureListRouteProp, FixtureNavigationService, goBack } from '../../navigation';
 import { useAuth } from '../../hooks';
 import { IFixture, ILeague } from '../../types/entity/types';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
@@ -135,11 +135,11 @@ export const FixtureListScreen: React.FC = () => {
   };
 
   const handleCreateFixture = () => {
-    NavigationService.navigateToCreateFixture(leagueId);
+    FixtureNavigationService.navigateToCreateFixture(leagueId);
   };
 
   const handleFixturePress = (fixtureId: string) => {
-    NavigationService.navigateToFixtureDetail(fixtureId);
+    FixtureNavigationService.navigateToFixtureDetail(fixtureId);
   };
 
   // ============================================
@@ -232,7 +232,7 @@ export const FixtureListScreen: React.FC = () => {
         showIcon={true}
         showBack={true}
         showCreate={isAdmin}
-        onLeftPress={() => NavigationService.goBack()}
+        onLeftPress={() => goBack()}
         onCreatePress={handleCreateFixture}
       />
       {/* 

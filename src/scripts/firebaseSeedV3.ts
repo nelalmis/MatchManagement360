@@ -4,12 +4,12 @@
 // Based on EXACT type definitions provided
 // ============================================
 
+import { Timestamp } from 'firebase/firestore';
+import { ILeagueInvitation, InvitationStatus, InvitationType } from '../types/entity/invitation';
 import { 
   IPlayer,
   ILeague,
   ILeagueSettings,
-  ILeagueInvitation,
-  ILeagueInvitationUse,
   ISeason,
   IFixture,
   IMatch,
@@ -17,7 +17,6 @@ import {
   IPlayerStats,
   IMatchRating,
   IMatchComment,
-  IMatchInvitation,
   SportType,
   MatchType,
   MatchStatus,
@@ -324,32 +323,40 @@ export const generateLeagueInvitations = (
     const code = Math.random().toString(36).substring(2, 10).toUpperCase();
     const createdBy = randomElement(league.members.admins);
     const expiresAt = randomBoolean() 
-      ? new Date(Date.now() + randomInt(7, 30) * 24 * 60 * 60 * 1000).toISOString()
+      ? Timestamp.fromDate(new Date(Date.now() + randomInt(7, 30) * 24 * 60 * 60 * 1000))
       : undefined;
 
     const invitation: ILeagueInvitation = {
       id: generateId('invitation'),
-      leagueId: league.id,
+      targetId: league.id,
+      type:InvitationType.LEAGUE,
       code,
       inviteLink: `app://join-league/${code}`,
       createdBy,
-      createdAt: new Date().toISOString(),
+      createdAt: Timestamp.fromDate(new Date()),
       expiresAt,
       maxUses: randomBoolean() ? randomInt(5, 20) : undefined,
       usedCount: randomInt(0, 3),
-      isActive: true,
-      metadata: {
+      settings: {
         description: randomElement(['Sezon başı davet', 'Genel davet', 'Özel turnuva']),
         tags: randomElements(['season-1', 'premium', 'trial', 'special'], randomInt(1, 2)),
+        
+        // assignRole: randomElement(['member', 'premium', 'direct'] as const),
+      },
+      leagueSettings: {
         assignRole: randomElement(['member', 'premium', 'direct'] as const),
+        autoApprove: randomBoolean(),
+
       },
       stats: {
         totalViews: randomInt(10, 100),
         totalAttempts: randomInt(5, 50),
         successfulJoins: randomInt(1, 10),
-        lastUsedAt: randomBoolean() ? new Date(Date.now() - randomInt(1, 30) * 24 * 60 * 60 * 1000).toISOString() : undefined,
+        lastUsedAt: randomBoolean() ? Timestamp.fromDate(new Date(Date.now() - randomInt(1, 30) * 24 * 60 * 60 * 1000)) : undefined,
+        failedAttempts: randomInt(0, 5),
       },
-      updatedAt: new Date().toISOString(),
+      status:InvitationStatus.ACTIVE,
+      updatedAt: Timestamp.fromDate(new Date()),
     };
 
     invitations.push(invitation);
@@ -462,13 +469,17 @@ export const generateFixtures = (
       title: `Hafta ${i + 1}`,
       description: `${league.title} - ${i + 1}. hafta maçları`,
       schedule: {
-        registrationStartTime: '17:00',
+        registrationSchedule: {
+          opening:{
+            type:'always_open'
+          }
+        },
         matchStartTime: '19:00',
         matchDuration: config.defaultDuration,
         isRecurring: true,
         pattern: {
           type: 'weekly',
-          dayOfWeek,
+          interval: 1,
         },
       },
       squad: {
@@ -577,6 +588,7 @@ export const generateMatches = (
             .slice(Math.floor(fixture.squad.totalPlayers / 2), fixture.squad.totalPlayers)
             .map(p => ({ playerId: p.playerId, position: p.preferredPosition })),
         } : undefined,
+        squad: registeredPlayers.map(p => p.playerId) ,
       },
       permissions: fixture.permissions,
       venue: fixture.venue,

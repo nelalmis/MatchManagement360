@@ -15,13 +15,10 @@ import {
   Circle,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import {
-  SportType,
-  SPORT_CONFIGS,
-  getSportIcon,
-  getSportColor,
-} from '../../types/types';
-import { NavigationService } from '../../navigation/NavigationService';
+
+import { SportType } from '../../types/entity/types';
+import { getSportBackgroundColor, getSportEmoji, sportThemes } from '../../utils/theme';
+import { goBack } from '../../navigation';
 
 interface RouteParams {
   sport: SportType;
@@ -36,8 +33,8 @@ export const SelectPositionsScreen: React.FC = () => {
   const [positions, setPositions] = useState<string[]>(selectedPositions || []);
   const [slideAnim] = useState(new Animated.Value(0));
 
-  const config = SPORT_CONFIGS[sport];
-  const sportColor = getSportColor(sport);
+  const config = sportThemes[sport];
+  const sportColor = getSportBackgroundColor(sport);
 
   useEffect(() => {
     // Slide in animation
@@ -78,7 +75,7 @@ export const SelectPositionsScreen: React.FC = () => {
       duration: 200,
       useNativeDriver: true,
     }).start(() => {
-      NavigationService.goBack();
+      goBack();
     });
   }, [slideAnim]);
 
@@ -120,9 +117,9 @@ export const SelectPositionsScreen: React.FC = () => {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Text style={styles.sportEmoji}>{getSportIcon(sport)}</Text>
+              <Text style={styles.sportEmoji}>{getSportEmoji(sport)}</Text>
               <View>
-                <Text style={styles.headerTitle}>{config.name}</Text>
+                <Text style={styles.headerTitle}>{config.label}</Text>
                 <Text style={styles.headerSubtitle}>Pozisyon Seçimi</Text>
               </View>
             </View>

@@ -29,7 +29,6 @@ import {
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
-import { NavigationService } from '../../navigation/NavigationService';
 import {
     LeagueInvitationService,
     MatchInvitationService,
@@ -44,6 +43,7 @@ import {
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { CustomHeader } from '../../components/CustomHeader';
 import { SportType } from '../../types/entity/types';
+import { goBack, LeagueNavigationService, MatchNavigationService } from '../../navigation';
 
 type ManageInvitationsParams = {
     type: InvitationType;
@@ -118,12 +118,19 @@ export const ManageInvitationsScreen: React.FC = () => {
     // ============================================
 
     const handleCreateNew = () => {
-        NavigationService.navigateToCreateInvitation(
-            type,
-            targetId,
-            targetTitle,
-            sportType,
-        );
+        if (type === 'league') {
+            LeagueNavigationService.navigateToCreateInvitation(
+                targetId,
+                targetTitle,
+                sportType as SportType,
+            );
+        } else if (type === 'match') {
+            MatchNavigationService.navigateToCreateInvitation(
+                targetId,
+                targetTitle,
+                sportType as SportType, 
+            );
+        }
     };
 
     const handleCopyCode = async (code: string) => {
@@ -428,7 +435,7 @@ export const ManageInvitationsScreen: React.FC = () => {
             <CustomHeader
                 title="Davet Kodları"
                 showClose={true}
-                onLeftPress={() => NavigationService.goBack()}
+                onLeftPress={() => goBack()}
                 showCreate={true}
                 onCreatePress={handleCreateNew}
                 subtitle={targetTitle}

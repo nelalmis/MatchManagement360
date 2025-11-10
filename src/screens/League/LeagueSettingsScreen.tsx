@@ -32,10 +32,10 @@ import {
 } from 'lucide-react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { useAuth } from '../../hooks';
-import { NavigationService } from '../../navigation/NavigationService';
 import { LeagueSettingsService } from '../../services/serviceLayer/leagueSettingsService';
 import { ILeagueSettings } from '../../types/entity/types';
 import { CustomHeader } from '../../components/CustomHeader';
+import { goBack, LeagueNavigationService } from '../../navigation';
 
 // ============================================
 // TYPES
@@ -345,11 +345,11 @@ export const LeagueSettingsScreen: React.FC = () => {
                             'Değişiklikleriniz kaydedilmedi. Çıkmak istediğinize emin misiniz?',
                             [
                                 { text: 'Kalmaya Devam Et', style: 'cancel' },
-                                { text: 'Çık', style: 'destructive', onPress: () => NavigationService.goBack() },
+                                { text: 'Çık', style: 'destructive', onPress: () => goBack() },
                             ]
                         );
                     } else {
-                        NavigationService.goBack();
+                        goBack();
                     }
                 }}
                 customIcon={Settings}

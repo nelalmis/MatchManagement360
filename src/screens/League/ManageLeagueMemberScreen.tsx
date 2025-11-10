@@ -37,12 +37,12 @@ import {
 } from 'lucide-react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { useAuth } from '../../hooks';
-import { NavigationService } from '../../navigation/NavigationService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
 import { ILeague, IPlayer, SportType } from '../../types/entity/types';
 import { getSportPrimaryColor, getSportEmoji } from '../../utils/theme';
 import { CustomHeader } from '../../components/CustomHeader';
+import { goBack, LeagueNavigationService } from '../../navigation';
 
 // ============================================
 // TYPES
@@ -115,7 +115,7 @@ export const ManageLeagueMembersScreen: React.FC = () => {
       const leagueResult = await LeagueService.getLeague(leagueId);
       if (!leagueResult.success || !leagueResult.data) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -128,7 +128,7 @@ export const ManageLeagueMembersScreen: React.FC = () => {
 
       if (!userIsAdmin) {
         Alert.alert('Yetkisiz', 'Bu sayfayı görüntülemek için admin olmalısınız');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -521,7 +521,7 @@ export const ManageLeagueMembersScreen: React.FC = () => {
         title="Üyeleri Yönet"
         subtitle={league?.title || leagueTitle}
         showBack={true}
-        onLeftPress={() => NavigationService.goBack()}
+        onLeftPress={() => goBack()}
         showFilter={true}
         onFilterPress={() => setShowFilterModal(true)}
         sportType={league?.sportType}        
@@ -1044,7 +1044,7 @@ export const ManageLeagueMembersScreen: React.FC = () => {
         <Text style={styles.errorText}>Bu sayfaya erişim yetkiniz yok</Text>
         <TouchableOpacity
           style={styles.errorButton}
-          onPress={() => NavigationService.goBack()}
+          onPress={() => goBack()}
         >
           <Text style={styles.errorButtonText}>Geri Dön</Text>
         </TouchableOpacity>

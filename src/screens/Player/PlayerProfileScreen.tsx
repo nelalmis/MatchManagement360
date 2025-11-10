@@ -37,9 +37,9 @@ import {
 import { PlayerService } from '../../services/serviceLayer/playerService';
 import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
 import { MatchService } from '../../services/serviceLayer/matchService';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
+import { goBack, MatchNavigationService, ProfileNavigationService, SettingsNavigationService, StandingsNavigationService } from '../../navigation';
 
 interface CareerStats {
   totalMatches: number;
@@ -80,7 +80,7 @@ export const PlayerProfileScreen: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!playerId) {
       Alert.alert('Hata', 'Oyuncu ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -91,7 +91,7 @@ export const PlayerProfileScreen: React.FC = () => {
       const playerData = await PlayerService.getPlayer(playerId);
       if (!playerData.success || !playerData.data) {
         Alert.alert('Hata', 'Oyuncu bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
       setPlayer(playerData.data);
@@ -146,15 +146,15 @@ export const PlayerProfileScreen: React.FC = () => {
   }, [loadData]);
 
   const handleEditProfile = useCallback(() => {
-    NavigationService.navigateToEditProfile();
+    SettingsNavigationService.navigateToEditProfile();
   }, []);
 
   const handleViewStats = useCallback(() => {
-    NavigationService.navigateToPlayerStats(playerId);
+    ProfileNavigationService.navigateToPlayerStats(playerId);
   }, [playerId]);
 
   const handleViewMatches = useCallback(() => {
-    NavigationService.navigateToMyMatches();
+    MatchNavigationService.navigateToMyMatches();
   }, []);
 
   const formatDate = useCallback((date: Date) => {
@@ -193,14 +193,23 @@ export const PlayerProfileScreen: React.FC = () => {
     );
   };
 
+  const renderHeader = () => {
+    return (
+      <CustomHeader
+        title={isOwnProfile ? 'Profilim' : 'Oyuncu Profili'}
+        // showBack
+        // onLeftPress={() => goBack()}
+        showMenu
+        // showEdit={isOwnProfile}
+        // onEditPress={handleEditProfile}
+      />
+    );
+  };
+
   if (loading || !player) {
     return (
       <View style={styles.container}>
-        <CustomHeader
-          title="Profil"
-          showBack
-          onLeftPress={() => NavigationService.goBack()}
-        />
+        {renderHeader()}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#16a34a" />
           <Text style={styles.loadingText}>Profil yükleniyor...</Text>
@@ -211,14 +220,7 @@ export const PlayerProfileScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title={isOwnProfile ? 'Profilim' : 'Oyuncu Profili'}
-        showBack
-        onLeftPress={() => NavigationService.goBack()}
-        showEdit={isOwnProfile}
-        onEditPress={handleEditProfile}
-      />
-
+      {renderHeader()}
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -371,7 +373,7 @@ export const PlayerProfileScreen: React.FC = () => {
                     </View>
                   </View>
                   <TouchableOpacity
-                    onPress={() => NavigationService.navigateToStandings(league.leagueId)}
+                    onPress={() => StandingsNavigationService.navigateToStandings(league.leagueId)}
                     activeOpacity={0.7}
                   >
                     <TrendingUp size={20} color="#16a34a" strokeWidth={2} />
@@ -435,7 +437,7 @@ export const PlayerProfileScreen: React.FC = () => {
                 <TouchableOpacity
                   key={match.id}
                   style={styles.matchCard}
-                  onPress={() => NavigationService.navigateToMatch(match.id)}
+                  onPress={() => MatchNavigationService.navigateToMatchDetail(match.id)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.matchCardHeader}>

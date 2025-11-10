@@ -49,20 +49,23 @@ import {
   ILeague,
   MatchType,
   MatchStatus,
-  SPORT_CONFIGS,
+  SportType,
 } from '../../types/entity/types';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { eventManager, Events } from '../../utils';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
-import { InvitationType } from '../../types/entity/invitation';
+import { IInvitation, IMatchInvitation, InvitationStatus, InvitationType } from '../../types/entity/invitation';
 import { MatchInvitationService } from '../../services/serviceLayer/invitationService';
+import { useAutoHideTabBar } from '../../context/TabBarContext';
+import { sportThemes } from '../../utils/theme';
+import { goBack, MatchNavigationService } from '../../navigation';
 
 export const MatchDetailScreen: React.FC = () => {
+
   const route: any = useRoute();
   const { user } = useAuth();
   const matchId = route.params?.matchId;
@@ -72,6 +75,8 @@ export const MatchDetailScreen: React.FC = () => {
   const [league, setLeague] = useState<ILeague | null>(null);
   const [organizer, setOrganizer] = useState<IPlayer | null>(null);
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
+  const [matchInvitation, setMatchInvitation] = useState<IMatchInvitation | null>(null);
+  const [matchInvitations, setMatchInvitations] = useState<IMatchInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [countdown, setCountdown] = useState('');
@@ -81,10 +86,10 @@ export const MatchDetailScreen: React.FC = () => {
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [canBuildTeam, setCanBuildTeam] = useState(false);
   const [isInvited, setIsInvited] = useState(false);
-  const [eligiblePlayers, setEligiblePlayers] = useState<{ all: string[]; squad: string[]; reserve: string[] }>({ 
-    all: [], 
-    squad: [], 
-    reserve: [] 
+  const [eligiblePlayers, setEligiblePlayers] = useState<{ all: string[]; squad: string[]; reserve: string[] }>({
+    all: [],
+    squad: [],
+    reserve: []
   });
 
   useFocusEffect(
@@ -100,7 +105,7 @@ export const MatchDetailScreen: React.FC = () => {
     if (!match) return;
 
     const timer = setInterval(() => {
-      if(!match.schedule?.matchStart) return;
+      if (!match.schedule?.matchStart) return;
       const now = new Date().getTime();
       const matchTime = new Date(match.schedule?.matchStart).getTime();
       const diff = matchTime - now;
@@ -127,11 +132,12 @@ export const MatchDetailScreen: React.FC = () => {
 
   // ✅ NEW: Invitation code expiry countdown
   useEffect(() => {
-    if (!match?.invitationCode?.expiresAt) return;
+    if (!matchInvitation) return;
+    if (!matchInvitation?.expiresAt) return;
 
     const timer = setInterval(() => {
       const now = new Date().getTime();
-      const expiryTime = new Date(match.invitationCode!.expiresAt!).getTime();
+      const expiryTime = matchInvitation.expiresAt?.toDate().getTime() || 0;
       const diff = expiryTime - now;
 
       if (diff > 0) {
@@ -149,12 +155,12 @@ export const MatchDetailScreen: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [match?.invitationCode]);
+  }, [matchInvitation]);
 
   const loadData = useCallback(async () => {
     if (!matchId) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -165,7 +171,7 @@ export const MatchDetailScreen: React.FC = () => {
       const matchResult = await MatchService.getMatch(matchId);
       if (!matchResult.success || !matchResult.data) {
         Alert.alert('Maç Bulunamadı', 'Bu maç silinmiş olabilir.');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -213,23 +219,29 @@ export const MatchDetailScreen: React.FC = () => {
           // Check personal invitations (old system)
           const personalInviteCheck = matchData.friendlySettings?.invitedPlayerIds?.includes(user.id) || false;
           setIsInvited(personalInviteCheck);
-          
+
           // Note: Kod ile katılım için ayrı kontrol yok, kod herkes için geçerli
         }
       }
-
-      // Load pending invitations count (for organizer)
-      if (isFriendly && isOrganizer) {
+      if (isFriendly) {
         const invitationsResult = await MatchInvitationService.getActiveInvitations(user!.id, matchId);
         if (invitationsResult.success && invitationsResult.data) {
-          setPendingInvitationsCount(invitationsResult.data.length);
+          setMatchInvitations(invitationsResult.data);
+          setMatchInvitation(invitationsResult.data.find(invite => invite.status === InvitationStatus.ACTIVE) || null); // Assuming single code for now
+
+          if (isOrganizer) {
+            // Load pending invitations count (for organizer)
+            setPendingInvitationsCount(invitationsResult.data.length);
+          }
         }
       }
+
+
 
     } catch (error: any) {
       console.error('Error loading match:', error);
       Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu.');
-      NavigationService.goBack();
+      goBack();
     } finally {
       setLoading(false);
     }
@@ -242,8 +254,8 @@ export const MatchDetailScreen: React.FC = () => {
   }, [loadData]);
 
   const isPlayerInMatch = (
-    eligiblePlayers: { all: string[]; squad: string[]; reserve: string[] }, 
-    match: IMatch, 
+    eligiblePlayers: { all: string[]; squad: string[]; reserve: string[] },
+    match: IMatch,
     playerId: string
   ): boolean => {
     if (eligiblePlayers.all.some(id => id === playerId)) return true;
@@ -261,25 +273,25 @@ export const MatchDetailScreen: React.FC = () => {
 
   // ✅ NEW: Copy invitation code
   const handleCopyCode = useCallback(async () => {
-    if (!match?.invitationCode?.code) return;
+    if (!matchInvitation?.code) return;
 
     try {
-      await Clipboard.setString(match.invitationCode.code);
+      await Clipboard.setString(matchInvitation.code);
       Alert.alert('✅ Kopyalandı', 'Davet kodu panoya kopyalandı');
     } catch (error) {
       console.error('Copy error:', error);
       Alert.alert('Hata', 'Kod kopyalanamadı');
     }
-  }, [match?.invitationCode?.code]);
+  }, [matchInvitation?.code]);
 
   // ✅ NEW: Share invitation code
   const handleShareCode = useCallback(async () => {
-    if (!match?.invitationCode?.code) return;
-
+    if (!matchInvitation?.code) return;
+    if (!match) return;
     try {
-      const code = match.invitationCode.code;
-      const sportConfig = SPORT_CONFIGS[match.sportType || 'Futbol'];
-      
+      const code = matchInvitation.code;
+      const sportConfig = sportThemes[match.sportType || 'Futbol'];
+
       const message = `${sportConfig.emoji} ${match.title}\n\n` +
         `📅 ${formatDateTime(match.schedule?.matchStart)}\n` +
         `📍 ${match.venue?.location || 'Lokasyon belirtilmedi'}\n\n` +
@@ -304,14 +316,14 @@ export const MatchDetailScreen: React.FC = () => {
 
       let message = `${matchTypeLabel}: ${match.title}\n\n` +
         `📅 ${formatDateTime(match.schedule?.matchStart)}`;
-      
+
       if (match.venue?.location) {
         message += `\n📍 ${match.venue.location}`;
       }
 
       // ✅ NEW: Add invitation code if available
-      if (match.invitationCode?.code && match.invitationCode.enabled) {
-        message += `\n\n🔑 Davet Kodu: ${match.invitationCode.code}`;
+      if (matchInvitation?.code && matchInvitation?.status === InvitationStatus.ACTIVE) {
+        message += `\n\n🔑 Davet Kodu: ${matchInvitation.code}`;
       }
 
       message += '\n\n⚽ Maça katılmak için uygulamayı kullanın!';
@@ -327,17 +339,17 @@ export const MatchDetailScreen: React.FC = () => {
 
   const handleRegister = () => {
     if (!match) return;
-    NavigationService.navigateToMatchRegistration(match.id!);
+    MatchNavigationService.navigateToMatchRegistration(match.id!);
   };
 
   const handleBuildTeam = () => {
     if (!match) return;
-    NavigationService.navigateToTeamBuilding(match.id!);
+    MatchNavigationService.navigateToTeamBuilding(match.id!);
   };
 
   const handleScoreEntry = () => {
     if (!match) return;
-    NavigationService.navigateToScoreEntry(match.id!);
+    MatchNavigationService.navigateToScoreEntry(match.id!);
   };
 
   const handleCancelRegistration = () => {
@@ -385,22 +397,22 @@ export const MatchDetailScreen: React.FC = () => {
 
   const handleGoalAssistEntry = () => {
     if (!match) return;
-    NavigationService.navigateToGoalAssistEntry(match.id!);
+    MatchNavigationService.navigateToGoalAssistEntry(match.id!);
   };
 
   const handlePlayerRating = () => {
     if (!match) return;
-    NavigationService.navigateToPlayerRating(match.id!);
+    MatchNavigationService.navigateToPlayerRating(match.id!);
   };
 
   const handlePaymentTracking = () => {
     if (!match) return;
-    NavigationService.navigateToPaymentTracking(match.id!);
+    MatchNavigationService.navigateToPaymentTracking(match.id!);
   };
 
   const handleManageInvitations = () => {
     if (!match) return;
-    NavigationService.navigateToManageInvitations(InvitationType.MATCH, match.id!, match.title!, sportType);
+    MatchNavigationService.navigateToManageInvitations(match.id!, match.title!, sportType as SportType);
   };
 
   const formatDateTime = useCallback((date: Date) => {
@@ -453,7 +465,7 @@ export const MatchDetailScreen: React.FC = () => {
   }, [match, league]);
 
   const sportColor = useMemo(() =>
-    sportType ? SPORT_CONFIGS[sportType].color : '#16a34a',
+    sportType ? sportThemes[sportType].primary : '#16a34a',
     [sportType]
   );
 
@@ -470,9 +482,9 @@ export const MatchDetailScreen: React.FC = () => {
     // ✅ UPDATED: Friendly match için özel kontrol
     if (isFriendly && !match.friendlySettings?.isPublic) {
       // Kod aktif değilse ve personal invite de yoksa kayıt olamaz
-      const hasValidCode = match.invitationCode?.enabled && 
-        (!match.invitationCode.expiresAt || new Date(match.invitationCode.expiresAt) > new Date());
-      
+      const hasValidCode = matchInvitation?.status === InvitationStatus.ACTIVE &&
+        (!matchInvitation?.expiresAt || matchInvitation.expiresAt.toDate() > new Date());
+
       if (!hasValidCode && !isInvited) return false;
     }
 
@@ -502,15 +514,15 @@ export const MatchDetailScreen: React.FC = () => {
 
   // ✅ NEW: Check if code is expired
   const isCodeExpired = useMemo(() => {
-    if (!match?.invitationCode?.expiresAt) return false;
-    return new Date(match.invitationCode.expiresAt) < new Date();
-  }, [match?.invitationCode]);
+    if (!matchInvitation?.expiresAt) return false;
+    return matchInvitation.expiresAt.toDate() < new Date();
+  }, [matchInvitation?.expiresAt]);
 
   // ✅ NEW: Check if code reached max uses
   const isCodeMaxedOut = useMemo(() => {
-    if (!match?.invitationCode?.maxUses) return false;
-    return match.invitationCode.currentUses >= match.invitationCode.maxUses;
-  }, [match?.invitationCode]);
+    if (!matchInvitation?.maxUses) return false;
+    return matchInvitation.usedCount >= matchInvitation.maxUses;
+  }, [matchInvitation?.usedCount, matchInvitation?.maxUses]);
 
   if (loading || !match) {
     return (
@@ -523,621 +535,621 @@ export const MatchDetailScreen: React.FC = () => {
 
   return (
     <ErrorBoundary>
-    <View style={styles.container}>
-      {/* Custom Header */}
-      <CustomHeader
-        title={match.title}
-        subtitle={isFriendly ? 'Dostluk Maçı' : (fixture?.title || league?.title || 'Lig Maçı')}
-        sportType={sportType}
-        showIcon={!!sportType}
-        showBack={true}
-        onLeftPress={() => NavigationService.goBack()}
-        showShare={!isOrganizer}
-        showEdit={isOrganizer}
-        onSharePress={handleShare}
-        onEditPress={() => NavigationService.navigateToEditMatch(match.id!)}
-      />
+      <View style={styles.container}>
+        {/* Custom Header */}
+        <CustomHeader
+          title={match.title}
+          subtitle={isFriendly ? 'Dostluk Maçı' : (fixture?.title || league?.title || 'Lig Maçı')}
+          sportType={sportType}
+          showIcon={!!sportType}
+          showBack={true}
+          onLeftPress={() => goBack()}
+          showShare={!isOrganizer}
+          showEdit={isOrganizer}
+          onSharePress={handleShare}
+          onEditPress={() => MatchNavigationService.navigateToEditMatch(match.id!)}
+        />
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={sportColor}
-            colors={[sportColor]}
-          />
-        }
-      >
-        {/* Match Type & Privacy Badges */}
-        <View style={styles.badgesContainer}>
-          {isFriendly ? (
-            <View style={[styles.typeBadge, { backgroundColor: '#10B981' + '20' }]}>
-              <Users size={14} color="#10B981" strokeWidth={2} />
-              <Text style={[styles.typeBadgeText, { color: '#10B981' }]}>
-                Dostluk Maçı
-              </Text>
-            </View>
-          ) : (
-            <View style={[styles.typeBadge, { backgroundColor: '#3B82F6' + '20' }]}>
-              <Trophy size={14} color="#3B82F6" strokeWidth={2} />
-              <Text style={[styles.typeBadgeText, { color: '#3B82F6' }]}>
-                Lig Maçı
-              </Text>
-            </View>
-          )}
-
-          {/* Privacy Badge (Friendly) */}
-          {isFriendly && match.friendlySettings && (
-            <View style={[styles.privacyBadge, {
-              backgroundColor: match.friendlySettings.isPublic ? '#10B981' + '15' : '#F59E0B' + '15'
-            }]}>
-              {match.friendlySettings.isPublic ? (
-                <>
-                  <Globe size={12} color="#10B981" strokeWidth={2} />
-                  <Text style={[styles.privacyBadgeText, { color: '#10B981' }]}>Açık</Text>
-                </>
-              ) : (
-                <>
-                  <Lock size={12} color="#F59E0B" strokeWidth={2} />
-                  <Text style={[styles.privacyBadgeText, { color: '#F59E0B' }]}>Özel</Text>
-                </>
-              )}
-            </View>
-          )}
-
-          {/* Stats Impact Badge (Friendly) */}
-          {isFriendly && match.friendlySettings && !match.friendlySettings.affectsStandings && (
-            <View style={[styles.impactBadge, { backgroundColor: '#6B7280' + '15' }]}>
-              <TrendingUp size={12} color="#6B7280" strokeWidth={2} />
-              <Text style={[styles.impactBadgeText, { color: '#6B7280' }]}>
-                Puan durumunu etkilemez
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Status Banner */}
-        <View style={[styles.statusBanner, { backgroundColor: statusColor + '20' }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusText, { color: statusColor }]}>
-            {getMatchStatusText(match.status)}
-          </Text>
-        </View>
-
-        {/* ✅ NEW: Invitation Code Card (for organizers) */}
-        {isOrganizer && match.invitationCode && (
-          <View style={styles.invitationCodeCard}>
-            <View style={styles.invitationCodeHeader}>
-              <Key size={20} color="#10B981" strokeWidth={2} />
-              <Text style={styles.invitationCodeTitle}>Davet Kodu</Text>
-            </View>
-
-            {/* Code Display */}
-            <View style={styles.codeDisplay}>
-              <Text style={styles.codeText}>{match.invitationCode.code}</Text>
-            </View>
-
-            {/* Code Stats */}
-            <View style={styles.codeStats}>
-              <View style={styles.codeStat}>
-                <Users size={16} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.codeStatText}>
-                  {match.invitationCode.currentUses > 0 ? match.invitationCode.currentUses : "0"}
-                  {match.invitationCode.maxUses && ` / ${match.invitationCode.maxUses}`} kullanım
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={sportColor}
+              colors={[sportColor]}
+            />
+          }
+        >
+          {/* Match Type & Privacy Badges */}
+          <View style={styles.badgesContainer}>
+            {isFriendly ? (
+              <View style={[styles.typeBadge, { backgroundColor: '#10B981' + '20' }]}>
+                <Users size={14} color="#10B981" strokeWidth={2} />
+                <Text style={[styles.typeBadgeText, { color: '#10B981' }]}>
+                  Dostluk Maçı
                 </Text>
               </View>
+            ) : (
+              <View style={[styles.typeBadge, { backgroundColor: '#3B82F6' + '20' }]}>
+                <Trophy size={14} color="#3B82F6" strokeWidth={2} />
+                <Text style={[styles.typeBadgeText, { color: '#3B82F6' }]}>
+                  Lig Maçı
+                </Text>
+              </View>
+            )}
 
-              {match.invitationCode.expiresAt && (
-                <View style={styles.codeStat}>
-                  <Clock size={16} color="#6B7280" strokeWidth={2} />
-                  <Text style={[
-                    styles.codeStatText,
-                    isCodeExpired && { color: '#DC2626' }
-                  ]}>
-                    {codeCountdown || 'Hesaplanıyor...'}
-                  </Text>
-                </View>
-              )}
-            </View>
+            {/* Privacy Badge (Friendly) */}
+            {isFriendly && match.friendlySettings && (
+              <View style={[styles.privacyBadge, {
+                backgroundColor: match.friendlySettings.isPublic ? '#10B981' + '15' : '#F59E0B' + '15'
+              }]}>
+                {match.friendlySettings.isPublic ? (
+                  <>
+                    <Globe size={12} color="#10B981" strokeWidth={2} />
+                    <Text style={[styles.privacyBadgeText, { color: '#10B981' }]}>Açık</Text>
+                  </>
+                ) : (
+                  <>
+                    <Lock size={12} color="#F59E0B" strokeWidth={2} />
+                    <Text style={[styles.privacyBadgeText, { color: '#F59E0B' }]}>Özel</Text>
+                  </>
+                )}
+              </View>
+            )}
 
-            {/* Status Badges */}
-            <View style={styles.codeStatusContainer}>
-              {!match.invitationCode.enabled && (
-                <View style={[styles.codeStatusBadge, { backgroundColor: '#DC2626' + '15' }]}>
-                  <Text style={[styles.codeStatusText, { color: '#DC2626' }]}>
-                    Devre Dışı
-                  </Text>
-                </View>
-              )}
-              {isCodeExpired && (
-                <View style={[styles.codeStatusBadge, { backgroundColor: '#DC2626' + '15' }]}>
-                  <Text style={[styles.codeStatusText, { color: '#DC2626' }]}>
-                    Süresi Doldu
-                  </Text>
-                </View>
-              )}
-              {isCodeMaxedOut && (
-                <View style={[styles.codeStatusBadge, { backgroundColor: '#F59E0B' + '15' }]}>
-                  <Text style={[styles.codeStatusText, { color: '#F59E0B' }]}>
-                    Kullanım Limiti Doldu
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.codeActions}>
-              <TouchableOpacity
-                style={styles.codeActionButton}
-                onPress={handleCopyCode}
-                activeOpacity={0.7}
-              >
-                <Copy size={18} color="#10B981" strokeWidth={2} />
-                <Text style={styles.codeActionText}>Kopyala</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.codeActionButton, styles.codeActionButtonPrimary]}
-                onPress={handleShareCode}
-                activeOpacity={0.7}
-              >
-                <Send size={18} color="white" strokeWidth={2} />
-                <Text style={styles.codeActionTextPrimary}>Paylaş</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Stats Impact Badge (Friendly) */}
+            {isFriendly && match.friendlySettings && !match.friendlySettings.affectsStandings && (
+              <View style={[styles.impactBadge, { backgroundColor: '#6B7280' + '15' }]}>
+                <TrendingUp size={12} color="#6B7280" strokeWidth={2} />
+                <Text style={[styles.impactBadgeText, { color: '#6B7280' }]}>
+                  Puan durumunu etkilemez
+                </Text>
+              </View>
+            )}
           </View>
-        )}
 
-        {/* Countdown */}
-        {countdown && match.status === MatchStatus.IN_PROGRESS && (
-          <View style={styles.countdownCard}>
-            <Timer size={20} color={sportColor} strokeWidth={2} />
-            <Text style={styles.countdownText}>{countdown}</Text>
-          </View>
-        )}
-
-        {/* Registration Alert */}
-        {canRegister && (
-          <TouchableOpacity
-            style={styles.registrationAlert}
-            onPress={handleRegister}
-            activeOpacity={0.7}
-          >
-            <AlertCircle size={20} color="#10B981" strokeWidth={2} />
-            <Text style={styles.registrationAlertText}>
-              {isFriendly && !match.friendlySettings?.isPublic 
-                ? 'Davet edildiniz - Katılın!' 
-                : 'Kayıt açık - Hemen katıl!'}
+          {/* Status Banner */}
+          <View style={[styles.statusBanner, { backgroundColor: statusColor + '20' }]}>
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {getMatchStatusText(match.status)}
             </Text>
-            <UserCheck size={20} color="#10B981" strokeWidth={2.5} />
-          </TouchableOpacity>
-        )}
-
-        {/* Invitations Banner (Friendly - Organizer) */}
-        {isFriendly && isOrganizer && pendingInvitationsCount > 0 && (
-          <TouchableOpacity
-            style={styles.invitationBanner}
-            onPress={handleManageInvitations}
-            activeOpacity={0.7}
-          >
-            <View style={styles.invitationBannerLeft}>
-              <Mail size={20} color="#10B981" strokeWidth={2} />
-              <View style={styles.invitationBannerText}>
-                <Text style={styles.invitationBannerTitle}>
-                  {pendingInvitationsCount} Bekleyen Davet
-                </Text>
-                <Text style={styles.invitationBannerSubtitle}>
-                  Davetiye durumlarını görüntüle
-                </Text>
-              </View>
-            </View>
-            <ChevronRight size={20} color="#10B981" strokeWidth={2} />
-          </TouchableOpacity>
-        )}
-
-        {/* Match Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Maç Bilgileri</Text>
-
-          <View style={styles.infoCard}>
-            <Calendar size={20} color={sportColor} strokeWidth={2} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Maç Zamanı</Text>
-              <Text style={styles.infoValue}>{formatDateTime(match.schedule?.matchStart)}</Text>
-            </View>
           </View>
 
-          {match.venue?.location && (
-            <View style={styles.infoCard}>
-              <MapPin size={20} color="#3B82F6" strokeWidth={2} />
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Lokasyon</Text>
-                <Text style={styles.infoValue}>{match.venue.location}</Text>
+          {/* ✅ NEW: Invitation Code Card (for organizers) */}
+          {isOrganizer && matchInvitation && (
+            <View style={styles.invitationCodeCard}>
+              <View style={styles.invitationCodeHeader}>
+                <Key size={20} color="#10B981" strokeWidth={2} />
+                <Text style={styles.invitationCodeTitle}>Davet Kodu</Text>
+              </View>
+
+              {/* Code Display */}
+              <View style={styles.codeDisplay}>
+                <Text style={styles.codeText}>{matchInvitation.code}</Text>
+              </View>
+
+              {/* Code Stats */}
+              <View style={styles.codeStats}>
+                <View style={styles.codeStat}>
+                  <Users size={16} color="#6B7280" strokeWidth={2} />
+                  <Text style={styles.codeStatText}>
+                    {matchInvitation.usedCount > 0 ? matchInvitation.usedCount : "0"}
+                    {matchInvitation.maxUses && ` / ${matchInvitation.maxUses}`} kullanım
+                  </Text>
+                </View>
+
+                {matchInvitation.expiresAt && (
+                  <View style={styles.codeStat}>
+                    <Clock size={16} color="#6B7280" strokeWidth={2} />
+                    <Text style={[
+                      styles.codeStatText,
+                      isCodeExpired && { color: '#DC2626' }
+                    ]}>
+                      {codeCountdown || 'Hesaplanıyor...'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Status Badges */}
+              <View style={styles.codeStatusContainer}>
+                {matchInvitation?.status !== InvitationStatus.ACTIVE && (
+                  <View style={[styles.codeStatusBadge, { backgroundColor: '#DC2626' + '15' }]}>
+                    <Text style={[styles.codeStatusText, { color: '#DC2626' }]}>
+                      Devre Dışı
+                    </Text>
+                  </View>
+                )}
+                {isCodeExpired && (
+                  <View style={[styles.codeStatusBadge, { backgroundColor: '#DC2626' + '15' }]}>
+                    <Text style={[styles.codeStatusText, { color: '#DC2626' }]}>
+                      Süresi Doldu
+                    </Text>
+                  </View>
+                )}
+                {isCodeMaxedOut && (
+                  <View style={[styles.codeStatusBadge, { backgroundColor: '#F59E0B' + '15' }]}>
+                    <Text style={[styles.codeStatusText, { color: '#F59E0B' }]}>
+                      Kullanım Limiti Doldu
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.codeActions}>
+                <TouchableOpacity
+                  style={styles.codeActionButton}
+                  onPress={handleCopyCode}
+                  activeOpacity={0.7}
+                >
+                  <Copy size={18} color="#10B981" strokeWidth={2} />
+                  <Text style={styles.codeActionText}>Kopyala</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.codeActionButton, styles.codeActionButtonPrimary]}
+                  onPress={handleShareCode}
+                  activeOpacity={0.7}
+                >
+                  <Send size={18} color="white" strokeWidth={2} />
+                  <Text style={styles.codeActionTextPrimary}>Paylaş</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
 
-          <View style={styles.infoCard}>
-            <Users size={20} color="#F59E0B" strokeWidth={2} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Oyuncular</Text>
-              <Text style={styles.infoValue}>
-                {registeredCount} / {(match.squad?.totalPlayers || 0) + (match.squad?.reservePlayers || 0)} kayıtlı
-              </Text>
+          {/* Countdown */}
+          {countdown && match.status === MatchStatus.IN_PROGRESS && (
+            <View style={styles.countdownCard}>
+              <Timer size={20} color={sportColor} strokeWidth={2} />
+              <Text style={styles.countdownText}>{countdown}</Text>
             </View>
+          )}
+
+          {/* Registration Alert */}
+          {canRegister && (
+            <TouchableOpacity
+              style={styles.registrationAlert}
+              onPress={handleRegister}
+              activeOpacity={0.7}
+            >
+              <AlertCircle size={20} color="#10B981" strokeWidth={2} />
+              <Text style={styles.registrationAlertText}>
+                {isFriendly && !match.friendlySettings?.isPublic
+                  ? 'Davet edildiniz - Katılın!'
+                  : 'Kayıt açık - Hemen katıl!'}
+              </Text>
+              <UserCheck size={20} color="#10B981" strokeWidth={2.5} />
+            </TouchableOpacity>
+          )}
+
+          {/* Invitations Banner (Friendly - Organizer) */}
+          {isFriendly && isOrganizer && pendingInvitationsCount > 0 && (
+            <TouchableOpacity
+              style={styles.invitationBanner}
+              onPress={handleManageInvitations}
+              activeOpacity={0.7}
+            >
+              <View style={styles.invitationBannerLeft}>
+                <Mail size={20} color="#10B981" strokeWidth={2} />
+                <View style={styles.invitationBannerText}>
+                  <Text style={styles.invitationBannerTitle}>
+                    {pendingInvitationsCount} Bekleyen Davet
+                  </Text>
+                  <Text style={styles.invitationBannerSubtitle}>
+                    Davetiye durumlarını görüntüle
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color="#10B981" strokeWidth={2} />
+            </TouchableOpacity>
+          )}
+
+          {/* Match Info */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Maç Bilgileri</Text>
+
+            <View style={styles.infoCard}>
+              <Calendar size={20} color={sportColor} strokeWidth={2} />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Maç Zamanı</Text>
+                <Text style={styles.infoValue}>{formatDateTime(match.schedule?.matchStart)}</Text>
+              </View>
+            </View>
+
+            {match.venue?.location && (
+              <View style={styles.infoCard}>
+                <MapPin size={20} color="#3B82F6" strokeWidth={2} />
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>Lokasyon</Text>
+                  <Text style={styles.infoValue}>{match.venue.location}</Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.infoCard}>
+              <Users size={20} color="#F59E0B" strokeWidth={2} />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Oyuncular</Text>
+                <Text style={styles.infoValue}>
+                  {registeredCount} / {(match.squad?.totalPlayers || 0) + (match.squad?.reservePlayers || 0)} kayıtlı
+                </Text>
+              </View>
+            </View>
+
+            {match.venue?.pricePerPlayer != null && match.venue.pricePerPlayer > 0 && (
+              <View style={styles.infoCard}>
+                <DollarSign size={20} color="#10B981" strokeWidth={2} />
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>Ücret</Text>
+                  <Text style={styles.infoValue}>{match.venue.pricePerPlayer} TL / Kişi</Text>
+                  {match.payments && registeredCount > 0 && (
+                    <Text style={styles.paymentStatus}>
+                      {paidPlayersCount} / {registeredCount} ödeme yapıldı
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {match.schedule.registrationEnd && (
+              <View style={styles.infoCard}>
+                <Clock size={20} color="#F59E0B" strokeWidth={2} />
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>Kayıt Bitiş</Text>
+                  <Text style={styles.infoValue}>{formatDateTime(match.schedule.registrationEnd)}</Text>
+                </View>
+              </View>
+            )}
           </View>
 
-          {match.venue?.pricePerPlayer != null && match.venue.pricePerPlayer > 0 &&  (
-            <View style={styles.infoCard}>
-              <DollarSign size={20} color="#10B981" strokeWidth={2} />
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Ücret</Text>
-                <Text style={styles.infoValue}>{match.venue.pricePerPlayer} TL / Kişi</Text>
-                {match.payments && registeredCount > 0 && (
-                  <Text style={styles.paymentStatus}>
-                    {paidPlayersCount} / {registeredCount} ödeme yapıldı
-                  </Text>
+          {/* Score (if completed) */}
+          {match.score && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Maç Sonucu</Text>
+              <View style={styles.scoreCard}>
+                <View style={styles.scoreTeam}>
+                  <Text style={styles.teamName}>Takım 1</Text>
+                  <Text style={styles.teamScore}>{match.score.team1}</Text>
+                </View>
+                <View style={styles.scoreDivider}>
+                  <Text style={styles.scoreDividerText}>-</Text>
+                </View>
+                <View style={styles.scoreTeam}>
+                  <Text style={styles.teamName}>Takım 2</Text>
+                  <Text style={styles.teamScore}>{match.score.team2}</Text>
+                </View>
+              </View>
+
+              {match.mvp && (
+                <View style={styles.mvpCard}>
+                  <Award size={20} color="#F59E0B" strokeWidth={2} />
+                  <Text style={styles.mvpText}>MVP oyuncusu seçildi</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Teams */}
+          {showTeams && match.players.teams && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Takımlar</Text>
+
+              <View style={styles.teamsContainer}>
+                {/* Team 1 */}
+                <View style={styles.teamCard}>
+                  <View style={styles.teamHeader}>
+                    <Trophy size={18} color={sportColor} strokeWidth={2} />
+                    <Text style={[styles.teamTitle, { color: sportColor }]}>Takım 1</Text>
+                    {match.score && (
+                      <View style={[styles.teamScoreBadge, { backgroundColor: sportColor + '20' }]}>
+                        <Text style={[styles.teamScoreBadgeText, { color: sportColor }]}>
+                          {match.score.team1}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {match.players.teams.team1.map((player, index) => (
+                    <View key={player.playerId} style={styles.playerRow}>
+                      <View style={styles.playerNumber}>
+                        <Text style={styles.playerNumberText}>{index + 1}</Text>
+                      </View>
+                      <Text style={styles.playerRowName}>Oyuncu {index + 1}</Text>
+                      {player.position && (
+                        <View style={styles.positionBadge}>
+                          <Text style={styles.positionText}>{player.position}</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+
+                {/* Team 2 */}
+                <View style={styles.teamCard}>
+                  <View style={styles.teamHeader}>
+                    <Trophy size={18} color="#DC2626" strokeWidth={2} />
+                    <Text style={[styles.teamTitle, { color: '#DC2626' }]}>Takım 2</Text>
+                    {match.score && (
+                      <View style={[styles.teamScoreBadge, { backgroundColor: '#DC262620' }]}>
+                        <Text style={[styles.teamScoreBadgeText, { color: '#DC2626' }]}>
+                          {match.score.team2}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {match.players.teams.team2.map((player, index) => (
+                    <View key={player.playerId} style={styles.playerRow}>
+                      <View style={styles.playerNumber}>
+                        <Text style={styles.playerNumberText}>{index + 1}</Text>
+                      </View>
+                      <Text style={styles.playerRowName}>Oyuncu {index + 1}</Text>
+                      {player.position && (
+                        <View style={styles.positionBadge}>
+                          <Text style={styles.positionText}>{player.position}</Text>
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Player Actions (for registered players) */}
+          {isRegistered && !isOrganizer && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Oyuncu İşlemleri</Text>
+
+              <View style={styles.playerActions}>
+                {match.venue?.pricePerPlayer != null && match.venue.pricePerPlayer > 0 && match.payments && (
+                  <TouchableOpacity
+                    style={styles.playerActionButton}
+                    onPress={() => MatchNavigationService.navigateToPlayerPayment(match.id!)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.playerActionLeft}>
+                      <View style={[styles.playerActionIcon, { backgroundColor: '#10B981' + '20' }]}>
+                        <DollarSign size={20} color="#10B981" strokeWidth={2} />
+                      </View>
+                      <View style={styles.playerActionContent}>
+                        <Text style={styles.playerActionTitle}>Ödeme Durumu</Text>
+                        {(() => {
+                          const userPayment = match.payments.find(p => p.playerId === user?.id);
+                          return (
+                            <Text style={styles.playerActionSubtitle}>
+                              {userPayment?.paid
+                                ? '✅ Ödeme onaylandı'
+                                : userPayment
+                                  ? '⏳ Ödeme bekleniyor'
+                                  : 'Ödeme bilgisi yok'}
+                            </Text>
+                          );
+                        })()}
+                      </View>
+                    </View>
+                    <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+
+                {match.score && (match.status === MatchStatus.AWAITING_SCORE || match.status === MatchStatus.COMPLETED) && (
+                  <TouchableOpacity
+                    style={styles.playerActionButton}
+                    onPress={handleGoalAssistEntry}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.playerActionLeft}>
+                      <View style={[styles.playerActionIcon, { backgroundColor: sportColor + '20' }]}>
+                        <Target size={20} color={sportColor} strokeWidth={2} />
+                      </View>
+                      <View style={styles.playerActionContent}>
+                        <Text style={styles.playerActionTitle}>Gol/Asist Gir</Text>
+                        <Text style={styles.playerActionSubtitle}>
+                          Gollerinizi ve asistlerinizi kaydedin
+                        </Text>
+                      </View>
+                    </View>
+                    <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+
+                {match.status === MatchStatus.COMPLETED && (
+                  <TouchableOpacity
+                    style={styles.playerActionButton}
+                    onPress={handlePlayerRating}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.playerActionLeft}>
+                      <View style={[styles.playerActionIcon, { backgroundColor: '#F59E0B' + '20' }]}>
+                        <Star size={20} color="#F59E0B" strokeWidth={2} />
+                      </View>
+                      <View style={styles.playerActionContent}>
+                        <Text style={styles.playerActionTitle}>Takım Arkadaşlarını Puanla</Text>
+                        <Text style={styles.playerActionSubtitle}>
+                          Maç performanslarını değerlendirin
+                        </Text>
+                      </View>
+                    </View>
+                    <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
+                  </TouchableOpacity>
                 )}
               </View>
             </View>
           )}
 
-          {match.schedule.registrationEnd && (
-            <View style={styles.infoCard}>
-              <Clock size={20} color="#F59E0B" strokeWidth={2} />
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Kayıt Bitiş</Text>
-                <Text style={styles.infoValue}>{formatDateTime(match.schedule.registrationEnd)}</Text>
+          {/* Registered Players (if no teams) */}
+          {!showTeams && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Kayıtlı Oyuncular ({registeredCount})
+              </Text>
+
+              {registeredCount > 0 ? (
+                <View style={styles.card}>
+                  {eligiblePlayers.all.map((playerId, index) => (
+                    <View
+                      key={index + 1}
+                      style={[
+                        styles.registeredPlayerRow,
+                        index === registeredCount - 1 && styles.lastPlayerRow
+                      ]}
+                    >
+                      <View style={styles.playerAvatar}>
+                        <Text style={styles.playerAvatarText}>{index + 1}</Text>
+                      </View>
+                      <View style={styles.registeredPlayerInfo}>
+                        <Text style={styles.registeredPlayerName}>Oyuncu {index + 1}</Text>
+                        <Text style={styles.registeredPlayerOrder}>
+                          #{index + 1} kayıt sırası
+                        </Text>
+                      </View>
+                      {playerId === user?.id && (
+                        <View style={styles.youBadge}>
+                          <Text style={styles.youBadgeText}>Siz</Text>
+                        </View>
+                      )}
+                      {match.payments?.find(p => p.playerId === playerId)?.paid && (
+                        <View style={styles.paidBadge}>
+                          <CheckCircle size={16} color="white" strokeWidth={2.5} />
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyIconContainer}>
+                    <Users size={48} color="#D1D5DB" strokeWidth={1.5} />
+                  </View>
+                  <Text style={styles.emptyStateText}>Henüz kimse kayıt olmadı</Text>
+                  <Text style={styles.emptyStateSubtext}>İlk kayıt olan sen ol!</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Organizer Actions */}
+          {isOrganizer && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Organizatör İşlemleri</Text>
+
+              <View style={styles.organizerActions}>
+                {isFriendly && match.friendlySettings && !match.friendlySettings.isPublic && (
+                  <TouchableOpacity
+                    style={styles.organizerButton}
+                    onPress={handleManageInvitations}
+                    activeOpacity={0.7}
+                  >
+                    <UserPlus size={20} color="#10B981" strokeWidth={2} />
+                    <Text style={styles.organizerButtonText}>Davetiye Yönetimi</Text>
+                    {pendingInvitationsCount > 0 && (
+                      <View style={styles.notificationBadge}>
+                        <Text style={styles.notificationBadgeText}>{pendingInvitationsCount}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )}
+
+                {!showTeams && match.status === MatchStatus.REGISTRATION_CLOSED && (
+                  <TouchableOpacity
+                    style={styles.organizerButton}
+                    onPress={handleBuildTeam}
+                    activeOpacity={0.7}
+                  >
+                    <Users size={20} color={sportColor} strokeWidth={2} />
+                    <Text style={styles.organizerButtonText}>Takım Kur</Text>
+                  </TouchableOpacity>
+                )}
+
+                {showTeams && match.status === MatchStatus.IN_PROGRESS && (
+                  <TouchableOpacity
+                    style={styles.organizerButton}
+                    onPress={handleScoreEntry}
+                    activeOpacity={0.7}
+                  >
+                    <Target size={20} color={sportColor} strokeWidth={2} />
+                    <Text style={styles.organizerButtonText}>Skor Gir</Text>
+                  </TouchableOpacity>
+                )}
+
+                {match.status === MatchStatus.AWAITING_SCORE && (
+                  <TouchableOpacity
+                    style={styles.organizerButton}
+                    onPress={handleGoalAssistEntry}
+                    activeOpacity={0.7}
+                  >
+                    <Trophy size={20} color={sportColor} strokeWidth={2} />
+                    <Text style={styles.organizerButtonText}>Gol/Asist Onayları</Text>
+                  </TouchableOpacity>
+                )}
+
+                {match.venue?.pricePerPlayer != null && match.venue.pricePerPlayer > 0 && (
+                  <TouchableOpacity
+                    style={styles.organizerButton}
+                    onPress={handlePaymentTracking}
+                    activeOpacity={0.7}
+                  >
+                    <DollarSign size={20} color={sportColor} strokeWidth={2} />
+                    <Text style={styles.organizerButtonText}>Ödeme Takibi</Text>
+                  </TouchableOpacity>
+                )}
+
+                {match.status === MatchStatus.COMPLETED && (
+                  <TouchableOpacity
+                    style={styles.organizerButton}
+                    onPress={handlePlayerRating}
+                    activeOpacity={0.7}
+                  >
+                    <Star size={20} color="#F59E0B" strokeWidth={2} />
+                    <Text style={styles.organizerButtonText}>Puanlama Durumu</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           )}
-        </View>
 
-        {/* Score (if completed) */}
-        {match.score && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Maç Sonucu</Text>
-            <View style={styles.scoreCard}>
-              <View style={styles.scoreTeam}>
-                <Text style={styles.teamName}>Takım 1</Text>
-                <Text style={styles.teamScore}>{match.score.team1}</Text>
-              </View>
-              <View style={styles.scoreDivider}>
-                <Text style={styles.scoreDividerText}>-</Text>
-              </View>
-              <View style={styles.scoreTeam}>
-                <Text style={styles.teamName}>Takım 2</Text>
-                <Text style={styles.teamScore}>{match.score.team2}</Text>
-              </View>
-            </View>
+          <View style={styles.bottomSpacing} />
+        </ScrollView>
 
-            {match.mvp && (
-              <View style={styles.mvpCard}>
-                <Award size={20} color="#F59E0B" strokeWidth={2} />
-                <Text style={styles.mvpText}>MVP oyuncusu seçildi</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Teams */}
-        {showTeams && match.players.teams && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Takımlar</Text>
-
-            <View style={styles.teamsContainer}>
-              {/* Team 1 */}
-              <View style={styles.teamCard}>
-                <View style={styles.teamHeader}>
-                  <Trophy size={18} color={sportColor} strokeWidth={2} />
-                  <Text style={[styles.teamTitle, { color: sportColor }]}>Takım 1</Text>
-                  {match.score && (
-                    <View style={[styles.teamScoreBadge, { backgroundColor: sportColor + '20' }]}>
-                      <Text style={[styles.teamScoreBadgeText, { color: sportColor }]}>
-                        {match.score.team1}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {match.players.teams.team1.map((player, index) => (
-                  <View key={player.playerId} style={styles.playerRow}>
-                    <View style={styles.playerNumber}>
-                      <Text style={styles.playerNumberText}>{index + 1}</Text>
-                    </View>
-                    <Text style={styles.playerRowName}>Oyuncu {index + 1}</Text>
-                    {player.position && (
-                      <View style={styles.positionBadge}>
-                        <Text style={styles.positionText}>{player.position}</Text>
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-
-              {/* Team 2 */}
-              <View style={styles.teamCard}>
-                <View style={styles.teamHeader}>
-                  <Trophy size={18} color="#DC2626" strokeWidth={2} />
-                  <Text style={[styles.teamTitle, { color: '#DC2626' }]}>Takım 2</Text>
-                  {match.score && (
-                    <View style={[styles.teamScoreBadge, { backgroundColor: '#DC262620' }]}>
-                      <Text style={[styles.teamScoreBadgeText, { color: '#DC2626' }]}>
-                        {match.score.team2}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {match.players.teams.team2.map((player, index) => (
-                  <View key={player.playerId} style={styles.playerRow}>
-                    <View style={styles.playerNumber}>
-                      <Text style={styles.playerNumberText}>{index + 1}</Text>
-                    </View>
-                    <Text style={styles.playerRowName}>Oyuncu {index + 1}</Text>
-                    {player.position && (
-                      <View style={styles.positionBadge}>
-                        <Text style={styles.positionText}>{player.position}</Text>
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Player Actions (for registered players) */}
-        {isRegistered && !isOrganizer && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Oyuncu İşlemleri</Text>
-
-            <View style={styles.playerActions}>
-              {match.venue?.pricePerPlayer != null && match.venue.pricePerPlayer > 0 && match.payments && (
-                <TouchableOpacity
-                  style={styles.playerActionButton}
-                  onPress={() => NavigationService.navigateToPlayerPayment(match.id!)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.playerActionLeft}>
-                    <View style={[styles.playerActionIcon, { backgroundColor: '#10B981' + '20' }]}>
-                      <DollarSign size={20} color="#10B981" strokeWidth={2} />
-                    </View>
-                    <View style={styles.playerActionContent}>
-                      <Text style={styles.playerActionTitle}>Ödeme Durumu</Text>
-                      {(() => {
-                        const userPayment = match.payments.find(p => p.playerId === user?.id);
-                        return (
-                          <Text style={styles.playerActionSubtitle}>
-                            {userPayment?.paid
-                              ? '✅ Ödeme onaylandı'
-                              : userPayment
-                                ? '⏳ Ödeme bekleniyor'
-                                : 'Ödeme bilgisi yok'}
-                          </Text>
-                        );
-                      })()}
-                    </View>
-                  </View>
-                  <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-                </TouchableOpacity>
-              )}
-
-              {match.score && (match.status === MatchStatus.AWAITING_SCORE || match.status === MatchStatus.COMPLETED) && (
-                <TouchableOpacity
-                  style={styles.playerActionButton}
-                  onPress={handleGoalAssistEntry}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.playerActionLeft}>
-                    <View style={[styles.playerActionIcon, { backgroundColor: sportColor + '20' }]}>
-                      <Target size={20} color={sportColor} strokeWidth={2} />
-                    </View>
-                    <View style={styles.playerActionContent}>
-                      <Text style={styles.playerActionTitle}>Gol/Asist Gir</Text>
-                      <Text style={styles.playerActionSubtitle}>
-                        Gollerinizi ve asistlerinizi kaydedin
-                      </Text>
-                    </View>
-                  </View>
-                  <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-                </TouchableOpacity>
-              )}
-
-              {match.status === MatchStatus.COMPLETED && (
-                <TouchableOpacity
-                  style={styles.playerActionButton}
-                  onPress={handlePlayerRating}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.playerActionLeft}>
-                    <View style={[styles.playerActionIcon, { backgroundColor: '#F59E0B' + '20' }]}>
-                      <Star size={20} color="#F59E0B" strokeWidth={2} />
-                    </View>
-                    <View style={styles.playerActionContent}>
-                      <Text style={styles.playerActionTitle}>Takım Arkadaşlarını Puanla</Text>
-                      <Text style={styles.playerActionSubtitle}>
-                        Maç performanslarını değerlendirin
-                      </Text>
-                    </View>
-                  </View>
-                  <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* Registered Players (if no teams) */}
-        {!showTeams && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Kayıtlı Oyuncular ({registeredCount})
-            </Text>
-
-            {registeredCount > 0 ? (
-              <View style={styles.card}>
-                {eligiblePlayers.all.map((playerId, index) => (
-                  <View
-                    key={index + 1}
-                    style={[
-                      styles.registeredPlayerRow,
-                      index === registeredCount - 1 && styles.lastPlayerRow
-                    ]}
-                  >
-                    <View style={styles.playerAvatar}>
-                      <Text style={styles.playerAvatarText}>{index + 1}</Text>
-                    </View>
-                    <View style={styles.registeredPlayerInfo}>
-                      <Text style={styles.registeredPlayerName}>Oyuncu {index + 1}</Text>
-                      <Text style={styles.registeredPlayerOrder}>
-                        #{index + 1} kayıt sırası
-                      </Text>
-                    </View>
-                    {playerId === user?.id && (
-                      <View style={styles.youBadge}>
-                        <Text style={styles.youBadgeText}>Siz</Text>
-                      </View>
-                    )}
-                    {match.payments?.find(p => p.playerId === playerId)?.paid && (
-                      <View style={styles.paidBadge}>
-                        <CheckCircle size={16} color="white" strokeWidth={2.5} />
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIconContainer}>
-                  <Users size={48} color="#D1D5DB" strokeWidth={1.5} />
-                </View>
-                <Text style={styles.emptyStateText}>Henüz kimse kayıt olmadı</Text>
-                <Text style={styles.emptyStateSubtext}>İlk kayıt olan sen ol!</Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Organizer Actions */}
-        {isOrganizer && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Organizatör İşlemleri</Text>
-
-            <View style={styles.organizerActions}>
-              {isFriendly && match.friendlySettings && !match.friendlySettings.isPublic && (
-                <TouchableOpacity
-                  style={styles.organizerButton}
-                  onPress={handleManageInvitations}
-                  activeOpacity={0.7}
-                >
-                  <UserPlus size={20} color="#10B981" strokeWidth={2} />
-                  <Text style={styles.organizerButtonText}>Davetiye Yönetimi</Text>
-                  {pendingInvitationsCount > 0 && (
-                    <View style={styles.notificationBadge}>
-                      <Text style={styles.notificationBadgeText}>{pendingInvitationsCount}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              )}
-
-              {!showTeams && match.status === MatchStatus.REGISTRATION_CLOSED && (
-                <TouchableOpacity
-                  style={styles.organizerButton}
-                  onPress={handleBuildTeam}
-                  activeOpacity={0.7}
-                >
-                  <Users size={20} color={sportColor} strokeWidth={2} />
-                  <Text style={styles.organizerButtonText}>Takım Kur</Text>
-                </TouchableOpacity>
-              )}
-
-              {showTeams && match.status === MatchStatus.IN_PROGRESS && (
-                <TouchableOpacity
-                  style={styles.organizerButton}
-                  onPress={handleScoreEntry}
-                  activeOpacity={0.7}
-                >
-                  <Target size={20} color={sportColor} strokeWidth={2} />
-                  <Text style={styles.organizerButtonText}>Skor Gir</Text>
-                </TouchableOpacity>
-              )}
-
-              {match.status === MatchStatus.AWAITING_SCORE && (
-                <TouchableOpacity
-                  style={styles.organizerButton}
-                  onPress={handleGoalAssistEntry}
-                  activeOpacity={0.7}
-                >
-                  <Trophy size={20} color={sportColor} strokeWidth={2} />
-                  <Text style={styles.organizerButtonText}>Gol/Asist Onayları</Text>
-                </TouchableOpacity>
-              )}
-
-              {match.venue?.pricePerPlayer != null && match.venue.pricePerPlayer > 0 && (
-                <TouchableOpacity
-                  style={styles.organizerButton}
-                  onPress={handlePaymentTracking}
-                  activeOpacity={0.7}
-                >
-                  <DollarSign size={20} color={sportColor} strokeWidth={2} />
-                  <Text style={styles.organizerButtonText}>Ödeme Takibi</Text>
-                </TouchableOpacity>
-              )}
-
-              {match.status === MatchStatus.COMPLETED && (
-                <TouchableOpacity
-                  style={styles.organizerButton}
-                  onPress={handlePlayerRating}
-                  activeOpacity={0.7}
-                >
-                  <Star size={20} color="#F59E0B" strokeWidth={2} />
-                  <Text style={styles.organizerButtonText}>Puanlama Durumu</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        )}
-
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-
-      {/* Bottom Action */}
-      {(canRegister || isRegistered) && (
-        <View style={styles.bottomAction}>
-          {canRegister ? (
-            <TouchableOpacity
-              style={[styles.registerButton, { backgroundColor: sportColor }]}
-              onPress={handleRegister}
-              activeOpacity={0.7}
-            >
-              <UserCheck size={20} color="white" strokeWidth={2.5} />
-              <Text style={styles.registerButtonText}>
-                {/* {isFriendly && match.friendlySettings && !match.friendlySettings.isPublic */}
+        {/* Bottom Action */}
+        {(canRegister || isRegistered) && (
+          <View style={styles.bottomAction}>
+            {canRegister ? (
+              <TouchableOpacity
+                style={[styles.registerButton, { backgroundColor: sportColor }]}
+                onPress={handleRegister}
+                activeOpacity={0.7}
+              >
+                <UserCheck size={20} color="white" strokeWidth={2.5} />
+                <Text style={styles.registerButtonText}>
+                  {/* {isFriendly && match.friendlySettings && !match.friendlySettings.isPublic */}
                   {/* ? 'Daveti Kabul Et' */}
                   {/* :  */}
                   'Maça Kayıt Ol'
                   {/* } */}
-              </Text>
-            </TouchableOpacity>
-          ) : isRegistered && !showTeams ? (
-            <TouchableOpacity
-              style={[styles.cancelButton, { borderColor: sportColor }]}
-              onPress={handleCancelRegistration}
-              activeOpacity={0.7}
-            >
-              <XCircle size={20} color={sportColor} strokeWidth={2.5} />
-              <Text style={[styles.cancelButtonText, { color: sportColor }]}>
-                Kaydı İptal Et
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      )}
-    </View>
+                </Text>
+              </TouchableOpacity>
+            ) : isRegistered && !showTeams ? (
+              <TouchableOpacity
+                style={[styles.cancelButton, { borderColor: sportColor }]}
+                onPress={handleCancelRegistration}
+                activeOpacity={0.7}
+              >
+                <XCircle size={20} color={sportColor} strokeWidth={2.5} />
+                <Text style={[styles.cancelButtonText, { color: sportColor }]}>
+                  Kaydı İptal Et
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        )}
+      </View>
     </ErrorBoundary>
   );
 };
@@ -1227,7 +1239,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  
+
   // ✅ NEW: Invitation Code Card Styles
   invitationCodeCard: {
     backgroundColor: 'white',
@@ -1332,7 +1344,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'white',
   },
-  
+
   countdownCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1443,7 +1455,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  
+
   // Additional Styles
   section: {
     marginTop: 20,

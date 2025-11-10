@@ -4,8 +4,8 @@ import React, { useEffect } from 'react';
 import { Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 // import { useAppContext } from '../../context/AppContext';
-import { NavigationService } from '../NavigationService';
 import { useAuth } from '../../hooks';
+import { AuthNavigationService, goBack } from '..';
 
 // ============================================
 // BASE GUARD INTERFACE
@@ -32,7 +32,7 @@ export const AuthGuard: React.FC<GuardProps> = ({ children }) => {
         [
           {
             text: 'Giriş Yap',
-            onPress: () => NavigationService.navigateToLogin(),
+            onPress: () => AuthNavigationService.resetToAuth(),
           },
         ]
       );
@@ -65,7 +65,7 @@ export const OrganizerGuard: React.FC<GuardProps> = ({ children }) => {
         [
           {
             text: 'Tamam',
-            onPress: () => NavigationService.goBack(),
+            onPress: () => goBack(),
           },
         ]
       );
@@ -115,7 +115,7 @@ export const LeagueOwnerGuard: React.FC<LeagueOwnerGuardProps> = ({
                   if (onUnauthorized) {
                     onUnauthorized();
                   } else {
-                    NavigationService.goBack();
+                    goBack();
                   }
                 },
               },
@@ -175,7 +175,7 @@ export const MatchOrganizerGuard: React.FC<MatchOrganizerGuardProps> = ({
                   if (onUnauthorized) {
                     onUnauthorized();
                   } else {
-                    NavigationService.goBack();
+                    goBack();
                   }
                 },
               },
@@ -237,7 +237,7 @@ export const TeamBuildingGuard: React.FC<TeamBuildingGuardProps> = ({
                   if (onUnauthorized) {
                     onUnauthorized();
                   } else {
-                    NavigationService.goBack();
+                    goBack();
                   }
                 },
               },
@@ -297,7 +297,7 @@ export const FixtureOrganizerGuard: React.FC<FixtureOrganizerGuardProps> = ({
                   if (onUnauthorized) {
                     onUnauthorized();
                   } else {
-                    NavigationService.goBack();
+                    goBack();
                   }
                 },
               },
@@ -361,7 +361,7 @@ export const PremiumMatchGuard: React.FC<PremiumMatchGuardProps> = ({
                   if (onUnauthorized) {
                     onUnauthorized();
                   } else {
-                    NavigationService.goBack();
+                    goBack();
                   }
                 },
               },
@@ -369,7 +369,7 @@ export const PremiumMatchGuard: React.FC<PremiumMatchGuardProps> = ({
                 text: 'Premium Ol',
                 onPress: () => {
                   // TODO: Navigate to premium upgrade screen
-                  NavigationService.goBack();
+                  goBack();
                 },
               },
             ]
@@ -413,13 +413,13 @@ export const PremiumUserGuard: React.FC<GuardProps> = ({ children }) => {
           {
             text: 'Vazgeç',
             style: 'cancel',
-            onPress: () => NavigationService.goBack(),
+            onPress: () => goBack(),
           },
           {
             text: 'Premium Ol',
             onPress: () => {
               // TODO: Navigate to premium upgrade screen
-              NavigationService.goBack();
+              goBack();
             },
           },
         ]
@@ -519,7 +519,7 @@ export const ScoreEntryScreen = () => {
           'Yetki Yok',
           'Bu özelliği kullanmak için premium üye olmalısınız.',
           [
-            { text: 'Vazgeç', onPress: () => NavigationService.goBack() },
+            { text: 'Vazgeç', onPress: () => goBack() },
             { text: 'Premium Ol', onPress: () => setShowUpgradeModal(true) },
           ]
         );
@@ -628,7 +628,7 @@ export const MatchRegistrationScreen = () => {
           [
             { 
               text: 'Vazgeç', 
-              onPress: () => NavigationService.goBack() 
+              onPress: () => goBack() 
             },
             { 
               text: 'Premium Ol', 

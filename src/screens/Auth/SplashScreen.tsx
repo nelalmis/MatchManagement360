@@ -16,7 +16,6 @@ import { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../hooks/useAuth';
 import { OnboardingStorage } from '../../services/storage/onboardingStorage';
 import { isProfileComplete } from '../../helper/helper';
-import { IPlayer } from '../../types/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'splash'>;
 

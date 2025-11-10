@@ -27,10 +27,10 @@ import {
 import { useRoute } from '@react-navigation/native';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { IMatch, MatchStatus, MatchType } from '../../types/entity/types';
-import { NavigationService } from '../../navigation';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
+import { goBack } from '../../navigation';
 
 type EditMatchRouteProp = {
   matchId: string;
@@ -86,7 +86,7 @@ export const EditMatchScreen: React.FC = () => {
   const loadMatch = async () => {
     if (!matchId) {
       Alert.alert('Hata', 'Maç bilgisi bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -96,7 +96,7 @@ export const EditMatchScreen: React.FC = () => {
 
       if (!result.success || !result.data) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -107,7 +107,7 @@ export const EditMatchScreen: React.FC = () => {
       
       if (!isOrganizer) {
         Alert.alert('Hata', 'Bu maçı düzenleme yetkiniz yok');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -116,7 +116,7 @@ export const EditMatchScreen: React.FC = () => {
     } catch (error) {
       console.error('Error loading match:', error);
       Alert.alert('Hata', 'Maç bilgileri yüklenirken bir hata oluştu');
-      NavigationService.goBack();
+      goBack();
     } finally {
       setLoading(false);
     }
@@ -270,7 +270,7 @@ export const EditMatchScreen: React.FC = () => {
         Alert.alert('Başarılı', 'Maç başarıyla güncellendi', [
           {
             text: 'Tamam',
-            onPress: () => NavigationService.goBack(),
+            onPress: () => goBack(),
           },
         ]);
       } else {
@@ -313,7 +313,7 @@ export const EditMatchScreen: React.FC = () => {
         Alert.alert('Başarılı', 'Maç başarıyla silindi', [
           {
             text: 'Tamam',
-            onPress: () => NavigationService.goBack(),
+            onPress: () => goBack(),
           },
         ]);
       } else {
@@ -386,7 +386,7 @@ export const EditMatchScreen: React.FC = () => {
         title="Maç Düzenle"
         subtitle={match.type === MatchType.LEAGUE ? 'Lig Maçı' : 'Dostluk Maçı'}
         showBack={true}
-        onLeftPress={() => NavigationService.goBack()}
+        onLeftPress={() => goBack()}
       />
 
       <ScrollView

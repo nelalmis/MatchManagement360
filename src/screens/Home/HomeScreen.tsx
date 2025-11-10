@@ -34,10 +34,9 @@ import {
   AlertTriangle,
   Check,
 } from 'lucide-react-native';
-import { NavigationService } from '../../navigation/NavigationService';
-import { 
-  IMatch, 
-  ILeague, 
+import {
+  IMatch,
+  ILeague,
   IPlayerStats,
   IAnnouncement,
   MatchStatus,
@@ -54,7 +53,8 @@ import {
   getSportPrimaryColor,
 } from '../../utils/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { InvitationType } from '../../types/entity/invitation';
+import { CustomHeader } from '../../components/CustomHeader';
+import { LeagueNavigationService, MatchNavigationService, SettingsNavigationService, StandingsNavigationService } from '../../navigation';
 
 // ============================================
 // CONSTANTS
@@ -242,7 +242,7 @@ const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
         <View style={[styles.announcementIconContainer, { backgroundColor: `${color}20` }]}>
           {getTypeIcon(announcement.type)}
         </View>
-        
+
         {announcement.display.dismissable && (
           <TouchableOpacity
             onPress={onDismiss}
@@ -258,7 +258,7 @@ const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
       <Text style={styles.announcementMessage}>{announcement.message}</Text>
 
       {announcement.action && (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.announcementAction, { backgroundColor: color }]}
           onPress={onAction}
           activeOpacity={0.7}
@@ -327,7 +327,7 @@ export const HomeScreen: React.FC = () => {
     pending: 0,
     total: 0,
   });
-  
+
   const [stats, setStats] = useState<Stats>({
     totalMatches: 0,
     totalLeagues: 0,
@@ -384,7 +384,7 @@ export const HomeScreen: React.FC = () => {
       const allAnnouncements = announcementsResult.success && announcementsResult.data ? announcementsResult.data : [];
 
       // Filter announcements
-      const activeAnnouncements = allAnnouncements.filter(a => 
+      const activeAnnouncements = allAnnouncements.filter(a =>
         AnnouncementService.isAnnouncementActive(a) &&
         !dismissedAnnouncements.includes(a.id!)
       );
@@ -394,7 +394,7 @@ export const HomeScreen: React.FC = () => {
       // Check for popup announcement
       const popupAnnouncements = await AnnouncementService.getPopupAnnouncements(true);
       if (popupAnnouncements.success && popupAnnouncements.data) {
-        const popup = popupAnnouncements.data.find(a => 
+        const popup = popupAnnouncements.data.find(a =>
           AnnouncementService.isAnnouncementActive(a) &&
           !dismissedAnnouncements.includes(a.id!)
         );
@@ -408,11 +408,11 @@ export const HomeScreen: React.FC = () => {
       // Process upcoming matches
       const now = new Date();
       const upcoming = matches
-        .filter(m => 
-          new Date(m.schedule.matchStart) > now && 
+        .filter(m =>
+          new Date(m.schedule.matchStart) > now &&
           UPCOMING_STATUSES.includes(m.status)
         )
-        .sort((a, b) => 
+        .sort((a, b) =>
           new Date(a.schedule.matchStart).getTime() - new Date(b.schedule.matchStart).getTime()
         )
         .slice(0, MAX_ITEMS);
@@ -471,7 +471,7 @@ export const HomeScreen: React.FC = () => {
   const handleDismissAnnouncement = async (announcementId: string) => {
     await saveDismissedAnnouncement(announcementId);
     setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
-    
+
     // Track dismiss
     await AnnouncementService.incrementDismissed(announcementId);
   };
@@ -487,18 +487,18 @@ export const HomeScreen: React.FC = () => {
     // Handle deep links
     if (url.startsWith('app://')) {
       const path = url.replace('app://', '');
-      
+
       // Parse and navigate
       if (path.startsWith('league/')) {
         const leagueId = path.split('/')[1];
-        NavigationService.navigateToLeagueDetail(leagueId);
+        LeagueNavigationService.navigateToLeagueDetail(leagueId);
       } else if (path.startsWith('match/')) {
         const matchId = path.split('/')[1];
-        NavigationService.navigateToMatchDetail(matchId);
+        MatchNavigationService.navigateToMatchDetail(matchId);
       } else if (path === 'join-league') {
-        NavigationService.navigateToJoinLeague();
+        LeagueNavigationService.navigateToJoinWithCode();
       } else if (path === 'payments') {
-        NavigationService.navigateToPaymentTracking('');
+        MatchNavigationService.navigateToPaymentTracking('');
       }
     } else if (url.startsWith('http://') || url.startsWith('https://')) {
       // External URL
@@ -546,14 +546,14 @@ export const HomeScreen: React.FC = () => {
       if (match.status === MatchStatus.COMPLETED) {
         const ratingsResult = await MatchRatingService.getRaterRatings(match.id!, userId);
         const hasRated = ratingsResult.success && ratingsResult.data && ratingsResult.data.length > 0;
-        
+
         const allPlayerIds = match.players.teams
           ? [
-              ...match.players.teams.team1.map(p => p.playerId),
-              ...match.players.teams.team2.map(p => p.playerId),
-            ]
+            ...match.players.teams.team1.map(p => p.playerId),
+            ...match.players.teams.team2.map(p => p.playerId),
+          ]
           : [];
-        
+
         if (!hasRated && allPlayerIds.includes(userId)) {
           actions.push({
             id: `rating-${match.id}`,
@@ -569,14 +569,14 @@ export const HomeScreen: React.FC = () => {
       // Gol/Asist girişi bekleniyor
       if (match.status === MatchStatus.AWAITING_SCORE && match.score) {
         const myGoalEntry = match.score.scorers.find(s => s.playerId === userId);
-        
+
         const allPlayerIds = match.players.teams
           ? [
-              ...match.players.teams.team1.map(p => p.playerId),
-              ...match.players.teams.team2.map(p => p.playerId),
-            ]
+            ...match.players.teams.team1.map(p => p.playerId),
+            ...match.players.teams.team2.map(p => p.playerId),
+          ]
           : [];
-        
+
         if (!myGoalEntry && allPlayerIds.includes(userId)) {
           actions.push({
             id: `goal-${match.id}`,
@@ -595,7 +595,7 @@ export const HomeScreen: React.FC = () => {
         const isDirectPlayer = match.players.direct.mode === 'custom' && match.players.direct.overrides
           ? match.players.direct.overrides.includes(userId)
           : match.players.direct.inherited.includes(userId);
-        
+
         if (!isAlreadyRegistered && !isDirectPlayer) {
           const hoursUntil = (new Date(match.schedule.matchStart).getTime() - Date.now()) / 3600000;
           if (hoursUntil < 48) {
@@ -651,10 +651,10 @@ export const HomeScreen: React.FC = () => {
 
     if (completedMatches[0]) {
       const match = completedMatches[0];
-      const scoreText = match.score 
+      const scoreText = match.score
         ? `${match.score.team1} - ${match.score.team2}`
         : 'Skor girilmedi';
-      
+
       feed.push({
         id: `match-${match.id}`,
         type: 'match_result',
@@ -667,8 +667,8 @@ export const HomeScreen: React.FC = () => {
     }
 
     // MVP Ödülü
-    const recentMVP = matches.find(m => 
-      m.mvp?.playerId === userId && 
+    const recentMVP = matches.find(m =>
+      m.mvp?.playerId === userId &&
       m.status === MatchStatus.COMPLETED
     );
     if (recentMVP) {
@@ -685,10 +685,10 @@ export const HomeScreen: React.FC = () => {
 
     // Yeni lig bildirimi
     if (leagues.length > 0) {
-      const newestLeague = leagues.sort((a, b) => 
+      const newestLeague = leagues.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )[0];
-      
+
       const isRecent = (Date.now() - new Date(newestLeague.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000;
       if (isRecent) {
         feed.push({
@@ -737,29 +737,29 @@ export const HomeScreen: React.FC = () => {
 
   const handleMatchPress = useCallback((match: IMatch) => {
     if (match.status === MatchStatus.REGISTRATION_OPEN) {
-      NavigationService.navigateToMatchRegistration(match.id!);
+      MatchNavigationService.navigateToMatchRegistration(match.id!);
     } else {
-      NavigationService.navigateToMatchDetail(match.id!);
+      MatchNavigationService.navigateToMatchDetail(match.id!);
     }
   }, []);
 
   const handleLeaguePress = useCallback((leagueId: string) => {
-    NavigationService.navigateToLeagueDetail(leagueId);
+    LeagueNavigationService.navigateToLeagueDetail(leagueId);
   }, []);
 
   const handlePendingAction = useCallback((action: PendingAction) => {
     switch (action.type) {
       case 'payment':
-        NavigationService.navigateToPlayerPayment(action.matchId);
+        MatchNavigationService.navigateToPlayerPayment(action.matchId);
         break;
       case 'rating':
-        NavigationService.navigateToPlayerRating(action.matchId);
+        MatchNavigationService.navigateToPlayerRating(action.matchId);
         break;
       case 'goalAssist':
-        NavigationService.navigateToGoalAssistEntry(action.matchId);
+        MatchNavigationService.navigateToGoalAssistEntry(action.matchId);
         break;
       case 'registration':
-        NavigationService.navigateToMatchRegistration(action.matchId);
+        MatchNavigationService.navigateToMatchRegistration(action.matchId);
         break;
     }
   }, []);
@@ -767,10 +767,10 @@ export const HomeScreen: React.FC = () => {
   const handleNewsPress = useCallback((newsItem: NewsItem) => {
     if (newsItem.type === 'match_result') {
       const matchId = newsItem.id.split('-')[1];
-      NavigationService.navigateToMatchDetail(matchId);
+      MatchNavigationService.navigateToMatchDetail(matchId);
     } else if (newsItem.type === 'league_update') {
       const leagueId = newsItem.id.split('-')[1];
-      NavigationService.navigateToLeagueDetail(leagueId);
+      LeagueNavigationService.navigateToLeagueDetail(leagueId);
     }
   }, []);
 
@@ -780,13 +780,13 @@ export const HomeScreen: React.FC = () => {
         Alert.alert('Lig Bulunamadı', 'Önce bir lige katılmanız gerekiyor.');
         return;
       }
-      NavigationService.navigateToStandingsTab();
+      StandingsNavigationService.navigateToStandings(myLeagues[0].id!);
     } else if (action === 'profile') {
-      NavigationService.navigateToProfileTab();
+      SettingsNavigationService.navigateToPlayerProfile();
     } else if (action === 'payments') {
       Alert.alert('Ödemelerim', `Toplam: ${paymentSummary.total}₺\nBekleyen: ${paymentSummary.pending}₺`);
     } else if (action === 'joinLeague') {
-      NavigationService.navigateToJoinWithCodeHomeTab(InvitationType.LEAGUE);
+      LeagueNavigationService.navigateToJoinWithCode();
     }
   }, [myLeagues.length, paymentSummary]);
 
@@ -899,9 +899,17 @@ export const HomeScreen: React.FC = () => {
   // MAIN RENDER
   // ============================================
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="Ana Sayfa"
+      showMenu
+    />
+  );
+
   if (loading) {
     return (
       <ScrollView style={styles.container}>
+        {renderHeader()}
         <View style={styles.header}>
           <Text style={styles.greeting}>Yükleniyor...</Text>
         </View>
@@ -924,6 +932,8 @@ export const HomeScreen: React.FC = () => {
         }
         showsVerticalScrollIndicator={false}
       >
+       {renderHeader()}
+
         {/* Header */}
         <View style={styles.header}>
           <View>
@@ -947,7 +957,7 @@ export const HomeScreen: React.FC = () => {
           {renderStatCard(
             <Trophy size={24} color="#16a34a" strokeWidth={2} />,
             stats.totalLeagues,
-            'Ligim',
+            'Lig',
             '#DCFCE7'
           )}
           {renderStatCard(
@@ -1036,40 +1046,40 @@ export const HomeScreen: React.FC = () => {
         )}
 
         {/* Quick Actions */}
-<View style={styles.quickActions}>
-  <TouchableOpacity
-    style={styles.quickActionButton}
-    onPress={() => handleQuickAction('joinLeague')}
-    activeOpacity={0.7}
-  >
-    <View style={[styles.quickActionIcon, { backgroundColor: '#DCFCE7' }]}>
-      <UserPlus size={20} color="#16a34a" strokeWidth={2.5} />
-    </View>
-    <Text style={styles.quickActionText}>Lige{'\n'}Katıl</Text>
-  </TouchableOpacity>
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => handleQuickAction('joinLeague')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#DCFCE7' }]}>
+              <UserPlus size={20} color="#16a34a" strokeWidth={2.5} />
+            </View>
+            <Text style={styles.quickActionText}>Lige{'\n'}Katıl</Text>
+          </TouchableOpacity>
 
-  <TouchableOpacity
-    style={styles.quickActionButton}
-    onPress={() => handleQuickAction('standings')}
-    activeOpacity={0.7}
-  >
-    <View style={[styles.quickActionIcon, { backgroundColor: '#FEF3C7' }]}>
-      <TrendingUp size={20} color="#F59E0B" strokeWidth={2.5} />
-    </View>
-    <Text style={styles.quickActionText}>Puan{'\n'}Durumu</Text>
-  </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => handleQuickAction('standings')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#FEF3C7' }]}>
+              <TrendingUp size={20} color="#F59E0B" strokeWidth={2.5} />
+            </View>
+            <Text style={styles.quickActionText}>Puan{'\n'}Durumu</Text>
+          </TouchableOpacity>
 
-  <TouchableOpacity
-    style={styles.quickActionButton}
-    onPress={() => handleQuickAction('payments')}
-    activeOpacity={0.7}
-  >
-    <View style={[styles.quickActionIcon, { backgroundColor: '#FEE2E2' }]}>
-      <DollarSign size={20} color="#EF4444" strokeWidth={2.5} />
-    </View>
-    <Text style={styles.quickActionText}>Ödeme{'\n'}Takip</Text>
-  </TouchableOpacity>
-</View>
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => handleQuickAction('payments')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#FEE2E2' }]}>
+              <DollarSign size={20} color="#EF4444" strokeWidth={2.5} />
+            </View>
+            <Text style={styles.quickActionText}>Ödeme{'\n'}Takip</Text>
+          </TouchableOpacity>
+        </View>
         {/* Announcements */}
         {renderAnnouncements()}
 
@@ -1081,7 +1091,7 @@ export const HomeScreen: React.FC = () => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Yaklaşan Maçlar</Text>
-              <TouchableOpacity onPress={() => NavigationService.navigateToMatchList()}>
+              <TouchableOpacity onPress={() => MatchNavigationService.navigateToMatchList()}>
                 <Text style={styles.seeAllText}>Tümünü Gör</Text>
               </TouchableOpacity>
             </View>
@@ -1131,8 +1141,8 @@ export const HomeScreen: React.FC = () => {
         {myLeagues.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Ligilerim</Text>
-              <TouchableOpacity onPress={() => NavigationService.navigateToLeagueList()}>
+              <Text style={styles.sectionTitle}>Liglerim</Text>
+              <TouchableOpacity onPress={() => LeagueNavigationService.navigateToLeagueList()}>
                 <Text style={styles.seeAllText}>Tümünü Gör</Text>
               </TouchableOpacity>
             </View>
@@ -1376,45 +1386,45 @@ const styles = StyleSheet.create({
     color: '#16a34a',
     fontWeight: '600',
   },
-// Quick Actions - Modern Design
-quickActions: {
-  flexDirection: 'row',
-  gap: 10,
-  paddingHorizontal: 16,
-  marginTop: 8,
-  marginBottom: 24,
-},
-quickActionButton: {
-  flex: 1,
-  backgroundColor: 'white',
-  borderRadius: 14,
-  paddingVertical: 12,
-  paddingHorizontal: 8,
-  alignItems: 'center',
-  justifyContent: 'center',
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.04,
-  shadowRadius: 6,
-  elevation: 2,
-  minHeight: 80,
-},
-quickActionIcon: {
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  justifyContent: 'center',
-  alignItems: 'center',
-  marginBottom: 6,
-},
-quickActionText: {
-  fontSize: 11,
-  fontWeight: '600',
-  color: '#374151',
-  textAlign: 'center',
-  lineHeight: 14,
-  letterSpacing: -0.2,
-},
+  // Quick Actions - Modern Design
+  quickActions: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  quickActionButton: {
+    flex: 1,
+    backgroundColor: 'white',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+    minHeight: 80,
+  },
+  quickActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quickActionText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+    lineHeight: 14,
+    letterSpacing: -0.2,
+  },
 
   // Announcement Card
   announcementCard: {

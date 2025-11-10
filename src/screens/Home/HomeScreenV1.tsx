@@ -1,4 +1,4 @@
-import { canRegisterToMatch } from '../../helper/matchRegisterHelper';
+// import { canRegisterToMatch } from '../../helper/matchRegisterHelper';
 // import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // import {
 //   View,

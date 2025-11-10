@@ -27,14 +27,14 @@ import {
   Copy,
   Share2,
 } from 'lucide-react-native';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
-import { LeagueInvitationService } from '../../services/serviceLayer/LeagueInvitationService';
-import { SPORT_CONFIGS, SportType } from '../../types/entity/types';
+import { SportType } from '../../types/entity/types';
 import { getSportEmoji, sportThemes } from '../../utils/theme';
 import * as Clipboard from 'expo-clipboard';
 import { CustomHeader } from '../../components/CustomHeader';
+import LeagueInvitationService from '../../services/serviceLayer/invitationService';
+import { goBack, LeagueNavigationService } from '../../navigation';
 
 // ============================================
 // MAIN COMPONENT
@@ -162,7 +162,7 @@ export const CreateLeagueScreen: React.FC = () => {
           [
             {
               text: 'Tamam',
-              onPress: () => NavigationService.navigateToLeagueDetail(league.id!),
+              onPress: () => LeagueNavigationService.navigateToLeagueDetail(league.id!),
             },
           ]
         );
@@ -202,7 +202,7 @@ export const CreateLeagueScreen: React.FC = () => {
               },
               {
                 text: 'Lige Git',
-                onPress: () => NavigationService.navigateToLeagueDetail(leagueId),
+                onPress: () => LeagueNavigationService.navigateToLeagueDetail(leagueId),
               },
             ]);
           },
@@ -213,7 +213,7 @@ export const CreateLeagueScreen: React.FC = () => {
         },
         {
           text: 'Lige Git',
-          onPress: () => NavigationService.navigateToLeagueDetail(leagueId),
+          onPress: () => LeagueNavigationService.navigateToLeagueDetail(leagueId),
           style: 'default',
         },
       ],
@@ -255,7 +255,7 @@ export const CreateLeagueScreen: React.FC = () => {
     <CustomHeader 
       title="Yeni Lig Oluştur"
       showBack={true}
-      onLeftPress={() => NavigationService.goBack()}
+      onLeftPress={() => goBack()}
       subtitle={`Adım ${currentStep}/2`}
       sportType={sportType}
       showIcon={true}

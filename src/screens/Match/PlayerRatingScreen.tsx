@@ -28,11 +28,11 @@ import { IMatch, SportType, MatchStatus } from '../../types/entity/types';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
 import { MatchRatingService } from '../../services/serviceLayer/matchRatingService';
-import { NavigationService } from '../../navigation';
 import { eventManager, Events } from '../../utils';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { getSportBackgroundColor, getSportEmoji } from '../../utils/theme';
+import { goBack } from '../../navigation';
 
 // Rating interface
 interface PlayerRating {
@@ -66,7 +66,7 @@ export const PlayerRatingScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -76,7 +76,7 @@ export const PlayerRatingScreen: React.FC = () => {
       const result = await MatchService.getMatch(matchId);
       if (!result.success || !result.data) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -85,7 +85,7 @@ export const PlayerRatingScreen: React.FC = () => {
       // Check if match is completed
       if (matchData.status !== MatchStatus.COMPLETED) {
         Alert.alert('Uyarı', 'Maç henüz tamamlanmadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -95,7 +95,7 @@ export const PlayerRatingScreen: React.FC = () => {
       const playerInMatch = isPlayerInMatch(matchData, user.id);
       if (!playerInMatch) {
         Alert.alert('Uyarı', 'Sadece maçta oynayan oyuncular puanlama yapabilir');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -106,7 +106,7 @@ export const PlayerRatingScreen: React.FC = () => {
         Alert.alert(
           'Zaten Puanladınız',
           'Bu maçı daha önce puanladınız.',
-          [{ text: 'Tamam', onPress: () => NavigationService.goBack() }]
+          [{ text: 'Tamam', onPress: () => goBack() }]
         );
         return;
       }
@@ -138,7 +138,7 @@ export const PlayerRatingScreen: React.FC = () => {
     } catch (error) {
       console.error('Error loading match:', error);
       Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu');
-      NavigationService.goBack();
+      goBack();
     } finally {
       setLoading(false);
     }
@@ -161,7 +161,7 @@ export const PlayerRatingScreen: React.FC = () => {
     try {
       // ✅ Use existing service method - getMatchRatingSummary
       const summaryResult = await MatchRatingService.getMatchRatingSummary(matchId);
-      
+
       if (!summaryResult.success || !summaryResult.data) {
         setMvpPlayer(null);
         setAverageRatings({});
@@ -169,10 +169,10 @@ export const PlayerRatingScreen: React.FC = () => {
       }
 
       const summary = summaryResult.data;
-      
+
       // Convert topRatedPlayers to averages format
       const playerAverages: Record<string, { avg: number; count: number }> = {};
-      
+
       summary.topRatedPlayers.forEach(player => {
         playerAverages[player.playerId] = {
           avg: player.averageRating,
@@ -249,7 +249,7 @@ export const PlayerRatingScreen: React.FC = () => {
                 Alert.alert(
                   '✅ Başarılı!',
                   'Puanlamalarınız kaydedildi. Teşekkür ederiz!',
-                  [{ text: 'Tamam', onPress: () => NavigationService.goBack() }]
+                  [{ text: 'Tamam', onPress: () => goBack() }]
                 );
               } else {
                 Alert.alert('Hata', result.error?.message || 'Puanlamalar kaydedilemedi');

@@ -30,6 +30,7 @@
     "@reduxjs/toolkit": "^2.9.1",
     "expo": "~54.0.12",
     "expo-application": "~7.0.7",
+    "expo-calendar": "^15.0.7",
     "expo-clipboard": "^8.0.7",
     "expo-constants": "~18.0.9",
     "expo-device": "~8.0.9",

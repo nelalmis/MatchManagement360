@@ -29,9 +29,9 @@ import {
 import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
-import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
+import {  getSportPrimaryColor } from '../../utils/theme';
+import { goBack, ProfileNavigationService } from '../../navigation';
 
 interface TopScorer {
   playerId: string;
@@ -94,7 +94,7 @@ export const TopScorersScreen: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!leagueId) {
       Alert.alert('Hata', 'Lig ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -105,7 +105,7 @@ export const TopScorersScreen: React.FC = () => {
       const leagueResult = await LeagueService.getLeague(leagueId);
       if (!leagueResult.success || !leagueResult.data) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
       setLeague(leagueResult.data);
@@ -186,7 +186,7 @@ export const TopScorersScreen: React.FC = () => {
   };
 
   const handlePlayerPress = useCallback((playerId: string) => {
-    NavigationService.navigateToPlayerProfile(playerId);
+    ProfileNavigationService.navigateToPlayerProfile(playerId);
   }, []);
 
   if (loading || !league) {
@@ -195,7 +195,7 @@ export const TopScorersScreen: React.FC = () => {
         <CustomHeader
           title={`${pointsLabel} Krallığı`}
           showBack
-          onLeftPress={() => NavigationService.goBack()}
+          onLeftPress={() => goBack()}
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#16a34a" />
@@ -211,7 +211,7 @@ export const TopScorersScreen: React.FC = () => {
         title={`${pointsLabel} Krallığı`}
         subtitle={league.title}
         showBack
-        onLeftPress={() => NavigationService.goBack()}
+        onLeftPress={() => goBack()}
       />
 
       {/* Search Bar */}

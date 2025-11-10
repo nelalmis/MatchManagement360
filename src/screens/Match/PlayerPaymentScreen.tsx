@@ -29,10 +29,10 @@ import {
 import { useRoute } from '@react-navigation/native';
 import { IMatch, SportType, MatchStatus } from '../../types/entity/types';
 import { MatchService } from '../../services/serviceLayer/matchService';
-import { NavigationService } from '../../navigation';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { getSportBackgroundColor, getSportEmoji } from '../../utils/theme';
+import { goBack } from '../../navigation';
 
 export const PlayerPaymentScreen: React.FC = () => {
   const route: any = useRoute();
@@ -51,7 +51,7 @@ export const PlayerPaymentScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      NavigationService.goBack();
+     goBack();
       return;
     }
 
@@ -62,7 +62,7 @@ export const PlayerPaymentScreen: React.FC = () => {
 
       if (!result.success || !result.data) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        NavigationService.goBack();
+       goBack();
         return;
       }
 
@@ -72,7 +72,7 @@ export const PlayerPaymentScreen: React.FC = () => {
       const isInMatch = matchData.payments?.some(p => p.playerId === user.id);
       if (!isInMatch) {
         Alert.alert('Hata', 'Bu maçta kayıtlı değilsiniz');
-        NavigationService.goBack();
+       goBack();
         return;
       }
 
@@ -81,7 +81,7 @@ export const PlayerPaymentScreen: React.FC = () => {
     } catch (error) {
       console.error('Error loading match:', error);
       Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu');
-      NavigationService.goBack();
+     goBack();
     } finally {
       setLoading(false);
     }
@@ -221,7 +221,7 @@ Tutar: ${amount} ₺
           title="Ödeme Durumu"
           subtitle={`${sportEmoji} ${match.title}`}
           showBack={true}
-          onLeftPress={() => NavigationService.goBack()}
+          onLeftPress={() =>goBack()}
         />
         <View style={styles.errorContainer}>
           <AlertCircle size={48} color="#DC2626" strokeWidth={1.5} />
@@ -240,7 +240,7 @@ Tutar: ${amount} ₺
         title="Ödeme Durumu"
         subtitle={`${sportEmoji} ${match.title}`}
         showBack={true}
-         onLeftPress={() => NavigationService.goBack()}
+         onLeftPress={() =>goBack()}
       />
 
       <ScrollView

@@ -27,14 +27,14 @@ import { useRoute } from '@react-navigation/native';
 import {
   IMatch,
   MatchStatus,
-  SPORT_CONFIGS,
 } from '../../types/entity/types';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
-import { NavigationService } from '../../navigation';
 import { eventManager, Events } from '../../utils';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
+import { sportThemes } from '../../utils/theme';
+import { goBack } from '../../navigation';
 
 export const ScoreEntryScreen: React.FC = () => {
   const route: any = useRoute();
@@ -58,7 +58,7 @@ export const ScoreEntryScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -66,10 +66,10 @@ export const ScoreEntryScreen: React.FC = () => {
       setLoading(true);
 
       const result = await MatchService.getMatch(matchId);
-      
+
       if (!result.success || !result.data) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -79,26 +79,26 @@ export const ScoreEntryScreen: React.FC = () => {
       const isOrganizer = matchData.permissions.organizers.includes(user.id);
       if (!isOrganizer) {
         Alert.alert('Hata', 'Bu işlem için yetkiniz yok. Sadece organizatörler skor girebilir.');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
       // Check if teams are built
       if (!matchData.players.teams) {
         Alert.alert('Uyarı', 'Önce takımlar oluşturulmalı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
       // Check status - can only enter score when IN_PROGRESS or AWAITING_SCORE
-      if (matchData.status !== MatchStatus.IN_PROGRESS && 
-          matchData.status !== MatchStatus.AWAITING_SCORE &&
-          matchData.status !== MatchStatus.TEAMS_SET) {
+      if (matchData.status !== MatchStatus.IN_PROGRESS &&
+        matchData.status !== MatchStatus.AWAITING_SCORE &&
+        matchData.status !== MatchStatus.TEAMS_SET) {
         Alert.alert(
           'Uyarı',
           `Skor girişi yapılamaz.\nMevcut durum: ${matchData.status}`
         );
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -135,7 +135,7 @@ export const ScoreEntryScreen: React.FC = () => {
     } catch (error) {
       console.error('Error loading match:', error);
       Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu');
-      NavigationService.goBack();
+      goBack();
     } finally {
       setLoading(false);
     }
@@ -234,7 +234,7 @@ export const ScoreEntryScreen: React.FC = () => {
                   [
                     {
                       text: 'Tamam',
-                      onPress: () => NavigationService.goBack()
+                      onPress: () => goBack()
                     }
                   ]
                 );
@@ -277,7 +277,7 @@ export const ScoreEntryScreen: React.FC = () => {
     );
   }
 
-  const sportColor = SPORT_CONFIGS[match.sportType].color;
+  const sportColor = sportThemes[match.sportType].primary;
   const winnerTeam = getWinnerTeam();
   const goalDifference = getGoalDifference();
 
@@ -285,9 +285,9 @@ export const ScoreEntryScreen: React.FC = () => {
     <View style={styles.container}>
       <CustomHeader
         title="Skor Girişi"
-        subtitle={`${SPORT_CONFIGS[match.sportType].emoji} ${match.title}`}
+        subtitle={`${sportThemes[match.sportType].emoji} ${match.title}`}
         showBack={true}
-        onLeftPress={() => NavigationService.goBack()}
+        onLeftPress={() => goBack()}
       />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>

@@ -674,7 +674,12 @@ export class BaseAPI<T extends { id?: string }> {
       const docSnap = await getDoc(docRef);
 
       if (!docSnap.exists()) {
-        throw new ApiError('NOT_FOUND', `Document with ID ${id} not found`, null, 404);
+        ApiLogger.warn(this.collectionName, 'getById', `Document with ID ${id} not found`);
+        // throw new ApiError('NOT_FOUND', `Document with ID ${id} not found`, null, 404);
+        return {
+          success: true,
+          data: undefined,
+        };
       }
 
       const data = {
@@ -894,6 +899,36 @@ export class BaseAPI<T extends { id?: string }> {
       return this.handleError('delete', error);
     }
   }
+
+  // ============================================
+  // DELETE
+  // ============================================
+  async deleteByTarget(targetId: string): Promise<ApiResponse<void>> {
+    const startTime = Date.now();
+    ApiLogger.log(this.collectionName, 'deleteByTarget', { targetId });
+
+    try {
+      const byTargetResponse = await this.getAll({
+        where: [
+          { field: 'targetId', operator: '==', value: targetId }
+        ]
+      });
+      if (byTargetResponse.success && byTargetResponse.data && byTargetResponse.data.length > 0) {
+        const tar = byTargetResponse.data[0].id as string;
+        const docRef = doc(db, this.collectionName, tar);
+        await deleteDoc(docRef);
+      }
+      ApiLogger.success(this.collectionName, 'deleteByTarget', { targetId });
+      ApiLogger.performance(this.collectionName, 'deleteByTarget', Date.now() - startTime);
+
+      return {
+        success: true,
+      };
+    } catch (error: any) {
+      return this.handleError('delete', error);
+    }
+  }
+
 
   // ============================================
   // DELETE BATCH

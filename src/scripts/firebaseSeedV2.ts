@@ -6,6 +6,7 @@ import {
   writeBatch,
   serverTimestamp,
   getFirestore,
+  Timestamp,
 } from 'firebase/firestore';
 // import { db } from '../config/firebase.config';
 import {
@@ -18,7 +19,6 @@ import {
   IPlayerStats,
   IMatchRating,
   IMatchComment,
-  IMatchInvitation,
   INotification,
   IActivityLog,
   IAppConfig,
@@ -37,6 +37,7 @@ import {
   SeasonStatus,
 } from '../types/entity/types';
 import { initializeApp } from '@firebase/app';
+import { IMatchInvitation, InvitationStatus, InvitationType } from '../types/entity/invitation';
 
 
 // Firebase Config
@@ -315,13 +316,19 @@ export class FirebaseSeedV2 {
         title: 'Tuesday Night Match',
         description: 'Regular Tuesday evening football match',
         schedule: {
-          registrationStartTime: '18:00',
+          registrationSchedule: {
+            opening:{
+              type:'always_open'
+            }
+          },
           matchStartTime: '20:00',
           matchDuration: 90,
           isRecurring: true,
           pattern: {
             type: 'weekly',
-            dayOfWeek: 2,
+            interval: 1,
+            daysOfWeek: [2], // Tuesday
+            
           },
         },
         squad: {
@@ -719,31 +726,6 @@ export class FirebaseSeedV2 {
     ];
   }
 
-  // ============================================
-  // 10. TEST MATCH INVITATIONS
-  // ============================================
-  static getTestMatchInvitations(
-    matchId: string,
-    playerIds: string[]
-  ): Omit<IMatchInvitation, 'id'>[] {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    return [
-      {
-        matchId,
-        matchType: MatchType.LEAGUE,
-        inviterId: playerIds[0],
-        inviterName: 'John Doe',
-        inviteeId: playerIds[4],
-        inviteeName: 'David Brown',
-        status: 'pending',
-        message: 'Hey! Would you like to join us for tomorrow\'s match?',
-        sentAt: new Date().toISOString(),
-        expiresAt: tomorrow.toISOString(),
-      },
-    ];
-  }
 
   // ============================================
   // 11. TEST NOTIFICATIONS
@@ -1292,6 +1274,13 @@ export class FirebaseSeedV2 {
               reserveCount: 2,
               pricePerPlayer: 50,
               matchDuration: 90,
+              paymentInfo: {
+                iban: 'TR330006100519786457841326',
+                accountName: 'John Doe',
+              },
+              affectsStandings: false,
+              affectsStats: false,
+              isPublic: true,
             },
           },
         ],
@@ -1450,15 +1439,6 @@ export class FirebaseSeedV2 {
         await commitIfNeeded();
       }
 
-      // 10. Match Invitations
-      console.log('✉️ Creating match invitations...');
-      const invitations = this.getTestMatchInvitations(matchIds[0], playerIds);
-      for (let i = 0; i < invitations.length; i++) {
-        batch.set(doc(db, 'invitations', `invitation_${i + 1}`), invitations[i]);
-        batchCount++;
-        await commitIfNeeded();
-      }
-
       // 11. Notifications
       console.log('🔔 Creating notifications...');
       const notifications = this.getTestNotifications(playerIds, matchIds[0]);
@@ -1581,7 +1561,6 @@ export class FirebaseSeedV2 {
       console.log(`   ✓ ${playerStats.length} player stats`);
       console.log(`   ✓ ${ratings.length} ratings`);
       console.log(`   ✓ ${comments.length} comments`);
-      console.log(`   ✓ ${invitations.length} invitations`);
       console.log(`   ✓ ${notifications.length} notifications`);
       console.log(`   ✓ ${activityLogs.length} activity logs`);
       console.log(`   ✓ 1 app config`);

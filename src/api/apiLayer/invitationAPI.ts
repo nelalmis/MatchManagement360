@@ -204,6 +204,17 @@ abstract class BaseInvitationAPI<T extends IInvitation> extends BaseAPI<T> {
     });
   }
 
+  async getByCreatorAndStatus(creatorId: string, status: InvitationStatus): Promise<ApiResponse<T[]>> {
+    return this.getAll({
+      where: [
+        { field: 'createdBy', operator: '==', value: creatorId },
+        { field: 'status', operator: '==', value: status }
+      ],
+      orderBy: [{ field: 'createdAt', direction: 'desc' }],
+    });
+  }
+
+
   // ============================================
   // STATUS MANAGEMENT
   // ============================================
@@ -248,6 +259,67 @@ abstract class BaseInvitationAPI<T extends IInvitation> extends BaseAPI<T> {
     }
   }
 
+  async updateStatusByTarget(
+    targetId: string,
+    status: InvitationStatus
+  ): Promise<ApiResponse<T>> {
+    try {
+      ApiLogger.log(this.collectionName, 'updateStatusByTarget', {
+        targetId,
+        status,
+      });
+
+      const existingInvitation = await this.getByTarget(targetId);
+
+      if (!existingInvitation.success || !existingInvitation.data) {
+        return {
+          success: false,
+          error: {
+            code: 'INVITATION_NOT_FOUND',
+            message: 'Invitation not found',
+            statusCode: 404,
+          },
+        };
+      }
+      for (const inv of existingInvitation.data) {
+        if (inv.status === status) {
+          return {
+            success: false,
+            error: {
+              code: 'INVITATION_ALREADY_EXISTS',
+              message: 'Invitation with the same status already exists',
+              statusCode: 409,
+            },
+          };
+        }
+        const result = await this.update(inv.id!, {
+          status,
+          updatedAt: Timestamp.now(),
+        } as Partial<Omit<T, 'id'>>);
+
+        if (result.success) {
+          ApiLogger.success(this.collectionName, 'updateStatusByTarget', {
+            targetId,
+            status,
+          });
+        }
+
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      ApiLogger.error(this.collectionName, 'updateStatusByTarget', error);
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_STATUS_ERROR',
+          message: error.message || 'Failed to update status',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
   /**
    * Deactivate invitation
    */
@@ -876,10 +948,10 @@ export class MatchInvitationAPI extends BaseInvitationAPI<IMatchInvitation> {
           maxPlayersPerInvite: options.maxPlayersPerInvite || 1,
           guestSettings: options.allowGuests
             ? {
-                requireFullName: true,
-                requirePhone: false,
-                allowMultipleGuests: (options.maxPlayersPerInvite || 1) > 1,
-              }
+              requireFullName: true,
+              requirePhone: false,
+              allowMultipleGuests: (options.maxPlayersPerInvite || 1) > 1,
+            }
             : undefined,
         },
       };

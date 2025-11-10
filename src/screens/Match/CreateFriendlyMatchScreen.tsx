@@ -36,12 +36,13 @@ import {
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { FriendlyMatchConfigService } from '../../services/serviceLayer/friendlyMatchConfigService';
-import { SportType, SPORT_CONFIGS, IFriendlyMatchConfig } from '../../types/entity/types';
+import { SportType, IFriendlyMatchConfig } from '../../types/entity/types';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { CustomDateTimePicker } from '../../components';
+import { getThemeForSport, sportThemes } from '../../utils/theme';
+import { goBack, MatchNavigationService } from '../../navigation';
 
 type FriendlyMatchTemplate = IFriendlyMatchConfig['templates'][0];
 
@@ -127,8 +128,8 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const config = SPORT_CONFIGS[selectedSport];
-    setStaffCount(config.defaultPlayers.toString());
+    const config = getThemeForSport(selectedSport);
+    setStaffCount(config.sport.defaultPlayers.toString());
 
     // Auto-generate title
     const dateStr = matchStartTime.toLocaleDateString('tr-TR', {
@@ -136,7 +137,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
       month: 'long',
       year: 'numeric',
     });
-    setTitle(`${config.name} Dostluk Maçı - ${dateStr}`);
+    setTitle(`${config.sport.label} Dostluk Maçı - ${dateStr}`);
   }, [selectedSport, matchStartTime]);
 
   // ============================================
@@ -204,7 +205,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
           text: 'Düzenle',
           onPress: () => {
             setShowTemplateModal(false);
-            NavigationService.navigateToEditFriendlyMatchTemplate(template.id);
+            MatchNavigationService.navigateToEditFriendlyMatchTemplate(template.id);
           }
         },
         {
@@ -435,25 +436,25 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
       });
 
       // Success message
-      const sportConfig = SPORT_CONFIGS[selectedSport];
+      const sportConfig = getThemeForSport(selectedSport);
       let successMessage = '';
 
       if (isPublic) {
         successMessage = 'Maç herkese açık olarak oluşturuldu. Herkes listeyi görebilir ve katılabilir.';
       } else {
-        const code = match.invitationCode?.code;
+        const code = match.invitationCode;
         successMessage = `Davet kodu: ${code}\n\nBu kodu paylaşarak oyuncuları maça davet edebilirsiniz.`;
       }
 
       Alert.alert(
-        `${sportConfig.emoji} Başarılı!`,
+        `${sportConfig.sport.emoji} Başarılı!`,
         successMessage,
         [
           {
             text: 'Tamam',
             onPress: () => {
-              NavigationService.goBack();
-              NavigationService.navigateToMatch(matchId);
+              goBack();
+              MatchNavigationService.navigateToMatchDetail(matchId);
             }
           }
         ]
@@ -541,7 +542,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
       <CustomHeader
         title="Dostluk Maçı Oluştur"
         showBack={true}
-        onLeftPress={() => NavigationService.goBack()}
+        onLeftPress={() => goBack()}
         showBookmark={true}
         onBookmarkPress={() => setShowSaveTemplateModal(true)}
       />
@@ -555,7 +556,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.sportScrollContent}
           >
-            {(Object.keys(SPORT_CONFIGS) as SportType[]).map((sport: SportType) => (
+            {(Object.keys(sportThemes) as SportType[]).map((sport: SportType) => (
               <TouchableOpacity
                 key={sport}
                 style={[
@@ -563,20 +564,20 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
                   selectedSport === sport && styles.sportCardActive,
                   {
                     borderColor: selectedSport === sport
-                      ? SPORT_CONFIGS[sport].color
+                      ? sportThemes[sport].primary
                       : '#E5E7EB'
                   }
                 ]}
                 onPress={() => handleSportChange(sport)}
               >
                 <Text style={styles.sportEmoji}>
-                  {SPORT_CONFIGS[sport].emoji}
+                  {sportThemes[sport].emoji}
                 </Text>
                 <Text style={[
                   styles.sportName,
-                  selectedSport === sport && { color: SPORT_CONFIGS[sport].color }
+                  selectedSport === sport && { color: sportThemes[sport].primary }
                 ]}>
-                  {SPORT_CONFIGS[sport].name}
+                  {sportThemes[sport].label}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -910,7 +911,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
           style={[
             styles.createButton,
             loading && styles.createButtonDisabled,
-            { backgroundColor: SPORT_CONFIGS[selectedSport].color }
+            { backgroundColor: sportThemes[selectedSport].primary }
           ]}
           onPress={createMatch}
           disabled={loading}
@@ -919,7 +920,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
             <ActivityIndicator color="#FFF" />
           ) : (
             <>
-              <Text style={styles.sportEmoji}>{SPORT_CONFIGS[selectedSport].emoji}</Text>
+              <Text style={styles.sportEmoji}>{sportThemes[selectedSport].emoji}</Text>
               <Text style={styles.createButtonText}>Maç Oluştur</Text>
               <Zap size={20} color="#FFF" />
             </>
@@ -940,7 +941,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {SPORT_CONFIGS[selectedSport].emoji} Şablon Seç
+                {sportThemes[selectedSport].emoji} Şablon Seç
               </Text>
               <TouchableOpacity onPress={() => setShowTemplateModal(false)}>
                 <X size={24} color="#1F2937" />
@@ -1006,7 +1007,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
               <View style={styles.templatePreview}>
                 <Text style={styles.templatePreviewTitle}>Kaydedilecek Bilgiler:</Text>
                 <Text style={styles.templatePreviewText}>
-                  • Spor: {SPORT_CONFIGS[selectedSport].emoji} {SPORT_CONFIGS[selectedSport].name}
+                  • Spor: {sportThemes[selectedSport].emoji} {sportThemes[selectedSport].label}
                 </Text>
                 <Text style={styles.templatePreviewText}>• Lokasyon: {location || 'Yok'}</Text>
                 <Text style={styles.templatePreviewText}>

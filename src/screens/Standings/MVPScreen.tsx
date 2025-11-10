@@ -31,9 +31,9 @@ import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
 import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
+import { goBack, MatchNavigationService, ProfileNavigationService } from '../../navigation';
 
 interface MVPPlayer {
   playerId: string;
@@ -81,7 +81,7 @@ export const MVPScreen: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!leagueId) {
       Alert.alert('Hata', 'Lig ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -92,7 +92,7 @@ export const MVPScreen: React.FC = () => {
       const leagueResult = await LeagueService.getLeague(leagueId);
       if (!leagueResult.success || !leagueResult.data) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
       setLeague(leagueResult.data);
@@ -215,11 +215,11 @@ export const MVPScreen: React.FC = () => {
   };
 
   const handlePlayerPress = useCallback((playerId: string) => {
-    NavigationService.navigateToPlayerProfile(playerId);
+    ProfileNavigationService.navigateToPlayerProfile(playerId);
   }, []);
 
   const handleMatchPress = useCallback((matchId: string) => {
-    NavigationService.navigateToMatchDetail(matchId);
+    MatchNavigationService.navigateToMatchDetail(matchId);
   }, []);
 
   if (loading || !league) {
@@ -228,7 +228,7 @@ export const MVPScreen: React.FC = () => {
         <CustomHeader
           title="En Değerli Oyuncular"
           showBack
-          onLeftPress={() => NavigationService.goBack()}
+          onLeftPress={() => goBack()}
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#16a34a" />
@@ -244,7 +244,7 @@ export const MVPScreen: React.FC = () => {
         title="En Değerli Oyuncular"
         subtitle={league.title}
         showBack
-        onLeftPress={() => NavigationService.goBack()}
+        onLeftPress={() => goBack()}
       />
 
       <ScrollView

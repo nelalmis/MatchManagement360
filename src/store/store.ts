@@ -6,11 +6,12 @@ import { combineReducers } from 'redux';
 
 // Import slices
 import authReducer from './slices/authSlice';
-import leagueReducer from './slices/leagueSlice';
-import matchReducer from './slices/matchSlice';
+// import leagueReducer from './slices/leagueSlice';
+// import matchReducer from './slices/matchSlice';
 import playerReducer from './slices/playerSlice';
 import notificationReducer from './slices/notificationSlice';
 import uiReducer from './slices/uiSlice';
+import appConfigReducer from './slices/appConfigSlice';
 
 // ============================================
 // PERSIST CONFIG
@@ -27,11 +28,12 @@ const persistConfig = {
 // ============================================
 const rootReducer = combineReducers({
   auth: authReducer,
-  league: leagueReducer,
-  match: matchReducer,
+  // league: leagueReducer,
+  // match: matchReducer,
   player: playerReducer,
   notification: notificationReducer,
   ui: uiReducer,
+  appConfig: appConfigReducer,
 });
 
 // ============================================

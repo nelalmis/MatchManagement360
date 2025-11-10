@@ -36,7 +36,6 @@ import {
   Send,
 } from 'lucide-react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
-import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
 import {
   IMatch,
@@ -44,7 +43,6 @@ import {
   SportType,
   MatchType,
   MatchStatus,
-  SPORT_CONFIGS,
 } from '../../types/entity/types';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
@@ -54,6 +52,9 @@ import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { InvitationType } from '../../types/entity/invitation';
+import { useAutoHideTabBar } from '../../context/TabBarContext';
+import { sportThemes } from '../../utils/theme';
+import { goBack, LeagueNavigationService, MatchNavigationService } from '../../navigation';
 
 type FilterType = 'all' | 'upcoming' | 'past' | 'myMatches';
 type MatchTypeFilter = 'all' | 'league' | 'friendly';
@@ -67,6 +68,7 @@ interface MatchListParams {
 const PAGE_SIZE = 20; // ✅ Her seferde kaç maç yüklenecek
 
 export const MatchListScreen: React.FC = () => {
+  useAutoHideTabBar(false); // ✅ Tab bar'ı göster
   const { user } = useAuth();
   const route = useRoute<RouteProp<{ params: MatchListParams }, 'params'>>();
 
@@ -79,7 +81,7 @@ export const MatchListScreen: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false); // ✅ Load more indicator
   const [hasMore, setHasMore] = useState(true); // ✅ Daha fazla veri var mı?
   const [lastDoc, setLastDoc] = useState<any>(null); // ✅ Son döküman (pagination için)
-  const [title, setTitle] = useState('Maçlarım');
+  const [title, setTitle] = useState('Maçlar');
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -156,7 +158,7 @@ export const MatchListScreen: React.FC = () => {
 
     if (!user?.id) {
       Alert.alert('Hata', 'Kullanıcı bilgisi bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -267,25 +269,25 @@ export const MatchListScreen: React.FC = () => {
         }
 
         // İlk ligi al (varsa)
-        if (reset) {
-          const leaguesResult = await LeagueService.getPlayerLeagues(user.id);
-          if (leaguesResult.success && leaguesResult.data && leaguesResult.data.length > 0) {
-            leagueData = leaguesResult.data[0];
-          }
-        }
+        // if (reset) {
+        //   const leaguesResult = await LeagueService.getPlayerLeagues(user.id);
+        //   if (leaguesResult.success && leaguesResult.data && leaguesResult.data.length > 0) {
+        //     leagueData = leaguesResult.data[0];
+        //   }
+        // }
 
-        setTitle('Maçlarım');
+        setTitle('Maçlar');
       }
 
       if (fixtureId && !leagueData && reset) {
         Alert.alert('Hata', 'Fikstür bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
       if (leagueId && !leagueData && reset) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -515,15 +517,15 @@ export const MatchListScreen: React.FC = () => {
     }
   };
   const handleCreateFriendlyMatch = () => {
-    NavigationService.navigateToCreateFriendlyMatch();
+    MatchNavigationService.navigateToCreateFriendlyMatch();
   };
 
   const handleViewInvitations = () => {
-    NavigationService.navigateToFriendlyMatchInvitations();
+    MatchNavigationService.navigateToFriendlyMatchInvitations();
   };
 
   const sportColor = useMemo(() =>
-    league ? SPORT_CONFIGS[league.sportType].color : '#16a34a',
+    league ? sportThemes[league.sportType].primary : '#16a34a',
     [league]
   );
 
@@ -725,22 +727,22 @@ export const MatchListScreen: React.FC = () => {
                   style={[
                     styles.sportFilterChip,
                     selectedSport === sport && {
-                      backgroundColor: SPORT_CONFIGS[sport].color + '20',
-                      borderColor: SPORT_CONFIGS[sport].color,
+                      backgroundColor: sportThemes[sport].primary + '20',
+                      borderColor: sportThemes[sport].primary,
                     },
                   ]}
                   onPress={() => setSelectedSport(sport)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.sportFilterEmoji}>{SPORT_CONFIGS[sport].emoji}</Text>
+                  <Text style={styles.sportFilterEmoji}>{sportThemes[sport].emoji}</Text>
                   <Text style={[
                     styles.sportFilterText,
                     selectedSport === sport && {
-                      color: SPORT_CONFIGS[sport].color,
+                      color: sportThemes[sport].primary,
                       fontWeight: '700'
                     }
                   ]}>
-                    {SPORT_CONFIGS[sport].name}
+                    {sportThemes[sport].label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -867,11 +869,26 @@ export const MatchListScreen: React.FC = () => {
     </>
   );
 
+  const renderHeader = () => (
+     <CustomHeader
+          title={title}
+          subtitle={league && leagueId ? `${stats.totalMatches}+ Maç` : undefined}
+          sportType={leagueId && league ? league?.sportType : undefined}
+          showIcon={!!league || !!leagueId}
+          showBack={true}
+          //showMenu={!(fixtureId || leagueId)}
+          onLeftPress={() => goBack()}
+        />
+  );
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Maçlar yükleniyor...</Text>
+      <View style={styles.container}>
+        {renderHeader()}
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#16a34a" />
+          <Text style={styles.loadingText}>Maçlar yükleniyor...</Text>
+        </View>
       </View>
     );
   }
@@ -890,7 +907,7 @@ export const MatchListScreen: React.FC = () => {
           </Text>
           <TouchableOpacity
             style={styles.emptyActionButton}
-            onPress={() => NavigationService.navigateToLeaguesTab()}
+            onPress={() => LeagueNavigationService.navigateToLeagueList()}
             activeOpacity={0.8}
           >
             <Text style={styles.emptyActionButtonText}>Ligleri Keşfet</Text>
@@ -902,15 +919,7 @@ export const MatchListScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title={title}
-        subtitle={league ? `${stats.totalMatches}+ Maç` : undefined}
-        sportType={league?.sportType}
-        showIcon={!!league}
-        showBack={!!(fixtureId || leagueId)}
-        onLeftPress={() => fixtureId || leagueId ? NavigationService.goBack() : undefined}
-      />
-
+      {renderHeader()}
       {/* ✅ FlatList with pagination */}
       <FlatList
         data={filteredMatches}
@@ -919,7 +928,7 @@ export const MatchListScreen: React.FC = () => {
             match={item}
             isPlayerInMatch={isPlayerInMatch(item)}
             sportColor={sportColor}
-            onPress={() => NavigationService.navigateToMatch(item.id!)}
+            onPress={() => MatchNavigationService.navigateToMatchDetail(item.id!)}
             getMatchStatusColor={getMatchStatusColor}
             getMatchStatusText={getMatchStatusText}
             formatDateTime={formatDateTime}
@@ -978,7 +987,7 @@ export const MatchListScreen: React.FC = () => {
             style={styles.fabMenuItem}
             onPress={() => {
               closeFabMenu();
-              NavigationService.navigateToJoinWithCodeMatchTab(InvitationType.MATCH);
+              MatchNavigationService.navigateToJoinWithCode();
             }}
             activeOpacity={0.7}
           >
@@ -1155,7 +1164,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
   const statusColor = getMatchStatusColor(match.status);
   const isPast = new Date(match.schedule.matchStart) < new Date() || match.status === MatchStatus.COMPLETED;
   const isFriendly = match.type === MatchType.FRIENDLY;
-  const matchSportColor = match.sportType ? SPORT_CONFIGS[match.sportType].color : sportColor;
+  const matchSportColor = match.sportType ? sportThemes[match.sportType].primary : sportColor;
 
   // Calculate total registered players
   const registeredCount = (match.players.registered?.length || 0) +
@@ -1204,7 +1213,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
               )}
             </View>
           )}
-          {isFriendly &&
+          {/* {isFriendly &&
             match.friendlySettings?.isPublic === false &&
             match.invitationCode?.code && (
               <View style={styles.codeBadge}>
@@ -1213,14 +1222,14 @@ const MatchCard: React.FC<MatchCardProps> = ({
                   {match.invitationCode.code}
                 </Text>
               </View>
-            )}
+            )} */}
         </View>
 
         <View style={styles.matchCardHeader}>
           <View style={styles.matchCardLeft}>
             <View style={[styles.matchIcon, { backgroundColor: matchSportColor + '20' }]}>
               {match.sportType ? (
-                <Text style={styles.sportEmoji}>{SPORT_CONFIGS[match.sportType].emoji}</Text>
+                <Text style={styles.sportEmoji}>{sportThemes[match.sportType].emoji}</Text>
               ) : (
                 <Trophy size={20} color={matchSportColor} strokeWidth={2} />
               )}
@@ -1305,7 +1314,7 @@ const MatchCard: React.FC<MatchCardProps> = ({
             style={styles.registrationBanner}
             onPress={(e) => {
               e.stopPropagation();
-              NavigationService.navigateToMatchRegistration(match.id!);
+              MatchNavigationService.navigateToMatchRegistration(match.id!);
             }}
             activeOpacity={0.7}
           >

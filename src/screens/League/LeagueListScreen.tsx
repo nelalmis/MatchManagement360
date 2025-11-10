@@ -24,11 +24,12 @@ import {
 import {
   ILeague,
   SportType,
-  SPORT_CONFIGS,
 } from '../../types/entity/types';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
+import { CustomHeader } from '../../components/CustomHeader';
+import { getSportEmoji, getThemeForSport } from '../../utils/theme';
+import { goBack, LeagueNavigationService } from '../../navigation';
 
 export const LeagueListScreen: React.FC = () => {
   const { user } = useAuth();
@@ -132,16 +133,12 @@ export const LeagueListScreen: React.FC = () => {
     });
   };
 
-  const getSportIcon = (sport: SportType) => {
-    return SPORT_CONFIGS[sport]?.emoji || '⚽';
-  };
-
   const handleCreateLeague = () => {
-    NavigationService.navigateToCreateLeague();
+    LeagueNavigationService.navigateToCreateLeague();
   };
 
   const handleLeaguePress = (league: ILeague) => {
-    NavigationService.navigateToLeagueDetail(league.id!);
+    LeagueNavigationService.navigateToLeagueDetail(league.id!);
   };
 
   const sportTypes: Array<SportType | 'all'> = [
@@ -154,17 +151,29 @@ export const LeagueListScreen: React.FC = () => {
     'Badminton',
   ];
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="Ligler"
+      showBack={true}
+      onLeftPress={()=> goBack()}
+    />
+  );
+
   if (loading) {
     return (
+      <View style={styles.container}>
+        {renderHeader()}
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#16a34a" />
         <Text style={styles.loadingText}>Ligler yükleniyor...</Text>
+      </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      {renderHeader()}
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
@@ -206,7 +215,7 @@ export const LeagueListScreen: React.FC = () => {
         >
           {sportTypes.map((sport) => {
             const isSelected = selectedSport === sport;
-            const sportConfig = sport !== 'all' ? SPORT_CONFIGS[sport] : null;
+            const sportConfig = sport !== 'all' ? getThemeForSport(sport) : null;
 
             return (
               <TouchableOpacity
@@ -215,8 +224,8 @@ export const LeagueListScreen: React.FC = () => {
                   styles.filterChip,
                   isSelected && styles.filterChipActive,
                   isSelected && sportConfig && {
-                    backgroundColor: sportConfig.color + '20',
-                    borderColor: sportConfig.color,
+                    backgroundColor: sportConfig.sport.background + '20',
+                    borderColor: sportConfig.sport.primary,
                   },
                 ]}
                 onPress={() => setSelectedSport(sport)}
@@ -226,10 +235,10 @@ export const LeagueListScreen: React.FC = () => {
                   style={[
                     styles.filterChipText,
                     isSelected && styles.filterChipTextActive,
-                    isSelected && sportConfig && { color: sportConfig.color },
+                    isSelected && sportConfig && { color: sportConfig.sport.primary },
                   ]}
                 >
-                  {sport === 'all' ? '🌐 Tümü' : `${getSportIcon(sport)} ${sport}`}
+                  {sport === 'all' ? '🌐 Tümü' : `${getSportEmoji(sport)} ${sport}`}
                 </Text>
               </TouchableOpacity>
             );
@@ -287,7 +296,7 @@ export const LeagueListScreen: React.FC = () => {
                       isAdmin={league.members.admins.includes(user?.id || '')}
                       onPress={() => handleLeaguePress(league)}
                       formatDate={formatDate}
-                      getSportIcon={getSportIcon}
+                      getSportIcon={getSportEmoji}
                     />
                   ))}
               </>
@@ -307,7 +316,7 @@ export const LeagueListScreen: React.FC = () => {
                       isAdmin={false}
                       onPress={() => handleLeaguePress(league)}
                       formatDate={formatDate}
-                      getSportIcon={getSportIcon}
+                      getSportIcon={getSportEmoji}
                     />
                   ))}
               </>
@@ -362,8 +371,9 @@ const LeagueCard: React.FC<LeagueCardProps> = ({
   formatDate,
   getSportIcon,
 }) => {
-  const sportConfig = SPORT_CONFIGS[league.sportType];
-  const sportColor = sportConfig?.color || '#16a34a';
+
+  const sportConfig = getThemeForSport(league.sportType);
+  const sportColor = sportConfig?.sport.primary || '#16a34a';
 
   return (
     <TouchableOpacity

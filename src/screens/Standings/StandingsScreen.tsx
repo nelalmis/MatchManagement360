@@ -29,9 +29,9 @@ import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
+import { goBack, ProfileNavigationService } from '../../navigation';
 
 interface StandingPlayer {
   playerId: string;
@@ -130,7 +130,7 @@ export const StandingsScreen: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!leagueId) {
       Alert.alert('Hata', 'Lig ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -141,7 +141,7 @@ export const StandingsScreen: React.FC = () => {
       const leagueResult = await LeagueService.getLeague(leagueId);
       if (!leagueResult.success || !leagueResult.data) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
       setLeague(leagueResult.data);
@@ -329,17 +329,20 @@ export const StandingsScreen: React.FC = () => {
   }, []);
 
   const handlePlayerPress = useCallback((playerId: string) => {
-    NavigationService.navigateToPlayerProfile(playerId);
+    ProfileNavigationService.navigateToPlayerProfile(playerId);
   }, []);
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="Puan Durumu"
+      showBack
+      onLeftPress={() => goBack()}
+    />
+  );
   if (loading || !league) {
     return (
       <View style={styles.container}>
-        <CustomHeader
-          title="Puan Durumu"
-          showBack
-          onLeftPress={() => NavigationService.goBack()}
-        />
+        {renderHeader()}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#16a34a" />
           <Text style={styles.loadingText}>Puan durumu yükleniyor...</Text>
@@ -350,13 +353,7 @@ export const StandingsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="Puan Durumu"
-        subtitle={league.title}
-        showBack
-        onLeftPress={() => NavigationService.goBack()}
-      />
-
+      {renderHeader()}
       {/* Tabs */}
       <View style={styles.tabsContainer}>
         {sportConfig.tabs.includes('standings') && (

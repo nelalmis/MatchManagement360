@@ -11,9 +11,11 @@ export { MyMatchesScreen } from './MyMatchesScreen';
 export { EditMatchScreen } from './EditMatchScreen';
 export { CreateFriendlyMatchScreen } from './CreateFriendlyMatchScreen';
 export { EditFriendlyMatchTemplateScreen } from './EditFriendlyMatchTemplateScreen';
+export { PlayerPaymentScreen } from './PlayerPaymentScreen';
+
 // export { FriendlyMatchInvitationsScreen } from './FriendlyMatchInvitationsScreen';
 // export { FriendlyMatchTemplatesScreen } from './FriendlyMatchTemplatesScreen';
 // export { ManageInvitationsScreen } from './ManageInvitationsScreen';
-export { PlayerPaymentScreen } from './PlayerPaymentScreen';
-export {JoinMatchWithCodeScreen} from './JoinMatchWithCodeScreen';
+// export {JoinMatchWithCodeScreen} from './JoinMatchWithCodeScreen';
+
 // export * from './components';

@@ -25,7 +25,6 @@ import {
     ChevronLeft,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { NavigationService } from '../../navigation/NavigationService';
 import {
     LeagueInvitationService,
     MatchInvitationService,
@@ -35,6 +34,7 @@ import { InvitationType } from '../../types/entity/invitation';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { CustomHeader } from '../../components/CustomHeader';
 import { SportType } from '../../types/entity/types';
+import { goBack } from '../../navigation';
 
 type CreateInvitationParams = {
     type: 'league' | 'match';
@@ -144,7 +144,7 @@ export const CreateInvitationScreen: React.FC = () => {
                 Alert.alert('Başarılı! 🎉', `Davet kodu oluşturuldu: ${result.data!.code}`, [
                     {
                         text: 'Tamam',
-                        onPress: () => NavigationService.goBack(),
+                        onPress: () => goBack(),
                     },
                 ]);
             } else {
@@ -171,7 +171,7 @@ export const CreateInvitationScreen: React.FC = () => {
                 Alert.alert('Başarılı! 🎉', `Davet kodu oluşturuldu: ${result.data!.code}`, [
                     {
                         text: 'Tamam',
-                        onPress: () => NavigationService.goBack(),
+                        onPress: () => goBack(),
                     },
                 ]);
             }
@@ -491,7 +491,7 @@ export const CreateInvitationScreen: React.FC = () => {
                 title="Davet Kodu Oluştur"
                 subtitle={targetTitle}
                 showBack={true}
-                onLeftPress={() => NavigationService.goBack()}
+                onLeftPress={() => goBack()}
                 sportType={sportType}
             />
 

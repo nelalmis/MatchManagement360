@@ -9,7 +9,12 @@ import {
   updateProfile,
   sendEmailVerification as firebaseSendEmailVerification,
   reload,
-  User as FirebaseUser
+  User as FirebaseUser,
+  updatePassword,
+  validatePassword,
+  verifyPasswordResetCode,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 } from 'firebase/auth';
 import { auth } from '../../config/firebase.config';
 import { IPlayer, SportType } from '../../types/entity/types';
@@ -370,6 +375,45 @@ export const sendEmailVerification = createAsyncThunk(
     }
   }
 );
+export const changeUserPassword = createAsyncThunk(
+  'auth/changeUserPassword',
+  async (
+    { currentPassword, newPassword }: { currentPassword: string; newPassword: string },
+    { getState, rejectWithValue }
+  ) => {
+    try {
+      const state = getState() as { auth: AuthState };
+      const currentUser = state.auth.user;
+
+      if (!currentUser) {
+        throw new Error('Kullanıcı bulunamadı');
+      }
+
+      const authUser = auth.currentUser;
+      if (!authUser || !authUser.email) {
+        throw new Error('Kullanıcı oturumu geçersiz');
+      }
+
+      // 🔐 Eski şifreyle re-authenticate
+      const credential = EmailAuthProvider.credential(authUser.email, currentPassword);
+      await reauthenticateWithCredential(authUser, credential);
+
+      // 🔄 Yeni şifreyi güncelle
+      await updatePassword(authUser, newPassword);
+
+      // Eğer backend’de de güncellenmesi gerekiyorsa buraya ekle:
+      // const updateResult = await PlayerService.updatePassword(currentUser.id, newPassword);
+      // if (!updateResult.success) throw new Error(updateResult.error?.message || 'Şifre güncellenemedi');
+
+      return true; // Başarılı sonucu döndür
+    } catch (error: any) {
+      const errorMessage =
+        error?.message ||
+        'Şifre güncellenemedi. Lütfen mevcut şifrenizi kontrol edin.';
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
 
 /**
  * Email doğrulama durumunu kontrol et
@@ -685,6 +729,21 @@ const authSlice = createSlice({
         state.message = 'Pozisyonlar güncellendi';
       })
       .addCase(updateSportPositions.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+
+      // Change User Password
+    builder
+      .addCase(changeUserPassword.pending, (state) => { 
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(changeUserPassword.fulfilled, (state) => {
+        state.loading = false;
+        state.message = 'Şifre güncellendi';
+      })
+      .addCase(changeUserPassword.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });

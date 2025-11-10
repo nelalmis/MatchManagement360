@@ -65,11 +65,13 @@ import { SelectPositionsScreen } from '../screens';
 // Settings
 import { SettingsScreen } from '../screens';
 import { NotificationSettingsScreen } from '../screens';
+import {ProfileSettingsScreen}  from '../screens'
+
 
 // Components
-import { CustomHeader } from '../components/CustomHeader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -95,14 +97,8 @@ const HomeStack = () => {
                     );
 
                     return {
-                        header: () => (
-                            <CustomHeader
-                                title="Ana Sayfa"
-                                showMenu
-                                showNotifications
-                            />
-                        ),
-                    };
+                        headerShown: false,
+                    }
                 }}
             />
             {/* Modal Screens Group */}
@@ -130,7 +126,7 @@ const LeaguesStack = () => {
                 name="leagueList"
                 component={LeagueListScreen}
                 options={{
-                    header: () => <CustomHeader title="Ligler" showMenu showNotifications />,
+                    headerShown: false
                 }}
             />
             <Stack.Screen
@@ -197,6 +193,12 @@ const LeaguesStack = () => {
                     component={CreateInvitationScreen}
                     options={{ headerShown: false }}
                 />
+
+                {/* <Stack.Screen
+                    name="matchList"
+                    component={MatchListScreen}
+                    options={{ headerShown: false }}
+                /> */}
                 {/* Legacy screens - will be removed */}
                 {/* <Stack.Screen
                     name="createLeagueInvitation"
@@ -223,14 +225,16 @@ const MatchesStack = () => {
     return (
         <Stack.Navigator>
             <Stack.Screen
-                name="matchList"
-                component={MatchListScreen}
-                options={{ headerShown: true , header: () => <CustomHeader title="Maçlar" showMenu showNotifications /> }}
-            />
-            <Stack.Screen
                 name="myMatches"
                 component={MyMatchesScreen}
                 options={{ headerShown: false }}
+            />
+            <Stack.Screen
+                name="matchList"
+                component={MatchListScreen}
+                options={{
+                    headerShown: false
+                }}
             />
             <Stack.Screen
                 name="matchDetail"
@@ -341,12 +345,18 @@ const MatchesStack = () => {
 const StatsStack = () => {
     return (
         <Stack.Navigator>
-
+            <Stack.Screen
+                name="playerStats"
+                component={PlayerStatsScreen}
+                options={{
+                    headerShown: false
+                }}
+            />
             <Stack.Screen
                 name="standings"
                 component={StandingsScreen}
                 options={{
-                    header: () => <CustomHeader title="İstatistikler" showMenu showNotifications />,
+                    headerShown: false
                 }}
             />
             <Stack.Screen
@@ -373,23 +383,16 @@ const ProfileStack = () => {
     return (
         <Stack.Navigator>
             <Stack.Screen
-                name="playerStats"
-                component={PlayerStatsScreen}
-                options={{
-                    header: () => <CustomHeader title="Profilim" showNotifications />,
-                }}
-            />
-            <Stack.Screen
                 name="playerProfile"
                 component={PlayerProfileScreen}
                 options={{ headerShown: false }}
             />
             <Stack.Screen
                 name="editProfile"
-                component={EditProfileScreen}
+                component={ProfileSettingsScreen}
                 options={{ headerShown: false }}
             />
-            
+
             <Stack.Screen
                 name="settings"
                 component={SettingsScreen}
@@ -407,11 +410,11 @@ const ProfileStack = () => {
                     animation: 'slide_from_bottom',
                 }}
             >
-               <Stack.Screen
-                   name="selectPositions"
-                   component={SelectPositionsScreen}
-                   options={{ headerShown: false }}
-               />
+                <Stack.Screen
+                    name="selectPositions"
+                    component={SelectPositionsScreen}
+                    options={{ headerShown: false }}
+                />
             </Stack.Group>
         </Stack.Navigator>
     );
@@ -422,7 +425,6 @@ const ProfileStack = () => {
 // ============================================
 export const MainNavigator: React.FC = () => {
     const insets = useSafeAreaInsets();
-    console.log('Safe Area Insets:', insets.bottom);
     return (
         <Tab.Navigator
             screenOptions={({ route }) => ({
@@ -491,14 +493,14 @@ export const MainNavigator: React.FC = () => {
                 name="leaguesTab"
                 component={LeaguesStack}
                 options={{
-                    tabBarLabel: 'Ligler',
+                    tabBarLabel: 'Liglerim',
                 }}
             />
             <Tab.Screen
                 name="matchesTab"
                 component={MatchesStack}
                 options={{
-                    tabBarLabel: 'Maçlar',
+                    tabBarLabel: 'Maçlarım',
                 }}
             />
             <Tab.Screen
@@ -515,6 +517,13 @@ export const MainNavigator: React.FC = () => {
                     tabBarLabel: 'Profilim',
                 }}
             />
+            {/* <Tab.Screen
+                name ="settingsTab"
+                component={SettingsNavigator}
+                options={{
+                    tabBarLabel: 'Ayarlar',
+                }}
+            /> */}
         </Tab.Navigator>
     );
 }

@@ -15,6 +15,7 @@ import {
   clearError,
   clearMessage,
   setUser,
+  changeUserPassword,
 } from '../store/slices/authSlice';
 import type { IPlayer, SportType } from '../types/entity/types';
 import type { AppDispatch } from '../store';
@@ -247,6 +248,27 @@ export const useAuth = () => {
     [dispatch]
   );
 
+  const changePassword = useCallback( 
+    async ( currentPassword: string, newPassword: string) => {
+      try {
+        const result = await dispatch(changeUserPassword({ currentPassword, newPassword }));
+        if (changeUserPassword.fulfilled.match(result)) {
+          return { success: true, data: result.payload };
+        } else {
+          return {
+            success: false,
+            error: result.payload as string || 'Şifre değiştirilemedi'
+          };
+        } 
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message || 'Bir hata oluştu'
+        };
+      }
+    },
+    [dispatch]
+  );
 
   // ============================================
   // PROFILE OPERATIONS
@@ -517,6 +539,8 @@ export const useAuth = () => {
     clearStoredAuth,
     isProfileComplete,
     isUserActive,
+
+    changePassword,
   };
 };
 

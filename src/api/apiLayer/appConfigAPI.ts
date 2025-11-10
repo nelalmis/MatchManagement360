@@ -616,6 +616,181 @@ export class AppConfigAPI extends BaseAPI<IAppConfig> {
   ): Promise<ApiResponse<IAppConfig>> {
     return this.updateConfig({ socialMedia }, updatedBy);
   }
+  // ============================================
+  // REAL-TIME LISTENER METHOD
+  // ============================================
+  /**
+   * Subscribe to real-time configuration changes
+   * @param onUpdate - Callback function called when config changes
+   * @param onError - Optional error callback
+   * @returns Unsubscribe function
+   */
+  subscribeToConfigChanges(
+    onUpdate: (config: IAppConfig) => void,
+    onError?: (error: Error) => void
+  ): () => void {
+    try {
+      ApiLogger.log('app_config', 'subscribeToConfigChanges', 'Starting real-time listener');
+
+      const subscription = this.onSnapshot(
+        AppConfigAPI.CONFIG_ID,
+        (data) => {
+          // ✅ BaseAPI returns T | null
+          if (!data) {
+            ApiLogger.warn('app_config', 'subscribeToConfigChanges', 'Config document not found or deleted');
+
+            if (onError) {
+              onError(new Error('Config document not found'));
+            }
+            return;
+          }
+
+          try {
+            const config = data as IAppConfig;
+
+            // Validate essential fields
+            if (!config.app || !config.features) {
+              throw new Error('Invalid config structure');
+            }
+
+            // Update internal cache
+            this.cachedConfig = config;
+            this.cacheTimestamp = Date.now();
+
+            ApiLogger.log('app_config', 'subscribeToConfigChanges', {
+              version: config.app.version,
+              maintenance: config.app.maintenanceMode,
+              timestamp: new Date().toISOString(),
+            });
+
+            onUpdate(config);
+          } catch (parseError: any) {
+            ApiLogger.error('app_config', 'subscribeToConfigChanges:parse', parseError);
+            if (onError) {
+              onError(new Error(`Failed to parse config: ${parseError.message}`));
+            }
+          }
+        },
+        (error) => {
+          ApiLogger.error('app_config', 'subscribeToConfigChanges:snapshot', error);
+          if (onError) {
+            onError(error);
+          }
+        }
+      );
+
+      return () => {
+        ApiLogger.log('app_config', 'subscribeToConfigChanges', 'Unsubscribing from real-time listener');
+        subscription.unsubscribe();
+      };
+    } catch (error: any) {
+      ApiLogger.error('app_config', 'subscribeToConfigChanges:init', error);
+
+      if (onError) {
+        onError(new Error(`Failed to initialize listener: ${error.message}`));
+      }
+
+      // Return no-op unsubscribe function
+      return () => {
+        ApiLogger.log('app_config', 'subscribeToConfigChanges', 'No-op unsubscribe (listener failed to start)');
+      };
+    }
+  }
+
+  /**
+   * Subscribe with automatic error handling and retry
+   * @param onUpdate - Callback function called when config changes
+   * @param maxRetries - Maximum number of retry attempts (default: 3)
+   * @returns Unsubscribe function
+   */
+  subscribeToConfigChangesWithRetry(
+    onUpdate: (config: IAppConfig) => void,
+    maxRetries: number = 3
+  ): () => void {
+    let retryCount = 0;
+    let currentUnsubscribe: (() => void) | null = null;
+    let retryTimeout: NodeJS.Timeout | null = null;
+    let isDestroyed = false;
+
+    const setupListener = () => {
+      // Prevent setup if already destroyed
+      if (isDestroyed) {
+        ApiLogger.log('app_config', 'subscribeWithRetry', 'Listener destroyed, skipping setup');
+        return;
+      }
+
+      // Clean up previous listener if exists
+      if (currentUnsubscribe) {
+        currentUnsubscribe();
+        currentUnsubscribe = null;
+      }
+
+      currentUnsubscribe = this.subscribeToConfigChanges(
+        (config) => {
+          // ✅ Reset retry count on successful update
+          if (retryCount > 0) {
+            ApiLogger.log('app_config', 'subscribeWithRetry', 'Connection restored');
+            retryCount = 0;
+          }
+          onUpdate(config);
+        },
+        (error) => {
+          ApiLogger.error('app_config', 'subscribeWithRetry', {
+            error: error.message,
+            retryCount,
+            maxRetries,
+          });
+
+          if (isDestroyed) {
+            ApiLogger.log('app_config', 'subscribeWithRetry', 'Listener destroyed, skipping retry');
+            return;
+          }
+
+          if (retryCount < maxRetries) {
+            retryCount++;
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponential backoff, max 10s
+
+            ApiLogger.log('app_config', 'subscribeWithRetry',
+              `Retrying in ${delay}ms... (attempt ${retryCount}/${maxRetries})`
+            );
+
+            // Clear existing timeout
+            if (retryTimeout) {
+              clearTimeout(retryTimeout);
+            }
+
+            retryTimeout = setTimeout(() => {
+              retryTimeout = null;
+              setupListener();
+            }, delay);
+          } else {
+            ApiLogger.error('app_config', 'subscribeWithRetry', 'Max retries reached, giving up');
+            isDestroyed = true; // Stop further retries
+          }
+        }
+      );
+    };
+
+    // Initial setup
+    setupListener();
+
+    // Return combined unsubscribe function
+    return () => {
+      ApiLogger.log('app_config', 'subscribeWithRetry', 'Cleanup: Unsubscribing and clearing retry');
+
+      isDestroyed = true;
+
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+        retryTimeout = null;
+      }
+
+      if (currentUnsubscribe) {
+        currentUnsubscribe();
+        currentUnsubscribe = null;
+      }
+    };
+  }
 }
 
 // Export singleton instance

@@ -1,7 +1,6 @@
 // src/navigation/linking.ts
 
 import { LinkingOptions } from '@react-navigation/native';
-import { NavigationService } from './NavigationService';
 import { RootStackParamList } from './types';
 
 export const linking: LinkingOptions<RootStackParamList> = {

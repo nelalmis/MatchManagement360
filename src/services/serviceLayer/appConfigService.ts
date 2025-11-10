@@ -365,7 +365,7 @@ export class AppConfigService {
 
       // Validate limits
       const invalidLimits = Object.entries(limits).filter(([_, value]) => value < 1);
-      
+
       if (invalidLimits.length > 0) {
         return {
           success: false,
@@ -865,6 +865,71 @@ export class AppConfigService {
       };
     }
   }
+  /**
+     * Subscribe to real-time configuration changes
+     * @param callback - Function called when config updates
+     * @returns Unsubscribe function
+     */
+  static subscribeToConfigChanges(
+    callback: (config: IAppConfig) => void
+  ): () => void {
+    try {
+      ApiLogger.log('AppConfigService', 'subscribeToConfigChanges', 'Starting subscription');
+
+      const unsubscribe = appConfigAPI.subscribeToConfigChanges(
+        (updatedConfig) => {
+          ApiLogger.success('AppConfigService', 'subscribeToConfigChanges', {
+            version: updatedConfig.app.version,
+            maintenance: updatedConfig.app.maintenanceMode,
+          });
+
+          callback(updatedConfig);
+        },
+        (error) => {
+          ApiLogger.error('AppConfigService', 'subscribeToConfigChanges:error', error);
+        }
+      );
+
+      return unsubscribe;
+    } catch (error: any) {
+      ApiLogger.error('AppConfigService', 'subscribeToConfigChanges', error);
+      return () => { }; // Return no-op function
+    }
+  }
+
+  /**
+   * Subscribe with automatic retry on errors
+   * @param callback - Function called when config updates
+   * @param maxRetries - Maximum retry attempts (default: 3)
+   * @returns Unsubscribe function
+   */
+  static subscribeToConfigChangesWithRetry(
+    callback: (config: IAppConfig) => void,
+    maxRetries: number = 3
+  ): () => void {
+    try {
+      ApiLogger.log('AppConfigService', 'subscribeWithRetry', {
+        maxRetries,
+      });
+
+      const unsubscribe = appConfigAPI.subscribeToConfigChangesWithRetry(
+        (updatedConfig) => {
+          ApiLogger.success('AppConfigService', 'subscribeWithRetry:update', {
+            version: updatedConfig.app.version,
+          });
+
+          callback(updatedConfig);
+        },
+        maxRetries
+      );
+
+      return unsubscribe;
+    } catch (error: any) {
+      ApiLogger.error('AppConfigService', 'subscribeWithRetry', error);
+      return () => { };
+    }
+  }
+
 }
 
 export default AppConfigService;

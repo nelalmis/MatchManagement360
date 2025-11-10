@@ -32,7 +32,7 @@ import {
     XCircle,
 } from 'lucide-react-native';
 import { useRoute } from '@react-navigation/native';
-import { FixtureDetailRouteProp, NavigationService } from '../../navigation';
+import { FixtureDetailRouteProp, FixtureNavigationService, goBack, MatchNavigationService } from '../../navigation';
 import { useAuth } from '../../hooks';
 import { IFixture, ILeague, IMatch, MatchStatus } from '../../types/entity/types';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
@@ -77,7 +77,7 @@ export const FixtureDetailScreen: React.FC = () => {
 
             if (!fixtureResponse.success || !fixtureResponse.data) {
                 Alert.alert('Hata', 'Fikstür bulunamadı');
-                NavigationService.goBack();
+                goBack();
                 return;
             }
 
@@ -122,7 +122,7 @@ export const FixtureDetailScreen: React.FC = () => {
 
     const handleEdit = () => {
         if (!fixture) return;
-        NavigationService.navigateToEditFixture(fixtureId);
+        FixtureNavigationService.navigateToEditFixture(fixtureId);
     };
 
     const handleToggleStatus = async () => {
@@ -265,7 +265,7 @@ export const FixtureDetailScreen: React.FC = () => {
                 subtitle={league.title}
                 sportType={league.sportType}
                 showBack={true}
-                onLeftPress={() => NavigationService.goBack()}
+                onLeftPress={() => goBack()}
                 showEdit={isOrganizer}
                 onEditPress={handleEdit}
                 showIcon={true}
@@ -579,7 +579,7 @@ export const FixtureDetailScreen: React.FC = () => {
                         <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>Yaklaşan Maçlar ({upcomingMatches.length})</Text>
                             {upcomingMatches.length > 3 && (
-                                <TouchableOpacity onPress={() => NavigationService.navigateToMatchList({ fixtureId })} activeOpacity={0.7}>
+                                <TouchableOpacity onPress={() => MatchNavigationService.navigateToMatchList({ fixtureId })} activeOpacity={0.7}>
                                     <Text style={[styles.seeAllText, { color: sportColor }]}>Tümü</Text>
                                 </TouchableOpacity>
                             )}
@@ -588,7 +588,7 @@ export const FixtureDetailScreen: React.FC = () => {
                             <MatchCard
                                 key={match.id}
                                 match={match}
-                                onPress={() => NavigationService.navigateToMatch(match.id)}
+                                onPress={() => MatchNavigationService.navigateToMatchDetail(match.id)}
                                 formatDateTime={formatDateTime}
                                 getStatusColor={getMatchStatusColor}
                                 getStatusText={getMatchStatusText}
@@ -603,7 +603,7 @@ export const FixtureDetailScreen: React.FC = () => {
                         <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>Geçmiş Maçlar ({pastMatches.length})</Text>
                             {pastMatches.length > 3 && (
-                                <TouchableOpacity onPress={() => NavigationService.navigateToMatchList({ fixtureId })} activeOpacity={0.7}>
+                                <TouchableOpacity onPress={() => MatchNavigationService.navigateToMatchList({ fixtureId })} activeOpacity={0.7}>
                                     <Text style={[styles.seeAllText, { color: sportColor }]}>Tümü</Text>
                                 </TouchableOpacity>
                             )}
@@ -612,7 +612,7 @@ export const FixtureDetailScreen: React.FC = () => {
                             <MatchCard
                                 key={match.id}
                                 match={match}
-                                onPress={() => NavigationService.navigateToMatch(match.id)}
+                                onPress={() => MatchNavigationService.navigateToMatchDetail(match.id)}
                                 formatDateTime={formatDateTime}
                                 getStatusColor={getMatchStatusColor}
                                 getStatusText={getMatchStatusText}

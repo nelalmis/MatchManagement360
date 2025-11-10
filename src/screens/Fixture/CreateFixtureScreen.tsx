@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Alert, ActivityIndicator } from 'react-native';
 import { useRoute } from '@react-navigation/native';
-import { CreateFixtureRouteProp, NavigationService } from '../../navigation';
+import { CreateFixtureRouteProp, FixtureNavigationService, goBack } from '../../navigation';
 import { useAuth } from '../../hooks';
 import { ILeague, IPlayer } from '../../types/entity/types';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
@@ -29,7 +29,7 @@ export const CreateFixtureScreen: React.FC = () => {
       const leagueResponse = await LeagueService.getLeague(leagueId);
       if (!leagueResponse.success || !leagueResponse.data) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -84,7 +84,7 @@ export const CreateFixtureScreen: React.FC = () => {
         Alert.alert('Başarılı! 🎉', 'Fikstür başarıyla oluşturuldu', [
           {
             text: 'Tamam',
-            onPress: () => NavigationService.navigateToFixtureDetail(response.data!.id),
+            onPress: () => FixtureNavigationService.navigateToFixtureDetail(response.data!.id),
           },
         ]);
       } else {
@@ -110,7 +110,7 @@ export const CreateFixtureScreen: React.FC = () => {
       league={league}
       leagueMembers={leagueMembers}
       onSubmit={handleSubmit}
-      onCancel={() => NavigationService.goBack()}
+      onCancel={() => goBack()}
     />
   );
 };

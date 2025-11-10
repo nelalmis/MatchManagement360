@@ -71,70 +71,6 @@ export enum SeasonStatus {
   ARCHIVED = 'archived'      // Arşivlendi (12+ ay sonra)
 }
 
-/**
- * Her spor için varsayılan konfigürasyon
- * UI'da emoji, renk, pozisyon listesi için kullanılır
- */
-export interface SportConfig {
-  emoji: string;              // Spor ikonu
-  name: string;               // Görünen ad
-  defaultPlayers: number;     // Varsayılan oyuncu sayısı
-  defaultDuration: number;    // Varsayılan maç süresi (dk)
-  positions: string[];        // Pozisyon listesi (boş ise pozisyon yok)
-  color: string;              // Tema rengi (hex)
-}
-
-export const SPORT_CONFIGS: Record<SportType, SportConfig> = {
-  Futbol: {
-    emoji: "⚽",
-    name: "Futbol",
-    defaultPlayers: 10,
-    defaultDuration: 60,
-    positions: ["Kaleci", "Defans", "Orta Saha", "Forvet"],
-    color: "#16a34a",
-  },
-  Basketbol: {
-    emoji: "🏀",
-    name: "Basketbol",
-    defaultPlayers: 10,
-    defaultDuration: 40,
-    positions: ["Guard", "Forward", "Center"],
-    color: "#F59E0B",
-  },
-  Voleybol: {
-    emoji: "🏐",
-    name: "Voleybol",
-    defaultPlayers: 12,
-    defaultDuration: 90,
-    positions: ["Libero", "Pasör", "Smaçör", "Orta Oyuncu"],
-    color: "#2563EB",
-  },
-  Tenis: {
-    emoji: "🎾",
-    name: "Tenis",
-    defaultPlayers: 2,
-    defaultDuration: 90,
-    positions: [],
-    color: "#10B981",
-  },
-  "Masa Tenisi": {
-    emoji: "🏓",
-    name: "Masa Tenisi",
-    defaultPlayers: 2,
-    defaultDuration: 45,
-    positions: [],
-    color: "#8B5CF6",
-  },
-  Badminton: {
-    emoji: "🏸",
-    name: "Badminton",
-    defaultPlayers: 2,
-    defaultDuration: 45,
-    positions: [],
-    color: "#EC4899",
-  },
-};
-
 // ============================================
 // 2. HELPER TYPES
 // ============================================
@@ -641,6 +577,8 @@ export interface IMatch {
       preferredPosition?: string;
     }>;
 
+    squad: string[]; // Kadrodaki oyuncu ID'leri
+
     // 5️⃣ Yedekler (Kadro dolarsa buraya alınır)
     reserves: string[];
 
@@ -711,6 +649,9 @@ export interface IMatch {
   // ============================================
   status: MatchStatus;
 
+  //Cache
+  invitationCode?: string; // Maç davet kodu
+
   // ============================================
   // FRIENDLY AYARLARI
   // ============================================
@@ -719,16 +660,6 @@ export interface IMatch {
     invitedPlayerIds?: string[]; // Özel davetliler
     affectsStats: boolean;      // İstatistikleri etkiler mi
     affectsStandings: boolean;  // Puan durumunu etkiler mi
-  };
-
-   invitationCode?: {
-    code: string;              // 6 haneli kod (örn: "ABC123")
-    enabled: boolean;          // Kod aktif mi?
-    expiresAt?: Date;          // Kodu süre sınırı
-    maxUses?: number;          // Maksimum kullanım sayısı
-    currentUses: number;       // Şu ana kadar kullanım
-    createdAt: Date;
-    createdBy: string;
   };
 
   // ============================================
@@ -1282,12 +1213,13 @@ export interface IAppConfig {
 // 16. USER SETTINGS (user_settings collection)
 // ============================================
 
-/**
- * COLLECTION: user_settings
- * AÇIKLAMA: Kullanıcı özel ayarları
- * İLİŞKİLER: user (id = userId)
- * CACHE: Yok
- */
+// src/types/entity/userSettings.types.ts
+
+export type NotificationChannel = 'email' | 'push' | 'sms' | 'inApp';
+export type NotificationFrequency = 'immediate' | 'hourly' | 'daily' | 'weekly' | 'never';
+export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0: Pazar, 6: Cumartesi
+export type TimeSlot = 'morning' | 'afternoon' | 'evening' | 'night';
+
 export interface IUserSettings {
   id: string;                   // userId ile aynı
   userId: string;
@@ -1296,37 +1228,96 @@ export interface IUserSettings {
   // PROFİL TERCİHLERİ
   // ============================================
   profile: {
-    displayName?: string;       // Takma ad
+    displayName?: string;              // Takma ad
+    bio?: string;                      // Kısa biyografi (max 200 karakter)
     showEmail: boolean;
     showPhone: boolean;
     showBirthDate: boolean;
+    showLocation: boolean;             // Şehir/bölge göster
+    showSocialMedia: boolean;          // Sosyal medya linklerini göster
+    allowProfileSearch: boolean;       // Arama sonuçlarında çık
+    verifiedBadge?: boolean;           // Doğrulanmış kullanıcı rozeti (admin)
   };
 
   // ============================================
   // BİLDİRİM TERCİHLERİ
   // ============================================
   notifications: {
+    // Genel bildirim ayarları
+    enabled: boolean;                  // Ana anahtar
+    frequency: NotificationFrequency;  // Genel sıklık
+    quietHours: {
+      enabled: boolean;
+      daysOfWeek: DayOfWeek[];    // Hangi günler
+
+      start: string;                   // "22:00"
+      end: string;                     // "08:00"
+    };
+
+    // Email bildirimleri
     email: {
+      enabled: boolean;                // Email ana anahtarı
       matchInvitations: boolean;
       matchReminders: boolean;
+      matchCancellations: boolean;     // ✨ Yeni
       teamAssignments: boolean;
       paymentReminders: boolean;
+      paymentReceived: boolean;        // ✨ Yeni - Ödeme alındı
       ratingRequests: boolean;
+      ratingReceived: boolean;         // ✨ Yeni - Rating aldım
       mvpAnnouncements: boolean;
       seasonUpdates: boolean;
       weeklyDigest: boolean;
+      monthlyReport: boolean;          // ✨ Yeni - Aylık performans raporu
+      leagueInvitations: boolean;      // ✨ Yeni - Lig davetleri
+      friendRequests: boolean;         // ✨ Yeni - Arkadaşlık istekleri
+      comments: boolean;               // ✨ Yeni - Yorum bildirimleri
+      mentions: boolean;               // ✨ Yeni - @mention bildirimleri
+      systemUpdates: boolean;          // ✨ Yeni - Sistem güncellemeleri
     };
+
+    // Push bildirimleri
     push: {
+      enabled: boolean;                // Push ana anahtarı
       matchInvitations: boolean;
       matchReminders: boolean;
+      matchCancellations: boolean;     // ✨ Yeni
+      matchStartingSoon: boolean;      // ✨ Yeni - Maç yakında başlıyor (30dk önce)
       teamAssignments: boolean;
       paymentReminders: boolean;
+      paymentReceived: boolean;        // ✨ Yeni
       ratingRequests: boolean;
+      ratingReceived: boolean;         // ✨ Yeni
       mvpAnnouncements: boolean;
+      friendRequests: boolean;         // ✨ Yeni
+      comments: boolean;               // ✨ Yeni
+      mentions: boolean;               // ✨ Yeni
+      chatMessages: boolean;           // ✨ Yeni - Sohbet mesajları
+      achievementUnlocked: boolean;    // ✨ Yeni - Başarı kazanıldı
     };
+
+    // SMS bildirimleri
     sms: {
+      enabled: boolean;                // SMS ana anahtarı
       matchReminders: boolean;
+      matchCancellations: boolean;     // ✨ Yeni
       urgentUpdates: boolean;
+      paymentReminders: boolean;       // ✨ Yeni
+      emergencyOnly: boolean;          // ✨ Yeni - Sadece acil durumlar
+    };
+
+    // In-App bildirimleri
+    inApp: {
+      enabled: boolean;
+      showBadges: boolean;             // ✨ Yeni - Bildirim rozetleri
+      playSound: boolean;              // ✨ Yeni - Ses çal
+      vibrate: boolean;                // ✨ Yeni - Titreşim
+      showPopup: boolean;              // ✨ Yeni - Pop-up göster
+      displayDuration: 3 | 5 | 7 | 10; // ✨ Yeni - Gösterim süresi (saniye)
+      sound?: 'default' | 'gentle' | 'alert' | 'none'; // ✨ Yeni - Bildirim sesi
+      showPreview: boolean;         // ✨ Yeni - Önizleme göster      
+      highlightImportant: boolean; // ✨ Yeni - Önemli bildirimleri vurgula
+      fullScreenForImportant: boolean; // ✨ Yeni - Önemli bildirimlerde tam ekran göster
     };
   };
 
@@ -1334,53 +1325,463 @@ export interface IUserSettings {
   // GİZLİLİK
   // ============================================
   privacy: {
+    whoCanViewProfile: 'everyone' | 'friends' | 'nobody'; // ✨ Yeni - Profil görüntüleme
     profileVisibility: 'public' | 'friends' | 'private';
     showStats: boolean;
     showRating: boolean;
+    showAchievements: boolean;         // ✨ Yeni - Başarıları göster
+    showMatchHistory: boolean;         // ✨ Yeni - Maç geçmişini göster
+    showCurrentLeagues: boolean;       // ✨ Yeni - Aktif ligleri göster
     allowInvitations: boolean;
     allowFriendRequests: boolean;
+    allowMessages: 'everyone' | 'friends' | 'nobody'; // ✨ Yeni - Mesaj izinleri
+    blockList: string[];               // ✨ Yeni - Engellenmiş kullanıcılar
+    dataSharing: {
+      analytics: boolean;              // ✨ Yeni - Analitik verisi paylaş
+      marketing: boolean;              // ✨ Yeni - Pazarlama izni
+      thirdParty: boolean;             // ✨ Yeni - 3. parti servisler
+    };
   };
 
   // ============================================
   // OYUN TERCİHLERİ
   // ============================================
   preferences: {
+    // Spor tercihleri
+    favoriteSports: SportType[];       // ✨ Yeni - Favori sporlar
     favoritePositions: Partial<Record<SportType, string[]>>;
-    availableDays: number[];            // 0-6 (Pazar-Cumartesi)
+    skillLevel: Partial<Record<SportType, SkillLevel>>; // ✨ Yeni
+
+    // Zaman tercihleri
+    availableDays: DayOfWeek[];        // 0-6 (Pazar-Cumartesi)
     preferredTimes: {
-      morning: boolean;                 // 06:00-12:00
-      afternoon: boolean;               // 12:00-18:00
-      evening: boolean;                 // 18:00-00:00
+      morning: boolean;                // 06:00-12:00
+      afternoon: boolean;              // 12:00-18:00
+      evening: boolean;                // 18:00-00:00
+      night: boolean;                  // ✨ Yeni - 00:00-06:00
     };
-    maxDistanceKm?: number;             // Maks. saha mesafesi
+
+    // Konum tercihleri
+    preferredLocations: string[];      // ✨ Yeni - Tercih edilen sahalar/bölgeler
+    maxDistanceKm?: number;            // Maks. saha mesafesi
+    autoLocationUpdate: boolean;       // ✨ Yeni - Konum otomatik güncelleme
+
+    // Maç tercihleri
+    autoAcceptInvitations: boolean;    // ✨ Yeni - Otomatik davet kabul
+    autoRegisterToLeagues: boolean;    // ✨ Yeni - Liglere otomatik kayıt
+    preferredTeamSize: {               // ✨ Yeni - Tercih edilen takım büyüklüğü
+      min?: number;
+      max?: number;
+    };
+    playWithFriendsOnly: boolean;      // ✨ Yeni - Sadece arkadaşlarla oyna
+
+    // Ödeme tercihleri
+    paymentMethod: 'cash' | 'card' | 'bank' | 'mixed'; // ✨ Yeni
+    autoPayment: boolean;              // ✨ Yeni - Otomatik ödeme
+    paymentReminder: {                 // ✨ Yeni - Ödeme hatırlatıcı
+      enabled: boolean;
+      daysBefore: number;              // Kaç gün önce hatırlat
+    };
   };
 
   // ============================================
   // GÖRÜNÜM AYARLARI
   // ============================================
   appearance: {
-    theme: 'light' | 'dark' | 'auto';
+    theme: 'light' | 'dark' | 'system';
+    accentColor?: string;              // ✨ Yeni - Vurgu rengi (#16a34a)
     language: 'tr' | 'en';
-    dateFormat: 'DD/MM/YYYY' | 'MM/DD/YYYY';
+    dateFormat: 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD'; // ✨ Genişletildi
     timeFormat: '24h' | '12h';
+    currency: 'TRY' | 'USD' | 'EUR';   // ✨ Yeni - Para birimi
+    distanceUnit: 'km' | 'mile';       // ✨ Yeni - Mesafe birimi
+    fontSize: 'small' | 'medium' | 'large' | 'extraLarge'; // ✨ Yeni - Yazı tipi boyutu
+
+    // List view preferences
+    defaultView: 'list' | 'grid' | 'map'; // ✨ Yeni - Varsayılan görünüm
+    sortBy: 'date' | 'distance' | 'rating' | 'alphabetical'; // ✨ Yeni
+    compactMode: boolean;              // ✨ Yeni - Kompakt mod
+    showAvatars: boolean;              // ✨ Yeni - Avatar göster
+    animationsEnabled: boolean;        // ✨ Yeni - Animasyonlar
+    reducedMotion: boolean;            // ✨ Yeni - Azaltılmış hareket (accessibility)
+  };
+
+  // ============================================
+  // ERİŞİLEBİLİRLİK (ACCESSIBILITY)
+  // ============================================
+  accessibility: {
+    textSize: 'small' | 'medium' | 'large' | 'extraLarge'; // ✨ Yeni
+    colorScheme: 'normal' | 'highContrast' | 'grayscale' | 'colorBlind'; // ✨ Yeni
+    highContrast: boolean;             // ✨ Yeni - Yüksek kontrast
+    screenReaderEnabled: boolean;      // ✨ Yeni - Ekran okuyucu
+    voiceCommands: boolean;            // ✨ Yeni - Sesli komutlar
+    hapticFeedback: boolean;           // ✨ Yeni - Dokunsal geri bildirim
+    colorBlindMode?: 'protanopia' | 'deuteranopia' | 'tritanopia'; // ✨ Yeni
+    boldText: boolean;                // ✨ Yeni - Kalın metin
+  };
+
+  // ============================================
+  // MAÇ HATIRLATICILAR & TAKVİM
+  // ============================================
+  calendar: {
+    lastSyncedAt?: string;          // ✨ Yeni - Son senkronizasyon zamanı
+    syncConfirmedMatches: boolean; // ✨ Yeni - Onaylı maçları senkronize et
+    syncLeagueMatches: boolean;   // ✨ Yeni - Lig maçlarını senkronize et
+    syncPendingInvites: boolean;  // ✨ Yeni - Bekleyen davetleri senkronize et
+    addReminder: boolean;            // ✨ Yeni - Hatırlatıcı ekle
+    reminderMinutes: number;   // ✨ Yeni - Hatırlatma süresi (dakika)
+    syncWithDevice: boolean;           // ✨ Yeni - Cihaz takvimiyle senkronize
+    autoAddMatches: boolean;           // ✨ Yeni - Maçları otomatik ekle
+    reminderTimes: number[];           // ✨ Yeni - Hatırlatma zamanları (dakika) [1440, 60, 15]
+    syncFrequency: 'realtime' | 'hourly' | 'daily' | 'manual'; // ✨ Yeni
+    conflictResolution: 'app' | 'calendar' | 'ask'; // ✨ Yeni
+  };
+
+  // ============================================
+  // SOSYAL ÖZELLIKLER
+  // ============================================
+  social: {
+    autoFollowTeammates: boolean;      // ✨ Yeni - Takım arkadaşlarını otomatik takip et
+    shareMatchResults: boolean;        // ✨ Yeni - Maç sonuçlarını paylaş
+    showOnlineStatus: boolean;         // ✨ Yeni - Çevrimiçi durumu göster
+    allowTagging: boolean;             // ✨ Yeni - Etiketlenmeye izin ver
+    defaultPrivacy: 'public' | 'friends' | 'private'; // ✨ Yeni - Varsayılan gizlilik
+  };
+
+  // ============================================
+  // PERFORMANS & ANALYTICS
+  // ============================================
+  analytics: {
+    trackPerformance: boolean;         // ✨ Yeni - Performans takibi
+    weeklyReports: boolean;            // ✨ Yeni - Haftalık raporlar
+    monthlyReports: boolean;           // ✨ Yeni - Aylık raporlar
+    compareWithFriends: boolean;       // ✨ Yeni - Arkadaşlarla karşılaştır
+    goalTracking: boolean;             // ✨ Yeni - Hedef takibi
+    showInsights: boolean;             // ✨ Yeni - İçgörüler göster
+  };
+
+  // ============================================
+  // DATA & STORAGE
+  // ============================================
+  storage: {
+    cacheEnabled: boolean;             // ✨ Yeni - Cache kullan
+    offlineMode: boolean;              // ✨ Yeni - Çevrimdışı mod
+    autoSync: boolean;                 // ✨ Yeni - Otomatik senkronizasyon
+    syncFrequency: 'realtime' | 'hourly' | 'daily' | 'manual'; // ✨ Yeni
+    dataUsage: 'high' | 'medium' | 'low'; // ✨ Yeni - Veri kullanımı
+    downloadOverWiFiOnly: boolean;     // ✨ Yeni - Sadece WiFi'de indir
+    clearCacheOnLogout: boolean;       // ✨ Yeni - Çıkışta cache temizle
+  };
+
+  // ============================================
+  // GÜVENLİK
+  // ============================================
+  security: {
+    biometricLogin: boolean;           // ✨ Yeni - Biyometrik giriş
+    twoFactorAuth: boolean;            // ✨ Yeni - İki faktörlü doğrulama
+    trustedDevices: string[];          // ✨ Yeni - Güvenilir cihazlar
+    loginAlerts: boolean;              // ✨ Yeni - Giriş bildirimleri
+    sessionTimeout: number;            // ✨ Yeni - Oturum zaman aşımı (dakika)
+    autoLock: boolean;                 // ✨ Yeni - Otomatik kilitleme
+    autoLockTimeout: number;           // ✨ Yeni - Otomatik kilit süresi (dakika)
   };
 
   // ============================================
   // QUICK ACTIONS (Sık Kullanılan - CACHE)
   // ============================================
   quickActions?: {
-    favoriteLeagues: string[];          // CACHE: Favori lig ID'leri
-    recentMatches: string[];            // CACHE: Son 5 maç ID'si
-    frequentPlayers: string[];          // CACHE: Sık oynadığı oyuncular
+    favoriteLeagues: string[];         // CACHE: Favori lig ID'leri
+    recentMatches: string[];           // CACHE: Son 5 maç ID'si
+    frequentPlayers: string[];         // CACHE: Sık oynadığı oyuncular
+    pinnedVenues: string[];            // ✨ Yeni - CACHE: Sabitlenmiş sahalar
+    savedSearches: Array<{             // ✨ Yeni - Kayıtlı aramalar
+      query: string;
+      filters: any;
+      timestamp: string;
+    }>;
+    recentActions: Array<{             // ✨ Yeni - Son işlemler
+      action: string;
+      timestamp: string;
+    }>;
+  };
+
+  // ============================================
+  // BETA FEATURES (Test Özellikleri)
+  // ============================================
+  beta?: {
+    enabledFeatures: string[];         // ✨ Yeni - Aktif beta özellikleri
+    optInToNewFeatures: boolean;       // ✨ Yeni - Yeni özellikleri test et
+    feedbackConsent: boolean;          // ✨ Yeni - Geri bildirim izni
+  };
+
+  // ============================================
+  // COACHING & TRAINING (Gelecek özellik)
+  // ============================================
+  coaching?: {
+    receiveCoachingTips: boolean;      // ✨ Yeni - Koçluk ipuçları al
+    trainingProgram?: string;          // ✨ Yeni - Antrenman programı ID
+    goalsAndTargets: Array<{           // ✨ Yeni - Hedefler
+      id: string;
+      sport: SportType;
+      goal: string;
+      target: number;
+      current: number;
+      deadline?: string;
+    }>;
   };
 
   // ============================================
   // META
   // ============================================
+  version: number;                     // ✨ Yeni - Settings versiyonu (migration için)
   createdAt: string;
   updatedAt?: string;
+  lastSyncedAt?: string;               // ✨ Yeni - Son senkronizasyon
+  migratedFrom?: string;               // ✨ Yeni - Hangi versiyondan migrate edildi
 }
 
+// ============================================
+// DEFAULT SETTINGS
+// ============================================
+export const DEFAULT_USER_SETTINGS: Omit<IUserSettings, 'id' | 'userId' | 'createdAt'> = {
+  profile: {
+    showEmail: false,
+    showPhone: false,
+    showBirthDate: false,
+    showLocation: true,
+    showSocialMedia: true,
+    allowProfileSearch: true,
+  },
+
+  notifications: {
+    enabled: true,
+    frequency: 'immediate',
+    quietHours: {
+      enabled: true,
+      start: '22:00',
+      end: '08:00',
+      daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    },
+    email: {
+      enabled: true,
+      matchInvitations: true,
+      matchReminders: true,
+      matchCancellations: true,
+      teamAssignments: true,
+      paymentReminders: true,
+      paymentReceived: true,
+      ratingRequests: true,
+      ratingReceived: true,
+      mvpAnnouncements: true,
+      seasonUpdates: true,
+      weeklyDigest: false,
+      monthlyReport: true,
+      leagueInvitations: true,
+      friendRequests: true,
+      comments: true,
+      mentions: true,
+      systemUpdates: false,
+    },
+    push: {
+      enabled: true,
+      matchInvitations: true,
+      matchReminders: true,
+      matchCancellations: true,
+      matchStartingSoon: true,
+      teamAssignments: true,
+      paymentReminders: true,
+      paymentReceived: true,
+      ratingRequests: true,
+      ratingReceived: true,
+      mvpAnnouncements: true,
+      friendRequests: true,
+      comments: true,
+      mentions: true,
+      chatMessages: true,
+      achievementUnlocked: true,
+    },
+    sms: {
+      enabled: false,
+      matchReminders: false,
+      matchCancellations: false,
+      urgentUpdates: true,
+      paymentReminders: false,
+      emergencyOnly: true,
+    },
+    inApp: {
+      enabled: true,
+      showBadges: true,
+      playSound: true,
+      vibrate: true,
+      showPopup: true,
+      displayDuration: 5,
+      sound: 'default',
+      showPreview: true,
+      highlightImportant: true,
+      fullScreenForImportant: false,
+    },
+  },
+
+  privacy: {
+    whoCanViewProfile: 'everyone',
+    profileVisibility: 'public',
+    showStats: true,
+    showRating: true,
+    showAchievements: true,
+    showMatchHistory: true,
+    showCurrentLeagues: true,
+    allowInvitations: true,
+    allowFriendRequests: true,
+    allowMessages: 'friends',
+    blockList: [],
+    dataSharing: {
+      analytics: true,
+      marketing: false,
+      thirdParty: false,
+    },
+  },
+
+  preferences: {
+    favoriteSports: [],
+    favoritePositions: {},
+    skillLevel: {},
+    availableDays: [1, 2, 3, 4, 5], // Pazartesi-Cuma
+    preferredTimes: {
+      morning: false,
+      afternoon: false,
+      evening: true,
+      night: false,
+    },
+    preferredLocations: [],
+    maxDistanceKm: 10,
+    autoLocationUpdate: true,
+    autoAcceptInvitations: false,
+    autoRegisterToLeagues: false,
+    preferredTeamSize: {},
+    playWithFriendsOnly: false,
+    paymentMethod: 'cash',
+    autoPayment: false,
+    paymentReminder: {
+      enabled: true,
+      daysBefore: 1,
+    },
+  },
+
+  appearance: {
+    theme: 'system',
+    language: 'tr',
+    dateFormat: 'DD/MM/YYYY',
+    timeFormat: '24h',
+    currency: 'TRY',
+    distanceUnit: 'km',
+    defaultView: 'list',
+    sortBy: 'date',
+    compactMode: false,
+    showAvatars: true,
+    animationsEnabled: true,
+    reducedMotion: false,
+    fontSize: 'medium',
+  },
+
+  accessibility: {
+    textSize: 'medium',
+    highContrast: false,
+    screenReaderEnabled: false,
+    voiceCommands: false,
+    hapticFeedback: true,
+    boldText: false,
+    colorScheme: 'normal',
+    colorBlindMode: undefined,
+  },
+
+  calendar: {
+    syncWithDevice: false,
+    autoAddMatches: true,
+    reminderTimes: [1440, 60, 15], // 1 gün, 1 saat, 15 dakika önce
+    syncConfirmedMatches: true,
+    syncLeagueMatches: true,
+    syncPendingInvites: false,
+    addReminder: true,
+    reminderMinutes: 15,
+    syncFrequency: 'daily',
+    conflictResolution: 'ask',
+  },
+
+  social: {
+    autoFollowTeammates: true,
+    shareMatchResults: false,
+    showOnlineStatus: true,
+    allowTagging: true,
+    defaultPrivacy: 'friends',
+  },
+
+  analytics: {
+    trackPerformance: true,
+    weeklyReports: true,
+    monthlyReports: true,
+    compareWithFriends: true,
+    goalTracking: true,
+    showInsights: true,
+  },
+
+  storage: {
+    cacheEnabled: true,
+    offlineMode: false,
+    autoSync: true,
+    syncFrequency: 'realtime',
+    dataUsage: 'medium',
+    downloadOverWiFiOnly: true,
+    clearCacheOnLogout: false,
+  },
+
+  security: {
+    biometricLogin: false,
+    twoFactorAuth: false,
+    trustedDevices: [],
+    loginAlerts: true,
+    sessionTimeout: 30,
+    autoLock: true,
+    autoLockTimeout: 5,
+  },
+
+  quickActions: {
+    favoriteLeagues: [],
+    recentMatches: [],
+    frequentPlayers: [],
+    pinnedVenues: [],
+    savedSearches: [],
+    recentActions: [],
+  },
+
+  beta: {
+    enabledFeatures: [],
+    optInToNewFeatures: false,
+    feedbackConsent: true,
+  },
+
+  version: 1,
+};
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+export const createDefaultUserSettings = (userId: string): IUserSettings => ({
+  id: userId,
+  userId,
+  ...DEFAULT_USER_SETTINGS,
+  createdAt: new Date().toISOString(),
+});
+
+export const mergeUserSettings = (
+  existing: Partial<IUserSettings>,
+  updates: Partial<IUserSettings>
+): IUserSettings => ({
+  ...DEFAULT_USER_SETTINGS,
+  ...existing,
+  ...updates,
+  updatedAt: new Date().toISOString(),
+} as IUserSettings);
 
 // ============================================
 // 18. SYSTEM LOG (system_logs collection)
@@ -1867,7 +2268,7 @@ export interface IFriendlyMatchConfig {
         accountName?: string;
       };
     };
-    
+
   }>;
 
   // ============================================
@@ -1886,6 +2287,16 @@ export interface IFriendlyMatchConfig {
   updatedAt?: string;
 }
 
+export interface IDevice {
+  id: any;
+  playerId?: string;
+  deviceId?: string;
+  deviceName?: string;
+  platform?: string;
+  addedAt?: string;
+  lastUsed?: string;
+  isActive?: boolean;
+}
 export const TimestampHelpers = {
   toDate: (timestamp: FirestoreTimestamp | Date | any): Date => {
     if (!timestamp) return new Date();
@@ -1941,3 +2352,30 @@ export enum NotificationStatus {
   READ = 'read',
   ARCHIVED = 'archived'
 }
+export type SkillLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
+export const SKILL_LEVELS: { value: SkillLevel; label: string; description: string; color: string }[] = [
+  {
+    value: 'beginner',
+    label: 'Başlangıç',
+    description: 'Yeni başladım, temel kuralları öğreniyorum',
+    color: '#9CA3AF',
+  },
+  {
+    value: 'intermediate',
+    label: 'Orta',
+    description: 'Düzenli oynuyorum, temel tekniklere hakimim',
+    color: '#3B82F6',
+  },
+  {
+    value: 'advanced',
+    label: 'İleri',
+    description: 'Deneyimliyim, rekabetçi maçlarda oynuyorum',
+    color: '#F59E0B',
+  },
+  {
+    value: 'expert',
+    label: 'Uzman',
+    description: 'Profesyonel veya yarı-profesyonel seviyede',
+    color: '#10B981',
+  },
+];

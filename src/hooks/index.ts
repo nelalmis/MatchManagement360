@@ -4,8 +4,8 @@ export { useAppDispatch, useAppSelector } from '../store/hooks';
 
 // Feature hooks
 export { useAuth } from './useAuth';
-export { useLeague } from './useLeague';
-export { useMatch } from './useMatch';
+// export { useLeague } from './useLeague';
+// export { useMatch } from './useMatch';
 
 // Utility hooks
 export { useDebounce } from './useDebounce';

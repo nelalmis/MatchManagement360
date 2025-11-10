@@ -34,14 +34,14 @@ import {
   IMatch,
   MatchStatus,
   SportType,
-  SPORT_CONFIGS,
 } from '../../types/entity/types';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
-import { NavigationService } from '../../navigation';
+import { goBack } from '../../navigation';
 import { eventManager, Events } from '../../utils';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
+import { sportThemes } from '../../utils/theme';
 
 type BuildAlgorithm = 'random' | 'rating' | 'position';
 
@@ -52,18 +52,18 @@ export const TeamBuildingScreen: React.FC = () => {
 
   const [match, setMatch] = useState<IMatch | null>(null);
   const [allPlayers, setAllPlayers] = useState<any[]>([]);
-  
+
   const [team1, setTeam1] = useState<Array<{ playerId: string; position?: string }>>([]);
   const [team2, setTeam2] = useState<Array<{ playerId: string; position?: string }>>([]);
   const [availablePlayers, setAvailablePlayers] = useState<string[]>([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
+
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<1 | 2>(1);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   const [showAlgorithmModal, setShowAlgorithmModal] = useState(false);
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<BuildAlgorithm>('random');
 
@@ -74,7 +74,7 @@ export const TeamBuildingScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -82,23 +82,23 @@ export const TeamBuildingScreen: React.FC = () => {
       setLoading(true);
 
       const result = await MatchService.getMatch(matchId);
-      
+
       if (!result.success || !result.data) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
       const matchData = result.data;
 
       // Check permissions - only organizers and teamBuilders can build teams
-      const canBuild = 
+      const canBuild =
         matchData.permissions.organizers.includes(user.id) ||
         matchData.permissions.teamBuilders?.includes(user.id);
 
       if (!canBuild) {
         Alert.alert('Hata', 'Takım kurma yetkiniz yok');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -108,7 +108,7 @@ export const TeamBuildingScreen: React.FC = () => {
           'Uyarı',
           `Takım kurma sadece kayıtlar kapandıktan sonra yapılabilir.\nMevcut durum: ${matchData.status}`
         );
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -116,7 +116,7 @@ export const TeamBuildingScreen: React.FC = () => {
 
       // Get eligible players using service method
       const eligiblePlayers = MatchService.getEligiblePlayers(matchData);
-      
+
       // Load player details
       const playerDetailsPromises = eligiblePlayers.all.map(async (playerId) => {
         const playerResult = await PlayerService.getPlayer(playerId);
@@ -130,7 +130,7 @@ export const TeamBuildingScreen: React.FC = () => {
       if (matchData.players.teams) {
         setTeam1(matchData.players.teams.team1);
         setTeam2(matchData.players.teams.team2);
-        
+
         // Available players = players in squad but not in teams
         const inTeams = [
           ...matchData.players.teams.team1.map(p => p.playerId),
@@ -146,7 +146,7 @@ export const TeamBuildingScreen: React.FC = () => {
     } catch (error) {
       console.error('Error loading match:', error);
       Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu');
-      NavigationService.goBack();
+      goBack();
     } finally {
       setLoading(false);
     }
@@ -183,7 +183,7 @@ export const TeamBuildingScreen: React.FC = () => {
               if (result.success && result.data) {
                 // Reload match to get updated teams
                 await loadData();
-                
+
                 Alert.alert('✅ Başarılı!', 'Takımlar otomatik olarak oluşturuldu');
               } else {
                 Alert.alert('Hata', result.error?.message || 'Takımlar oluşturulamadı');
@@ -285,7 +285,7 @@ export const TeamBuildingScreen: React.FC = () => {
                   [
                     {
                       text: 'Tamam',
-                      onPress: () => NavigationService.goBack()
+                      onPress: () => goBack()
                     }
                   ]
                 );
@@ -319,7 +319,7 @@ export const TeamBuildingScreen: React.FC = () => {
   const getPlayerPosition = (playerId: string) => {
     const player = allPlayers.find(p => p.id === playerId);
     if (!player || !match) return undefined;
-    
+
     const positions = player.sportPositions?.[match.sportType];
     return positions?.[0];
   };
@@ -328,7 +328,7 @@ export const TeamBuildingScreen: React.FC = () => {
     if (!searchQuery.trim()) {
       return allPlayers.filter(p => availablePlayers.includes(p.id));
     }
-    
+
     return allPlayers.filter(p =>
       availablePlayers.includes(p.id) &&
       `${p.name} ${p.surname}`.toLowerCase().includes(searchQuery.toLowerCase())
@@ -344,14 +344,14 @@ export const TeamBuildingScreen: React.FC = () => {
     );
   }
 
-  const sportColor = SPORT_CONFIGS[match.sportType].color;
+  const sportColor = sportThemes[match.sportType].primary;
   const maxPerTeam = Math.ceil(match.squad.totalPlayers / 2);
 
   return (
     <View style={styles.container}>
       <CustomHeader
         title="Takım Kur"
-        subtitle={`${SPORT_CONFIGS[match.sportType].emoji} ${match.title}`}
+        subtitle={`${sportThemes[match.sportType].emoji} ${match.title}`}
         showBack={true}
       />
 
@@ -382,7 +382,7 @@ export const TeamBuildingScreen: React.FC = () => {
                 Otomatik Takım Kur
               </Text>
             </TouchableOpacity>
-            
+
             <Text style={styles.algorithmHint}>
               Rastgele, rating dengeli veya pozisyon dengeli
             </Text>

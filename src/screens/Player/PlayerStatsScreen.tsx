@@ -33,9 +33,9 @@ import {
 } from '../../types/entity/types';
 import { PlayerService } from '../../services/serviceLayer/playerService';
 import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
+import { goBack, StandingsNavigationService } from '../../navigation';
 
 interface LeagueStatsDetail {
   leagueId: string;
@@ -108,7 +108,7 @@ export const PlayerStatsScreen: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!playerId) {
       Alert.alert('Hata', 'Oyuncu ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -119,7 +119,7 @@ export const PlayerStatsScreen: React.FC = () => {
       const playerData = await PlayerService.getPlayer(playerId);
       if (!playerData.success || !playerData.data) {
         Alert.alert('Hata', 'Oyuncu bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
       setPlayer(playerData.data);
@@ -130,14 +130,14 @@ export const PlayerStatsScreen: React.FC = () => {
       if (allStatsResult.success && allStatsResult.data) {
         // Build detailed league stats
         const detailedStats: LeagueStatsDetail[] = allStatsResult.data.map(stat => {
-          const winRate = stat.league.matches > 0 
-            ? (stat.league.wins / stat.league.matches) * 100 
+          const winRate = stat.league.matches > 0
+            ? (stat.league.wins / stat.league.matches) * 100
             : 0;
-          const goalsPerMatch = stat.total.matches > 0 
-            ? stat.total.goals / stat.total.matches 
+          const goalsPerMatch = stat.total.matches > 0
+            ? stat.total.goals / stat.total.matches
             : 0;
-          const assistsPerMatch = stat.total.matches > 0 
-            ? stat.total.assists / stat.total.matches 
+          const assistsPerMatch = stat.total.matches > 0
+            ? stat.total.assists / stat.total.matches
             : 0;
 
           return {
@@ -202,14 +202,18 @@ export const PlayerStatsScreen: React.FC = () => {
     }
   };
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="İstatistiklerim"
+      showMenu
+      sportType='none'
+    />
+  ); 
+
   if (loading || !player) {
     return (
       <View style={styles.container}>
-        <CustomHeader
-          title="İstatistikler"
-          showBack
-          onLeftPress={() => NavigationService.goBack()}
-        />
+        {renderHeader()}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#16a34a" />
           <Text style={styles.loadingText}>İstatistikler yükleniyor...</Text>
@@ -220,12 +224,7 @@ export const PlayerStatsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="İstatistiklerim"
-        showBack
-        onLeftPress={() => NavigationService.goBack()}
-      />
-
+      {renderHeader()}
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -684,7 +683,7 @@ export const PlayerStatsScreen: React.FC = () => {
             <View style={styles.section}>
               <TouchableOpacity
                 style={styles.standingsButton}
-                onPress={() => NavigationService.navigateToStandings(selectedLeague.leagueId)}
+                onPress={() => StandingsNavigationService.navigateToStandings(selectedLeague.leagueId)}
                 activeOpacity={0.7}
               >
                 <Trophy size={20} color="white" strokeWidth={2} />

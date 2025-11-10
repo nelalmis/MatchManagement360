@@ -2,8 +2,8 @@
 // src/store/index.ts
 // ============================================
 import { configureStore } from '@reduxjs/toolkit';
-import { 
-  persistStore, 
+import {
+  persistStore,
   persistReducer,
   FLUSH,
   REHYDRATE,
@@ -17,17 +17,19 @@ import { combineReducers } from '@reduxjs/toolkit';
 
 // Import all slices
 import authReducer from './slices/authSlice';
-import leagueReducer from './slices/leagueSlice';
-import matchReducer from './slices/matchSlice';
+// import leagueReducer from './slices/leagueSlice';
+// import matchReducer from './slices/matchSlice';
 import notificationReducer from './slices/notificationSlice';
 import playerReducer from './slices/playerSlice';
 import uiReducer from './slices/uiSlice';
+import appConfigReducer from './slices/appConfigSlice';
 
 // Root reducer with all slices
 const rootReducer = combineReducers({
   auth: authReducer,
-  league: leagueReducer,
-  match: matchReducer,
+  appConfig: appConfigReducer,
+  // league: leagueReducer,
+  // match: matchReducer,
   notification: notificationReducer,
   player: playerReducer,
   ui: uiReducer,
@@ -38,10 +40,15 @@ const persistConfig = {
   key: 'root',
   version: 1,
   storage: AsyncStorage,
-  whitelist: ['auth', 'ui'], // Persist edilecek reducer'lar
+  whitelist: ['auth', 'ui', 'appConfig'], // Persist edilecek reducer'lar
   blacklist: ['notification'], // Notification'ları persist etme
 };
-
+// ✅ Alternatif: Sadece config'i persist et, loading/error'u etme
+const appConfigPersistConfig = {
+  key: 'appConfig',
+  storage: AsyncStorage,
+  whitelist: ['config', 'lastFetched'], // Sadece bunları persist et
+};
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 
 // Configure store
@@ -56,8 +63,15 @@ export const store = configureStore({
   devTools: __DEV__, // Development'ta Redux DevTools
 });
 
-export const persistor = persistStore(store);
+// export const persistor = persistStore(store);
 
+export const persistor = persistStore(store, null, () => {
+  console.log('✅ Redux persist rehydration complete');
+  console.log('📊 Rehydrated State:', {
+    auth: store.getState().auth.isAuthenticated,
+    config: !!store.getState().appConfig.config,
+  });
+});
 // Types
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

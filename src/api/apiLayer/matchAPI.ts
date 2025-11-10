@@ -115,6 +115,7 @@ export class MatchAPI extends BaseAPI<IMatch> {
 
       const result = await this.getAll({
         where: [
+          { field: 'players.squad', operator: 'array-contains', value: playerId },
           { field: 'schedule.matchStart', operator: '>', value: now },
         ],
         orderBy: [{ field: 'schedule.matchStart', direction: 'asc' }],
@@ -135,8 +136,9 @@ export class MatchAPI extends BaseAPI<IMatch> {
         const isGuest = match.players.guests?.includes(playerId);
         const isRegistered = match.players.registered?.some(r => r.playerId === playerId);
         const isReserve = match.players.reserves?.includes(playerId);
-
-        return isInPremium || isInDirect || isGuest || isRegistered || isReserve;
+        const isInSquad = match.players.squad?.includes(playerId);
+        
+        return isInPremium || isInDirect || isGuest || isRegistered || isReserve || isInSquad;
       });
 
       return {
@@ -164,6 +166,9 @@ export class MatchAPI extends BaseAPI<IMatch> {
     // Similar to getPlayerUpcomingMatches but for all matches
     try {
       const result = await this.getAll({
+        where: [
+          { field: 'players.squad', operator: 'array-contains', value: playerId },
+        ],
         orderBy: [{ field: 'schedule.matchStart', direction: 'desc' }],
         limit: 200, // Get more to filter
       });
@@ -182,8 +187,9 @@ export class MatchAPI extends BaseAPI<IMatch> {
         const isReserve = match.players.reserves?.includes(playerId);
         const isInTeams = match.players.teams?.team1?.some(p => p.playerId === playerId) ||
           match.players.teams?.team2?.some(p => p.playerId === playerId);
+        const isInSquad = match.players.squad?.includes(playerId);
 
-        return isInPremium || isInDirect || isGuest || isRegistered || isReserve || isInTeams;
+        return isInPremium || isInDirect || isGuest || isRegistered || isReserve || isInTeams || isInSquad;
       });
 
       return {
@@ -333,7 +339,7 @@ export class MatchAPI extends BaseAPI<IMatch> {
           team1: match.players.teams.team1.filter(p => p.playerId !== playerId),
           team2: match.players.teams.team2.filter(p => p.playerId !== playerId),
         };
-      }else {
+      } else {
         updatedPlayers.teams = { team1: [], team2: [] };
       }
 

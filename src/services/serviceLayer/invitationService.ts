@@ -1422,6 +1422,38 @@ export class MatchInvitationService {
   }
 
   /**
+   * Get pending invitations for a user
+   */
+  static async getPendingInvitations(
+    userId: string
+  ): Promise<ApiResponse<IMatchInvitation[]>> {
+    try {
+      ApiLogger.log('MatchInvitationService', 'getPendingInvitations', { userId });
+
+      const result = await matchInvitationAPI.getByCreatorAndStatus(userId, InvitationStatus.ACTIVE);
+
+      if (result.success) {
+        ApiLogger.success('MatchInvitationService', 'getPendingInvitations', {
+          count: result.data?.length,
+        });
+      }
+
+      return result;
+    } catch (error: any) {
+      ApiLogger.error('MatchInvitationService', 'getPendingInvitations', error);
+      return {
+        success: false,
+        error: {
+          code: 'GET_PENDING_ERROR',
+          message: error.message || 'Bekleyen davet kodları alınırken hata oluştu',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  /**
    * Deactivate invitation
    */
   static async deactivateInvite(

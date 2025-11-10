@@ -1,5 +1,5 @@
 import { IMatch } from "../types/entity/types";
-import { IPlayer } from "../types/types";
+import { IPlayer } from "../types/entity/types";
 
 const formatPhoneNumber = (value: any) => {
     const cleaned = value.replace(/\D/g, '');

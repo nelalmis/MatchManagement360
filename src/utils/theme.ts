@@ -1,10 +1,29 @@
 // src/utils/theme.ts
 import { SportType } from '../types/entity/types';
 
+/**
+ * Her spor için varsayılan konfigürasyon
+ * UI'da emoji, renk, pozisyon listesi için kullanılır
+ */
+export interface SportConfig {
+  primary: string;            // Tema rengi (hex)
+  primaryDark: string;        // Koyu tema rengi (hex)
+  primaryLight: string;       // Açık tema rengi (hex)
+  gradient: readonly [string, string]; // Gradient renkler
+  emoji: string;              // Spor ikonu
+  background: string;       // Arka plan rengi (hex)
+  lightBackground: string;  // Açık arka plan rengi (hex)
+  label: string;             // Spor adı
+  type: SportType;           // Spor türü
+  defaultPlayers: number;     // Varsayılan oyuncu sayısı
+  defaultDuration: number;    // Varsayılan maç süresi (dk)
+  positions: string[];        // Pozisyon listesi (boş ise pozisyon yok)
+}
+
 // ============================================
 // SPORT-SPECIFIC COLOR PALETTES
 // ============================================
-export const sportThemes = {
+export const sportThemes: Record<SportType, SportConfig> = {
   Futbol: {
     primary: '#16a34a',
     primaryDark: '#15803d',
@@ -15,6 +34,9 @@ export const sportThemes = {
     lightBackground: '#dcfce7', // green-100
     label: 'Futbol',
     type: 'Futbol',
+    defaultPlayers: 10,
+    defaultDuration: 60,
+    positions: ["Kaleci", "Defans", "Orta Saha", "Forvet"],
   },
   Basketbol: {
     primary: '#f59e0b',
@@ -26,6 +48,9 @@ export const sportThemes = {
     lightBackground: '#fef3c7', // amber-100
     label: 'Basketbol',
     type: 'Basketbol',
+    defaultPlayers: 10,
+    defaultDuration: 40,
+    positions: ["Guard", "Forward", "Center"],
   },
   Voleybol: {
     primary: '#2563eb',
@@ -37,6 +62,9 @@ export const sportThemes = {
     lightBackground: '#dbeafe', // blue-100
     label: 'Voleybol',
     type: 'Voleybol',
+    defaultPlayers: 12,
+    defaultDuration: 90,
+    positions: ["Libero", "Pasör", "Smaçör", "Orta Oyuncu"],
   },
   Tenis: {
     primary: '#10b981',
@@ -48,6 +76,9 @@ export const sportThemes = {
     lightBackground: '#d1fae5', // emerald-100
     label: 'Tenis',
     type: 'Tenis',
+    defaultPlayers: 2,
+    defaultDuration: 90,
+    positions: [],
   },
   'Masa Tenisi': {
     primary: '#8b5cf6',
@@ -59,6 +90,9 @@ export const sportThemes = {
     lightBackground: '#f3e8ff', // violet-100
     label: 'Masa Tenisi',
     type: 'Masa Tenisi',
+    defaultPlayers: 2,
+    defaultDuration: 45,
+    positions: [],
   },
   Badminton: {
     primary: '#ec4899',
@@ -70,6 +104,9 @@ export const sportThemes = {
     lightBackground: '#fce7f3', // pink-100
     label: 'Badminton',
     type: 'Badminton',
+    defaultPlayers: 2,
+    defaultDuration: 45,
+    positions: [],
   },
 } as const;
 
@@ -82,23 +119,23 @@ export const commonColors = {
   success: '#10b981',
   successDark: '#059669',
   successLight: '#34d399',
-  
+
   error: '#ef4444',
   errorDark: '#dc2626',
   errorLight: '#f87171',
-  
+
   warning: '#f59e0b',
   warningDark: '#d97706',
   warningLight: '#fbbf24',
-  
+
   info: '#3b82f6',
   infoDark: '#2563eb',
   infoLight: '#60a5fa',
-  
+
   // Neutral colors
   white: '#ffffff',
   black: '#000000',
-  
+
   // Background colors
   background: {
     primary: '#ffffff',
@@ -107,7 +144,7 @@ export const commonColors = {
     dark: '#1e293b',
     overlay: 'rgba(0, 0, 0, 0.5)',
   },
-  
+
   // Text colors
   text: {
     primary: '#1e293b',
@@ -117,7 +154,7 @@ export const commonColors = {
     disabled: '#cbd5e1',
     placeholder: '#94a3b8',
   },
-  
+
   // Border colors
   border: {
     light: '#e2e8f0',
@@ -125,7 +162,7 @@ export const commonColors = {
     dark: '#94a3b8',
     focus: '#3b82f6',
   },
-  
+
   // Overlay colors
   overlay: {
     light: 'rgba(0, 0, 0, 0.1)',
@@ -133,14 +170,14 @@ export const commonColors = {
     dark: 'rgba(0, 0, 0, 0.5)',
     darker: 'rgba(0, 0, 0, 0.7)',
   },
-  
+
   // Card colors
   card: {
     background: '#ffffff',
     border: '#e2e8f0',
     hover: '#f8fafc',
   },
-  
+
   // Input colors
   input: {
     background: '#ffffff',
@@ -375,7 +412,7 @@ export const zIndex = {
  */
 export const getThemeForSport = (sport: SportType) => {
   const sportTheme = sportThemes[sport];
-  
+
   return {
     sport: sportTheme,
     colors: commonColors,
@@ -438,6 +475,10 @@ export const getSportDisplayName = (sport: SportType): string => {
   return sportThemes[sport].label;
 }
 
+export const getSportPositions = (sport: SportType): string[] => {
+  return sportThemes[sport].positions || [];
+}
+
 /**
  * Opacity ile renk oluşturur
  */
@@ -446,7 +487,7 @@ export const withOpacity = (color: string, opacity: number): string => {
   const r = parseInt(hex.substring(0, 2), 16);
   const g = parseInt(hex.substring(2, 4), 16);
   const b = parseInt(hex.substring(4, 6), 16);
-  
+
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
 
@@ -458,7 +499,7 @@ export const darkenColor = (color: string, amount: number = 0.1): string => {
   const r = Math.max(0, parseInt(hex.substring(0, 2), 16) - amount * 255);
   const g = Math.max(0, parseInt(hex.substring(2, 4), 16) - amount * 255);
   const b = Math.max(0, parseInt(hex.substring(4, 6), 16) - amount * 255);
-  
+
   return `#${Math.round(r).toString(16).padStart(2, '0')}${Math.round(g).toString(16).padStart(2, '0')}${Math.round(b).toString(16).padStart(2, '0')}`;
 };
 
@@ -470,6 +511,6 @@ export const lightenColor = (color: string, amount: number = 0.1): string => {
   const r = Math.min(255, parseInt(hex.substring(0, 2), 16) + amount * 255);
   const g = Math.min(255, parseInt(hex.substring(2, 4), 16) + amount * 255);
   const b = Math.min(255, parseInt(hex.substring(4, 6), 16) + amount * 255);
-  
+
   return `#${Math.round(r).toString(16).padStart(2, '0')}${Math.round(g).toString(16).padStart(2, '0')}${Math.round(b).toString(16).padStart(2, '0')}`;
 };

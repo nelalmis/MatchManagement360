@@ -15,13 +15,18 @@ import {
     Settings as SettingsIcon,
     ChevronRight,
     BarChart3,
-    X
+    X,
+    Plus,
+    CalendarDays,
+    Key
 } from 'lucide-react-native';
-import { NavigationService } from './NavigationService';
 import { useAuth } from '../hooks';
+import { useAppConfig } from '../hooks/useAppConfig';
+import { AuthNavigationService, TabNavigationService,  MatchNavigationService, LeagueNavigationService, SettingsNavigationService} from '.';
 
 export const SideMenuContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const { user, signOut} = useAuth();
+    const { user, signOut } = useAuth();
+    const config = useAppConfig(); // Config'i yükle
 
     const handleLogout = () => {
         Alert.alert(
@@ -36,7 +41,7 @@ export const SideMenuContent: React.FC<{ onClose: () => void }> = ({ onClose }) 
                         // Clear user data
                         await signOut();
                         onClose();
-                        NavigationService.resetToAuth();
+                        AuthNavigationService.resetToAuth();
                     },
                 },
             ]
@@ -53,41 +58,121 @@ export const SideMenuContent: React.FC<{ onClose: () => void }> = ({ onClose }) 
                     action: () => {
                         onClose();
                         setTimeout(() => {
-                            NavigationService.navigateToHomeTab();
+                            TabNavigationService.navigateToHomeTab();
                         }, 300);
                     }
                 },
-                {
-                    icon: Trophy,
-                    label: 'Liglerim',
-                    action: () => {
-                        onClose();
-                        setTimeout(() => {
-                            NavigationService.navigateToLeaguesTab();
-                        }, 300);
-                    }
-                },
+                // {
+                //     icon: Trophy,
+                //     label: 'Liglerim',
+                //     action: () => {
+                //         onClose();
+                //         setTimeout(() => {
+                //             NavigationService.navigateToLeaguesTab();
+                //         }, 300);
+                //     }
+                // },
+                // {
+                //     icon: Calendar,
+                //     label: 'Maçlarım',
+                //     action: () => {
+                //         onClose();
+                //         setTimeout(() => {
+                //             NavigationService.navigateToMyMatches();
+                //         }, 300);
+                //     }
+                // },
+                // {
+                //     icon: BarChart3,
+                //     label: 'İstatistiklerim',
+                //     action: () => {
+                //         onClose();
+                //         setTimeout(() => {
+                //             NavigationService.navigateToStandingsTab();
+                //         }, 300);
+                //     }
+                // },
+            ],
+        },
+        {
+            section: 'Maçlar',
+            items: [
                 {
                     icon: Calendar,
                     label: 'Maçlarım',
                     action: () => {
                         onClose();
                         setTimeout(() => {
-                            NavigationService.navigateToMyMatches();
+                            TabNavigationService.navigateToMatchesTab();
                         }, 300);
                     }
                 },
                 {
-                    icon: BarChart3,
-                    label: 'İstatistiklerim',
+                    icon: CalendarDays,
+                    label: 'Tüm Maçlar',
                     action: () => {
                         onClose();
                         setTimeout(() => {
-                            NavigationService.navigateToStandingsTab();
+                            MatchNavigationService.navigateToMatchList();
                         }, 300);
                     }
                 },
-            ],
+                // {
+                //     icon: Plus,
+                //     label: 'Maç Oluştur',
+                //     action: () => {
+                //         onClose();
+                //         setTimeout(() => {
+                //             MatchNavigationService.navigateToCreateFriendlyMatch();
+                //         }, 300);
+                //     }
+                // },
+                // {
+                //     icon: Key,
+                //     label: 'Kodla Katıl',
+                //     action: () => {
+                //         onClose();
+                //         setTimeout(() => {
+                //             MatchNavigationService.navigateToJoinWithCode();
+                //         }, 300);
+                //     }
+                // },
+            ]
+        },
+        {
+            section: 'Ligler',
+            items: [
+                {
+                    icon: Trophy,
+                    label: 'Liglerim',
+                    action: () => {
+                        onClose();
+                        setTimeout(() => {
+                            LeagueNavigationService.navigateToLeagueList();
+                        }, 300);
+                    }
+                },
+                // {
+                //     icon: Plus,
+                //     label: 'Lig Oluştur',
+                //     action: () => {
+                //         onClose();
+                //         setTimeout(() => {
+                //             LeagueNavigationService.navigateToCreateLeague();
+                //         }, 300);
+                //     }
+                // },
+                // {
+                //     icon: Key,
+                //     label: 'Lige Katıl',
+                //     action: () => {
+                //         onClose();
+                //         setTimeout(() => {
+                //             LeagueNavigationService.navigateToJoinWithCode();
+                //         }, 300);
+                //     }
+                // },
+            ]
         },
         {
             section: 'Hesap',
@@ -99,59 +184,59 @@ export const SideMenuContent: React.FC<{ onClose: () => void }> = ({ onClose }) 
                         onClose();
                         setTimeout(() => {
                             if (user?.id) {
-                                NavigationService.navigateToPlayer(user.id); // ✅ Düzeltildi
+                                TabNavigationService.navigateToProfileTab(); // ✅ Düzeltildi
                             }
                         }, 300);
                     }
                 },
-                {
-                    icon: Bell,
-                    label: 'Bildirimler',
-                    action: () => {
-                        onClose();
-                        setTimeout(() => {
-                            NavigationService.navigateToNotificationSettings();
-                        }, 300);
-                    }
-                },
+                // {
+                //     icon: Bell,
+                //     label: 'Bildirimler',
+                //     action: () => {
+                //         onClose();
+                //         setTimeout(() => {
+                //             SettingsNavigationService.navigateToNotificationSettings();
+                //         }, 300);
+                //     }
+                // },
                 {
                     icon: SettingsIcon,
                     label: 'Ayarlar',
                     action: () => {
                         onClose();
                         setTimeout(() => {
-                            NavigationService.navigateToSettings();
+                            SettingsNavigationService.navigateToSettings();
                         }, 300);
                     }
                 },
             ],
         },
-        {
-            section: 'Destek',
-            items: [
-                {
-                    icon: HelpCircle,
-                    label: 'Yardım',
-                    action: () => {
-                        Alert.alert('Yardım', 'Yardım sayfası yakında eklenecek');
-                    }
-                },
-                {
-                    icon: Info,
-                    label: 'Hakkında',
-                    action: () => {
-                        Alert.alert('Hakkında', 'Maç Yönetimi v1.0.0\n\nTüm hakları saklıdır.');
-                    }
-                },
-                {
-                    icon: Shield,
-                    label: 'Gizlilik',
-                    action: () => {
-                        Alert.alert('Gizlilik', 'Gizlilik politikası yakında eklenecek');
-                    }
-                },
-            ],
-        },
+        // {
+        //     section: 'Destek',
+        //     items: [
+        //         {
+        //             icon: HelpCircle,
+        //             label: 'Yardım',
+        //             action: () => {
+        //                 Alert.alert('Yardım', 'Yardım sayfası yakında eklenecek');
+        //             }
+        //         },
+        //         {
+        //             icon: Info,
+        //             label: 'Hakkında',
+        //             action: () => {
+        //                 Alert.alert('Hakkında', 'Maç Yönetimi v1.0.0\n\nTüm hakları saklıdır.');
+        //             }
+        //         },
+        //         {
+        //             icon: Shield,
+        //             label: 'Gizlilik',
+        //             action: () => {
+        //                 Alert.alert('Gizlilik', 'Gizlilik politikası yakında eklenecek');
+        //             }
+        //         },
+        //     ],
+        // },
     ];
 
     return (
@@ -240,7 +325,7 @@ export const SideMenuContent: React.FC<{ onClose: () => void }> = ({ onClose }) 
 
                 {/* Version */}
                 <View style={styles.versionContainer}>
-                    <Text style={styles.versionText}>Versiyon 1.0.0</Text>
+                    <Text style={styles.versionText}>Versiyon {config?.config?.app.version || '1.0.0'}</Text>
                 </View>
             </View>
         </View>

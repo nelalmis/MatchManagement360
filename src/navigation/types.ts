@@ -10,7 +10,7 @@ import { CompositeNavigationProp, RouteProp } from '@react-navigation/native';
 // ============================================
 export type RootStackParamList = {
   auth: NavigatorScreenParams<AuthStackParamList>;
-  main: undefined;
+  main: NavigatorScreenParams<MainTabParamList>;
 };
 
 // ============================================
@@ -33,7 +33,11 @@ export type AuthStackParamList = {
 // ============================================
 export type MainTabParamList = {
   homeTab: NavigatorScreenParams<HomeStackParamList>;
-  leaguesTab: NavigatorScreenParams<LeaguesStackParamList>;
+  // leaguesTab: NavigatorScreenParams<LeaguesStackParamList>;
+  matchFlow: undefined; // Temporary placeholder for Match Flow
+  myMatches: undefined; // Temporary placeholder for My Matches
+  leagueFlow: undefined; // Temporary placeholder for League Flow
+  settingsFlow: undefined; // Temporary placeholder for Settings Flow
   matchesTab: NavigatorScreenParams<MatchesStackParamList>;
   statsTab: NavigatorScreenParams<StatsStackParamList>;
   profileTab: NavigatorScreenParams<ProfileStackParamList>;
@@ -51,7 +55,7 @@ export type HomeStackParamList = {
 // ============================================
 export type LeaguesStackParamList = {
   leagueList: undefined;
-  leagueDetail: { leagueId: string,updated?:boolean };
+  leagueDetail: { leagueId: string, updated?: boolean };
   createLeague: undefined;
   editLeague: { leagueId: string };
   fixtureList: { leagueId: string };
@@ -173,7 +177,7 @@ export type FixtureDetailRouteProp = RouteProp<LeaguesStackParamList, 'fixtureDe
 export type CreateFixtureRouteProp = RouteProp<LeaguesStackParamList, 'createFixture'>;
 export type EditFixtureRouteProp = RouteProp<LeaguesStackParamList, 'editFixture'>;
 export type ManageLeagueInvitationsRouteProp = RouteProp<LeaguesStackParamList, 'manageLeagueInvitations'>;
-export type CreateLeagueInvitationRouteProp = RouteProp<LeaguesStackParamList, 'createLeagueInvitation'>; 
+export type CreateLeagueInvitationRouteProp = RouteProp<LeaguesStackParamList, 'createLeagueInvitation'>;
 export type JoinLeagueRouteProp = RouteProp<LeaguesStackParamList, 'joinLeague'>;
 
 // Match Routes

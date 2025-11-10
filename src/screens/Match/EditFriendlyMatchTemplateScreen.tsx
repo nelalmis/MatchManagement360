@@ -26,11 +26,12 @@ import {
   Clock,
 } from 'lucide-react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
-import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
 import { FriendlyMatchConfigService } from '../../services/serviceLayer/friendlyMatchConfigService';
-import { SportType, SPORT_CONFIGS, IFriendlyMatchConfig } from '../../types/entity/types';
+import { SportType, IFriendlyMatchConfig } from '../../types/entity/types';
 import { useAuth } from '../../hooks';
+import { sportThemes } from '../../utils/theme';
+import { goBack } from '../../navigation';
 
 type EditTemplateRouteProp = RouteProp<{
   params: {
@@ -70,7 +71,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
       loadTemplate();
     } else {
       Alert.alert('Hata', 'Template ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
     }
   }, [templateId]);
 
@@ -83,7 +84,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
       
       if (!result.success || !result.data) {
         Alert.alert('Hata', 'Şablon bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -113,7 +114,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
     } catch (error) {
       console.error('Error loading template:', error);
       Alert.alert('Hata', 'Şablon yüklenirken bir hata oluştu');
-      NavigationService.goBack();
+      goBack();
     } finally {
       setLoading(false);
     }
@@ -200,7 +201,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
           text: 'Tamam',
           onPress: () => {
             eventManager.emit(Events.TEMPLATE_UPDATED);
-            NavigationService.goBack();
+            goBack();
           },
         },
       ]);
@@ -235,7 +236,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
 
               Alert.alert('Başarılı', 'Şablon silindi');
               eventManager.emit(Events.TEMPLATE_UPDATED);
-              NavigationService.goBack();
+              goBack();
             } catch (error: any) {
               console.error('Error deleting template:', error);
               Alert.alert('Hata', error.message || 'Şablon silinirken bir hata oluştu');
@@ -246,7 +247,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
     );
   };
 
-  const sportColor = SPORT_CONFIGS[selectedSport].color;
+  const sportColor = sportThemes[selectedSport].primary;
 
   if (loading) {
     return (
@@ -262,7 +263,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: sportColor }]}>
         <TouchableOpacity 
-          onPress={() => NavigationService.goBack()} 
+          onPress={() => goBack()} 
           style={styles.headerButton}
         >
           <ArrowLeft size={24} color="white" strokeWidth={2} />
@@ -271,7 +272,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Şablonu Düzenle</Text>
           <Text style={styles.headerSubtitle}>
-            {SPORT_CONFIGS[selectedSport].emoji} {SPORT_CONFIGS[selectedSport].name}
+            {sportThemes[selectedSport].emoji} {sportThemes[selectedSport].label}
           </Text>
         </View>
 
@@ -308,7 +309,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.sportScrollContent}
           >
-            {(Object.keys(SPORT_CONFIGS) as SportType[]).map((sport) => (
+            {(Object.keys(sportThemes) as SportType[]).map((sport) => (
               <TouchableOpacity
                 key={sport}
                 style={[
@@ -317,22 +318,22 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
                   {
                     borderColor:
                       selectedSport === sport
-                        ? SPORT_CONFIGS[sport].color
+                        ? sportThemes[sport].primary
                         : '#E5E7EB',
                   },
                 ]}
                 onPress={() => setSelectedSport(sport)}
               >
-                <Text style={styles.sportEmoji}>{SPORT_CONFIGS[sport].emoji}</Text>
+                <Text style={styles.sportEmoji}>{sportThemes[sport].emoji}</Text>
                 <Text
                   style={[
                     styles.sportName,
                     selectedSport === sport && {
-                      color: SPORT_CONFIGS[sport].color,
+                      color: sportThemes[sport].primary,
                     },
                   ]}
                 >
-                  {SPORT_CONFIGS[sport].name}
+                  {sportThemes[sport].label}
                 </Text>
               </TouchableOpacity>
             ))}

@@ -25,12 +25,11 @@ import {
   AlertCircle,
   Save,
 } from 'lucide-react-native';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
-import { SPORT_CONFIGS, SportType, ILeague } from '../../types/entity/types';
+import { SportType, ILeague } from '../../types/entity/types';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
-import { EditLeagueRouteProp, useRoute } from '../../navigation';
+import { EditLeagueRouteProp, goBack, LeagueNavigationService, useRoute } from '../../navigation';
 import { CustomHeader } from '../../components/CustomHeader';
 
 // ============================================
@@ -101,12 +100,12 @@ export const EditLeagueScreen: React.FC = () => {
         setFriendlyAffectsStandings(leagueData.settings.friendlyAffectsStandings);
       } else {
         Alert.alert('Hata', result.error?.message || 'Lig bilgileri yüklenemedi');
-        NavigationService.goBack();
+        goBack();
       }
     } catch (error) {
       console.error('Error loading league:', error);
       Alert.alert('Hata', 'Lig bilgileri yüklenirken bir hata oluştu');
-      NavigationService.goBack();
+      goBack();
     } finally {
       setLoading(false);
     }
@@ -224,7 +223,7 @@ export const EditLeagueScreen: React.FC = () => {
   const handleSaveGeneralSettings = async () => {
     if (!user?.id || !league) return;
     if (!hasChanges) {
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -244,7 +243,7 @@ export const EditLeagueScreen: React.FC = () => {
           [
             {
               text: 'Lig Sayfasına Dön',
-              onPress: () => NavigationService.goBack(),
+              onPress: () => goBack(),
             },
           ]
         );
@@ -309,7 +308,7 @@ export const EditLeagueScreen: React.FC = () => {
         [
           {
             text: 'Lig Sayfasına Dön',
-            onPress: () => NavigationService.goBack(),
+            onPress: () => goBack(),
           },
         ]
       );
@@ -362,11 +361,11 @@ export const EditLeagueScreen: React.FC = () => {
         'Değişiklikleriniz kaydedilmedi. Çıkmak istediğinize emin misiniz?',
         [
           { text: 'Kalmaya Devam Et', style: 'cancel' },
-          { text: 'Çık', onPress: () => NavigationService.goBack(), style: 'destructive' },
+          { text: 'Çık', onPress: () => goBack(), style: 'destructive' },
         ]
       );
     } else {
-      NavigationService.goBack();
+      goBack();
     }
   };
 

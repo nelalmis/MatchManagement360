@@ -39,7 +39,7 @@ interface CustomHeaderProps {
   subtitle?: string;
 
   // Sport icon - Branş ikonu göstermek için
-  sportType?: SportType;
+  sportType?: SportType | 'none';
   showIcon?: boolean;
   customIcon?: React.ComponentType<any> | string;
 
@@ -123,17 +123,15 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
 
   // Sport config'den icon ve renk al - useMemo ile optimize et
   const SportIcon = useMemo(() => 
-    customIcon ? customIcon : (sportType ? getSportEmoji(sportType) || null : null),
+    customIcon ? customIcon : (sportType && sportType !== 'none' ? getSportEmoji(sportType) || null : null),
     [customIcon, sportType]
   );
   // Final background color'u useMemo ile hesapla
   const finalBackgroundColor = useMemo(() => {
-    if (sportType && backgroundColor === '#16a34a') {
+    if (sportType && sportType !== 'none' && backgroundColor === '#16a34a') {
       const sportColor = getSportPrimaryColor(sportType);
-      console.log("FinalColor=", sportColor || backgroundColor)
       return sportColor || backgroundColor;
     }
-    console.log("FinalColor=", backgroundColor);
     return backgroundColor;
   }, [sportType, backgroundColor]);
 

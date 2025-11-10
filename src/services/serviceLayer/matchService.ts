@@ -9,7 +9,6 @@ import { playerAPI } from '../../api/apiLayer/playerAPI';
 import { standingsAPI } from '../../api/apiLayer/standingsAPI';
 import { playerStatsAPI } from '../../api/apiLayer/playerStatsAPI';
 import { notificationAPI } from '../../api/apiLayer/notificationAPI';
-import { matchInvitationsAPI } from '../../api/apiLayer/matchInvitationsAPI';
 import { matchRatingAPI } from '../../api/apiLayer/matchRatingAPI';
 import { ApiResponse } from '../../api/base/BaseAPI';
 import {
@@ -23,6 +22,9 @@ import {
 } from '../../types/entity/types';
 import { ApiLogger } from '../../api/base/ApiLogger';
 import { calculateRegistrationCloseTime, calculateRegistrationOpenTime } from '../../types/entity/registrationScheduleType';
+import { MatchInvitationService } from './invitationService';
+import { matchInvitationAPI, MatchInvitationAPI } from '../../api/apiLayer/invitationAPI';
+import { InvitationStatus } from '../../types/entity/invitation';
 
 export class MatchService {
   // ============================================
@@ -143,6 +145,7 @@ export class MatchService {
           guests: [],
           registered: [],
           reserves: [],
+          squad: [],
         },
         permissions: {
           organizers: fixture.permissions.organizers,
@@ -190,322 +193,324 @@ export class MatchService {
   /**
  * Create Friendly Match (with invitation code system)
  */
-static async createFriendlyMatch(data: {
-  organizerId: string;
-  title: string;
-  sportType: SportType;
-  matchStartTime: Date; // ✅ matchDate → matchStartTime (daha açık)
-  matchDuration?: number; // ✅ Optional, default 90
-  location: string; // ✅ venue → location (daha basit)
-  staffPlayerCount: number; // ✅ squad → staffPlayerCount
-  reservePlayerCount: number; // ✅ squad → reservePlayerCount
-  pricePerPlayer?: number;
-  paymentInfo?: {
-    iban?: string;
-    accountName?: string;
-  };
-  linkedLeagueId?: string;
-  description?: string;
-  
-  // ✅ YENİ: Simplified friendly settings
-  isPublic: boolean;
-  affectsStats?: boolean;
-  affectsStandings?: boolean;
-  
-  // ✅ YENİ: Invitation code settings (replaces invitedPlayerIds)
-  enableInvitationCode?: boolean; // Varsayılan: true (özel maçlar için)
-  invitationCodeExpiry?: number; // Saat cinsinden (varsayılan: 48)
-  invitationCodeMaxUses?: number; // Maksimum kullanım
-}): Promise<ApiResponse<IMatch>> {
-  try {
-    ApiLogger.log('MatchService', 'createFriendlyMatch', {
-      organizerId: data.organizerId,
-      title: data.title,
-      sportType: data.sportType,
-      isPublic: data.isPublic,
-    });
+  static async createFriendlyMatch(data: {
+    organizerId: string;
+    title: string;
+    sportType: SportType;
+    matchStartTime: Date; // ✅ matchDate → matchStartTime (daha açık)
+    matchDuration?: number; // ✅ Optional, default 90
+    location: string; // ✅ venue → location (daha basit)
+    staffPlayerCount: number; // ✅ squad → staffPlayerCount
+    reservePlayerCount: number; // ✅ squad → reservePlayerCount
+    pricePerPlayer?: number;
+    paymentInfo?: {
+      iban?: string;
+      accountName?: string;
+    };
+    linkedLeagueId?: string;
+    description?: string;
 
-    // ============================================
-    // 1. VALIDATION
-    // ============================================
+    // ✅ YENİ: Simplified friendly settings
+    isPublic: boolean;
+    affectsStats?: boolean;
+    affectsStandings?: boolean;
 
-    // Validate organizer exists
-    const organizerCheck = await playerAPI.exists(data.organizerId);
-    if (!organizerCheck.success || !organizerCheck.data) {
-      return {
-        success: false,
-        error: {
-          code: 'ORGANIZER_NOT_FOUND',
-          message: 'Organizatör bulunamadı',
-          statusCode: 404,
-        },
-      };
-    }
+    // ✅ YENİ: Invitation code settings (replaces invitedPlayerIds)
+    enableInvitationCode?: boolean; // Varsayılan: true (özel maçlar için)
+    invitationCodeExpiry?: number; // Saat cinsinden (varsayılan: 48)
+    invitationCodeMaxUses?: number; // Maksimum kullanım
+  }): Promise<ApiResponse<IMatch>> {
+    try {
+      ApiLogger.log('MatchService', 'createFriendlyMatch', {
+        organizerId: data.organizerId,
+        title: data.title,
+        sportType: data.sportType,
+        isPublic: data.isPublic,
+      });
 
-    // Validate staff count
-    if (data.staffPlayerCount < 2) {
-      return {
-        success: false,
-        error: {
-          code: 'INVALID_STAFF_COUNT',
-          message: 'Kadro sayısı en az 2 olmalı',
-          statusCode: 400,
-        },
-      };
-    }
+      // ============================================
+      // 1. VALIDATION
+      // ============================================
 
-    // Validate reserve count
-    if (data.reservePlayerCount < 0) {
-      return {
-        success: false,
-        error: {
-          code: 'INVALID_RESERVE_COUNT',
-          message: 'Yedek sayısı 0 veya daha fazla olmalı',
-          statusCode: 400,
-        },
-      };
-    }
-
-    // ============================================
-    // 2. CALCULATE TIMES
-    // ============================================
-
-    const matchDuration = data.matchDuration || 90; // Default 90 minutes
-    const matchStart = new Date(data.matchStartTime.getTime());
-    if (isNaN(matchStart.getTime())) {
-      return {
-        success: false,
-        error: {
-          code: 'INVALID_MATCH_START',
-          message: 'Geçersiz maç başlangıç zamanı',
-          statusCode: 400,
-        },
-      };
-    }
-    const matchEnd = new Date(matchStart.getTime());
-    matchEnd.setMinutes(matchEnd.getMinutes() + matchDuration);
-
-    // Registration opens 24 hours before match
-    const registrationStart = new Date(matchStart.getTime());
-    registrationStart.setHours(registrationStart.getHours() - 24);
-
-    // Registration closes 30 minutes before match
-    const registrationEnd = new Date(matchStart.getTime());
-    registrationEnd.setMinutes(registrationEnd.getMinutes() - 30);
-
-    // ============================================
-    // 3. GENERATE INVITATION CODE (if private)
-    // ============================================
-
-    let invitationCode: IMatch['invitationCode'] | undefined;
-    
-    if (!data.isPublic && data.enableInvitationCode !== false) {
-      try {
-        const code = await this.generateUniqueCode();
-        
-        const expiryHours = data.invitationCodeExpiry || 48; // Default 48 hours
-        const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
-        
-        invitationCode = {
-          code,
-          enabled: true,
-          expiresAt,
-          maxUses: data.invitationCodeMaxUses || data.staffPlayerCount,
-          currentUses: 0,
-          createdAt: new Date(),
-          createdBy: data.organizerId,
-        };
-
-        ApiLogger.log('MatchService', 'createFriendlyMatch', {
-          invitationCode: code,
-          expiresAt,
-          maxUses: invitationCode.maxUses,
-        });
-      } catch (error) {
-        ApiLogger.error('MatchService', 'createFriendlyMatch - code generation', error);
+      // Validate organizer exists
+      const organizerCheck = await playerAPI.exists(data.organizerId);
+      if (!organizerCheck.success || !organizerCheck.data) {
         return {
           success: false,
           error: {
-            code: 'CODE_GENERATION_ERROR',
-            message: 'Davet kodu oluşturulamadı',
-            statusCode: 500,
+            code: 'ORGANIZER_NOT_FOUND',
+            message: 'Organizatör bulunamadı',
+            statusCode: 404,
           },
         };
       }
+
+      // Validate staff count
+      if (data.staffPlayerCount < 2) {
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_STAFF_COUNT',
+            message: 'Kadro sayısı en az 2 olmalı',
+            statusCode: 400,
+          },
+        };
+      }
+
+      // Validate reserve count
+      if (data.reservePlayerCount < 0) {
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_RESERVE_COUNT',
+            message: 'Yedek sayısı 0 veya daha fazla olmalı',
+            statusCode: 400,
+          },
+        };
+      }
+
+      // ============================================
+      // 2. CALCULATE TIMES
+      // ============================================
+
+      const matchDuration = data.matchDuration || 90; // Default 90 minutes
+      const matchStart = new Date(data.matchStartTime.getTime());
+      if (isNaN(matchStart.getTime())) {
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_MATCH_START',
+            message: 'Geçersiz maç başlangıç zamanı',
+            statusCode: 400,
+          },
+        };
+      }
+      const matchEnd = new Date(matchStart.getTime());
+      matchEnd.setMinutes(matchEnd.getMinutes() + matchDuration);
+
+      // Registration opens 24 hours before match
+      const registrationStart = new Date(matchStart.getTime());
+      registrationStart.setHours(registrationStart.getHours() - 24);
+
+      // Registration closes 30 minutes before match
+      const registrationEnd = new Date(matchStart.getTime());
+      registrationEnd.setMinutes(registrationEnd.getMinutes() - 30);
+
+      // ============================================
+      // 4. CREATE MATCH DATA
+      // ============================================
+
+      const matchData: Omit<IMatch, 'id'> = {
+        type: MatchType.FRIENDLY,
+        organizerId: data.organizerId,
+        linkedLeagueId: data.linkedLeagueId,
+        title: data.title,
+        sportType: data.sportType,
+        description: data.description,
+
+        schedule: {
+          registrationStart,
+          registrationEnd,
+          matchStart,
+          matchEnd,
+        },
+
+        squad: {
+          totalPlayers: data.staffPlayerCount,
+          reservePlayers: data.reservePlayerCount,
+          minPlayersToStart: Math.ceil(data.staffPlayerCount / 2),
+        },
+
+        venue: {
+          location: data.location,
+          pricePerPlayer: data.pricePerPlayer || 0,
+          payment: data.paymentInfo || {
+            iban: '',
+            accountName: '',
+          },
+        },
+
+        players: {
+          premium: {
+            mode: 'custom',
+            inherited: [],
+            overrides: [],
+          },
+          direct: {
+            mode: 'custom',
+            inherited: [],
+            overrides: [data.organizerId], // Organizer auto-added
+          },
+          guests: [],
+          registered: [],
+          squad: [],
+          reserves: [],
+        },
+
+        permissions: {
+          organizers: [data.organizerId],
+          teamBuilders: [data.organizerId],
+        },
+
+        friendlySettings: {
+          isPublic: data.isPublic,
+          affectsStats: data.affectsStats ?? true,
+          affectsStandings: data.affectsStandings ?? false,
+        },
+
+        payments: [],
+        status: MatchStatus.CREATED,
+        totalComments: 0,
+        totalRatings: 0,
+        createdAt: new Date().toISOString(),
+      };
+
+      // ============================================
+      // 5. CREATE MATCH
+      // ============================================
+
+      const result = await matchAPI.create(matchData);
+
+      if (!result.success || !result.data) {
+        return result;
+      }
+
+      const matchId = result.data.id!;
+
+      // ============================================
+      // 3. GENERATE INVITATION CODE (if private)
+      // ============================================
+      let invitationCode: { code: string; expiresAt?: Date; maxUses?: number } | undefined;
+      if (!data.isPublic && data.enableInvitationCode !== false) {
+        try {
+          const expiryHours = data.invitationCodeExpiry || 48; // Default 48 hours
+
+          const resultInvitation = await MatchInvitationService.generateInvite({
+            matchId: matchId,
+            creatorId: data.organizerId,
+            matchType: MatchType.FRIENDLY,
+            description: data.description?.trim() || undefined,
+            //tags: tags.trim() ? tags.split(',').map((t) => t.trim()) : undefined,
+            // allowGuests,
+            registrationType: 'any',
+            // teamAssignment,
+            maxPlayersPerInvite: parseInt(data.invitationCodeMaxUses?.toString() || data.staffPlayerCount.toString()),
+            expiresInHours: expiryHours,
+            maxUses: parseInt(data.invitationCodeMaxUses?.toString() || data.staffPlayerCount.toString()),
+          });
+          const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+          if (!resultInvitation.success || !resultInvitation.data) {
+            throw new Error('Davet kodu oluşturulamadı');
+          }
+          ApiLogger.log('MatchService', 'createFriendlyMatch', {
+            invitationCode: resultInvitation.data.code,
+            expiresAt,
+            maxUses: resultInvitation.data.maxUses,
+          });
+          invitationCode = { code: resultInvitation.data.code, expiresAt, maxUses: resultInvitation.data.maxUses };
+          result.data.invitationCode = resultInvitation.data.code;
+        } catch (error) {
+          ApiLogger.error('MatchService', 'createFriendlyMatch - code generation', error);
+          return {
+            success: false,
+            error: {
+              code: 'CODE_GENERATION_ERROR',
+              message: 'Davet kodu oluşturulamadı',
+              statusCode: 500,
+            },
+          };
+        }
+      }
+
+      // ============================================
+      // 6. AUTO-OPEN REGISTRATION
+      // ============================================
+
+      try {
+        await this.openRegistration(matchId);
+        ApiLogger.success('MatchService', 'createFriendlyMatch - registration opened', {
+          matchId
+        });
+      } catch (error) {
+        ApiLogger.error('MatchService', 'createFriendlyMatch - open registration failed', error);
+        // Continue anyway, match is created
+      }
+
+      // ============================================
+      // 7. SUCCESS
+      // ============================================
+
+      ApiLogger.success('MatchService', 'createFriendlyMatch', {
+        matchId,
+        invitationCode: invitationCode?.code,
+        isPublic: data.isPublic,
+      });
+
+      return result;
+
+    } catch (error: any) {
+      ApiLogger.error('MatchService', 'createFriendlyMatch', error);
+      return {
+        success: false,
+        error: {
+          code: 'CREATE_FRIENDLY_ERROR',
+          message: error.message || 'Dostluk maçı oluşturulurken hata oluştu',
+          details: error,
+          statusCode: 500,
+        },
+      };
     }
+  }
 
-    // ============================================
-    // 4. CREATE MATCH DATA
-    // ============================================
+  // ============================================
+  // DEPRECATION NOTICE FOR OLD METHOD
+  // ============================================
 
-    const matchData: Omit<IMatch, 'id'> = {
-      type: MatchType.FRIENDLY,
+  /**
+   * @deprecated Use createFriendlyMatch with new invitation code system
+   * 
+   * Old method signature for backward compatibility:
+   * - invitedPlayerIds → Now use invitation code
+   * - venue object → Now simplified to location + payment
+   * - squad object → Now staffPlayerCount + reservePlayerCount
+   */
+  static async createFriendlyMatchLegacy(data: {
+    organizerId: string;
+    title: string;
+    sportType: SportType;
+    matchDate: Date;
+    matchDuration: number;
+    venue: IMatch['venue'];
+    squad: IMatch['squad'];
+    linkedLeagueId?: string;
+    description?: string;
+    friendlySettings?: {
+      isPublic?: boolean;
+      invitedPlayerIds?: string[]; // ❌ DEPRECATED
+      affectsStats?: boolean;
+      affectsStandings?: boolean;
+    };
+  }): Promise<ApiResponse<IMatch>> {
+    // Convert to new format
+    return this.createFriendlyMatch({
       organizerId: data.organizerId,
-      linkedLeagueId: data.linkedLeagueId,
       title: data.title,
       sportType: data.sportType,
+      matchStartTime: data.matchDate,
+      matchDuration: data.matchDuration,
+      location: data.venue?.location || '',
+      staffPlayerCount: data.squad.totalPlayers,
+      reservePlayerCount: data.squad.reservePlayers,
+      pricePerPlayer: data.venue?.pricePerPlayer,
+      paymentInfo: data.venue?.payment,
+      linkedLeagueId: data.linkedLeagueId,
       description: data.description,
-      
-      schedule: {
-         registrationStart,
-        registrationEnd,
-        matchStart,
-        matchEnd,
-      },
-      
-      squad: {
-        totalPlayers: data.staffPlayerCount,
-        reservePlayers: data.reservePlayerCount,
-        minPlayersToStart: Math.ceil(data.staffPlayerCount / 2),
-      },
-      
-      venue: {
-        location: data.location,
-        pricePerPlayer: data.pricePerPlayer || 0,
-        payment: data.paymentInfo   || {
-          iban: '',
-          accountName: '',
-        },
-      },
-      
-      players: {
-        premium: {
-          mode: 'custom',
-          inherited: [],
-          overrides: [],
-        },
-        direct: {
-          mode: 'custom',
-          inherited: [],
-          overrides: [data.organizerId], // Organizer auto-added
-        },
-        guests: [],
-        registered: [],
-        reserves: [],
-      },
-      
-      permissions: {
-        organizers: [data.organizerId],
-        teamBuilders: [data.organizerId],
-      },
-      
-      friendlySettings: {
-        isPublic: data.isPublic,
-        affectsStats: data.affectsStats ?? true,
-        affectsStandings: data.affectsStandings ?? false,
-      },
-      
-      // ✅ NEW: Invitation code
-      invitationCode,
-      
-      payments: [],
-      status: MatchStatus.CREATED,
-      totalComments: 0,
-      totalRatings: 0,
-      createdAt: new Date().toISOString(),
-    };
-
-    // ============================================
-    // 5. CREATE MATCH
-    // ============================================
-
-    const result = await matchAPI.create(matchData);
-
-    if (!result.success || !result.data) {
-      return result;
-    }
-
-    const matchId = result.data.id!;
-
-    // ============================================
-    // 6. AUTO-OPEN REGISTRATION
-    // ============================================
-
-    try {
-      await this.openRegistration(matchId);
-      ApiLogger.success('MatchService', 'createFriendlyMatch - registration opened', {
-        matchId
-      });
-    } catch (error) {
-      ApiLogger.error('MatchService', 'createFriendlyMatch - open registration failed', error);
-      // Continue anyway, match is created
-    }
-
-    // ============================================
-    // 7. SUCCESS
-    // ============================================
-
-    ApiLogger.success('MatchService', 'createFriendlyMatch', {
-      matchId,
-      invitationCode: invitationCode?.code,
-      isPublic: data.isPublic,
+      isPublic: data.friendlySettings?.isPublic ?? true,
+      affectsStats: data.friendlySettings?.affectsStats,
+      affectsStandings: data.friendlySettings?.affectsStandings,
+      enableInvitationCode: !data.friendlySettings?.isPublic,
     });
-
-    return result;
-
-  } catch (error: any) {
-    ApiLogger.error('MatchService', 'createFriendlyMatch', error);
-    return {
-      success: false,
-      error: {
-        code: 'CREATE_FRIENDLY_ERROR',
-        message: error.message || 'Dostluk maçı oluşturulurken hata oluştu',
-        details: error,
-        statusCode: 500,
-      },
-    };
   }
-}
-
-// ============================================
-// DEPRECATION NOTICE FOR OLD METHOD
-// ============================================
-
-/**
- * @deprecated Use createFriendlyMatch with new invitation code system
- * 
- * Old method signature for backward compatibility:
- * - invitedPlayerIds → Now use invitation code
- * - venue object → Now simplified to location + payment
- * - squad object → Now staffPlayerCount + reservePlayerCount
- */
-static async createFriendlyMatchLegacy(data: {
-  organizerId: string;
-  title: string;
-  sportType: SportType;
-  matchDate: Date;
-  matchDuration: number;
-  venue: IMatch['venue'];
-  squad: IMatch['squad'];
-  linkedLeagueId?: string;
-  description?: string;
-  friendlySettings?: {
-    isPublic?: boolean;
-    invitedPlayerIds?: string[]; // ❌ DEPRECATED
-    affectsStats?: boolean;
-    affectsStandings?: boolean;
-  };
-}): Promise<ApiResponse<IMatch>> {
-  // Convert to new format
-  return this.createFriendlyMatch({
-    organizerId: data.organizerId,
-    title: data.title,
-    sportType: data.sportType,
-    matchStartTime: data.matchDate,
-    matchDuration: data.matchDuration,
-    location: data.venue?.location || '',
-    staffPlayerCount: data.squad.totalPlayers,
-    reservePlayerCount: data.squad.reservePlayers,
-    pricePerPlayer: data.venue?.pricePerPlayer,
-    paymentInfo: data.venue?.payment,
-    linkedLeagueId: data.linkedLeagueId,
-    description: data.description,
-    isPublic: data.friendlySettings?.isPublic ?? true,
-    affectsStats: data.friendlySettings?.affectsStats,
-    affectsStandings: data.friendlySettings?.affectsStandings,
-    enableInvitationCode: !data.friendlySettings?.isPublic,
-  });
-}
 
   // ============================================
   // 2. MATCH LIFECYCLE (STATUS MANAGEMENT)
@@ -541,7 +546,7 @@ static async createFriendlyMatchLegacy(data: {
 
       // Check if registration time is valid
       const now = new Date();
-      if (match.type ===MatchType.LEAGUE && now > match.schedule.registrationEnd) {
+      if (match.type === MatchType.LEAGUE && now > match.schedule.registrationEnd) {
         return {
           success: false,
           error: {
@@ -1021,7 +1026,7 @@ static async createFriendlyMatchLegacy(data: {
         await this.notifyMatchCancelled(match, reason);
 
         // Expire pending invitations
-        await matchInvitationsAPI.expirePendingInvitations(matchId);
+        await matchInvitationAPI.updateStatusByTarget(matchId, InvitationStatus.DISABLED);
 
         ApiLogger.success('MatchService', 'cancelMatch', { matchId });
       }
@@ -2707,7 +2712,7 @@ static async createFriendlyMatchLegacy(data: {
         expiresAt: match.schedule.registrationEnd.toISOString(),
       }));
 
-      await matchInvitationsAPI.createBulkInvitations(invitations);
+      //await matchInvitationsAPI.createBulkInvitations(invitations);
 
       // Send notifications
       for (const playerId of playerIds) {
@@ -2969,7 +2974,7 @@ static async createFriendlyMatchLegacy(data: {
       // Delete related data
       await Promise.all([
         // Delete invitations
-        matchInvitationsAPI.deleteByMatchId(matchId),
+        matchInvitationAPI.deleteByTarget(matchId),
 
         // Delete ratings
         matchRatingAPI.deleteMatchRatings(matchId),
@@ -3588,793 +3593,377 @@ static async createFriendlyMatchLegacy(data: {
     }
   }
   // src/services/serviceLayer/matchService.ts
-// 📄 PAGINATION METHODS
+  // 📄 PAGINATION METHODS
 
-/**
- * Get fixture matches with pagination
- */
-static async getFixtureMatchesPaginated(
-  fixtureId: string,
-  pageSize: number = 20,
-  lastDoc?: any
-): Promise<ApiResponse<{
-  data: IMatch[];
-  lastDoc?: any;
-  hasMore: boolean;
-}>> {
-  try {
-    const result = await matchAPI.getPaginated(
-      {
-        where: [{ field: 'fixtureId', operator: '==', value: fixtureId }],
-        orderBy: [{ field: 'schedule.matchStart', direction: 'desc' }],
-      },
-      {
-        pageSize,
-        lastDoc,
-      }
-    );
-
-    if (!result.success || !result.data) {
-      return {
-        success: false,
-        error: result.error || {
-          code: 'GET_MATCHES_ERROR',
-          message: 'Maçlar alınamadı',
-          statusCode: 500
+  /**
+   * Get fixture matches with pagination
+   */
+  static async getFixtureMatchesPaginated(
+    fixtureId: string,
+    pageSize: number = 20,
+    lastDoc?: any
+  ): Promise<ApiResponse<{
+    data: IMatch[];
+    lastDoc?: any;
+    hasMore: boolean;
+  }>> {
+    try {
+      const result = await matchAPI.getPaginated(
+        {
+          where: [{ field: 'fixtureId', operator: '==', value: fixtureId }],
+          orderBy: [{ field: 'schedule.matchStart', direction: 'desc' }],
+        },
+        {
+          pageSize,
+          lastDoc,
         }
-      };
-    }
+      );
 
-    return {
-      success: true,
-      data: {
-        data: result.data.data,
-        lastDoc: result.data.lastDoc,
-        hasMore: result.data.hasMore,
+      if (!result.success || !result.data) {
+        return {
+          success: false,
+          error: result.error || {
+            code: 'GET_MATCHES_ERROR',
+            message: 'Maçlar alınamadı',
+            statusCode: 500
+          }
+        };
       }
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error: {
-        code: 'GET_FIXTURE_MATCHES_ERROR',
-        message: error.message || 'Fikstür maçları alınamadı',
-        details: error,
-        statusCode: 500
-      }
-    };
-  }
-}
 
-/**
- * Get league matches with pagination
- */
-static async getLeagueMatchesPaginated(
-  leagueId: string,
-  pageSize: number = 20,
-  lastDoc?: any
-): Promise<ApiResponse<{
-  data: IMatch[];
-  lastDoc?: any;
-  hasMore: boolean;
-}>> {
-  try {
-    const result = await matchAPI.getPaginated(
-      {
-        where: [{ field: 'leagueId', operator: '==', value: leagueId }],
-        orderBy: [{ field: 'schedule.matchStart', direction: 'desc' }],
-      },
-      {
-        pageSize,
-        lastDoc,
-      }
-    );
-
-    if (!result.success || !result.data) {
-      return {
-        success: false,
-        error: result.error || {
-          code: 'GET_MATCHES_ERROR',
-          message: 'Maçlar alınamadı',
-          statusCode: 500
-        }
-      };
-    }
-
-    return {
-      success: true,
-      data: {
-        data: result.data.data,
-        lastDoc: result.data.lastDoc,
-        hasMore: result.data.hasMore,
-      }
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error: {
-        code: 'GET_LEAGUE_MATCHES_ERROR',
-        message: error.message || 'Lig maçları alınamadı',
-        details: error,
-        statusCode: 500
-      }
-    };
-  }
-}
-
-/**
- * Get player upcoming matches with pagination
- */
-static async getPlayerUpcomingMatchesPaginated(
-  playerId: string,
-  pageSize: number = 20,
-  lastDoc?: any
-): Promise<ApiResponse<{
-  data: IMatch[];
-  lastDoc?: any;
-  hasMore: boolean;
-}>> {
-  try {
-    const now = new Date().toISOString();
-
-    // Get paginated upcoming matches
-    const result = await matchAPI.getPaginated(
-      {
-        where: [
-          { field: 'schedule.matchStart', operator: '>', value: now },
-        ],
-        orderBy: [{ field: 'schedule.matchStart', direction: 'asc' }],
-      },
-      {
-        pageSize: pageSize * 2, // Get more to filter client-side
-        lastDoc,
-      }
-    );
-
-    if (!result.success || !result.data) {
-      return {
-        success: false,
-        error: result.error || {
-          code: 'GET_MATCHES_ERROR',
-          message: 'Maçlar alınamadı',
-          statusCode: 500
-        }
-      };
-    }
-
-    // Filter matches where player is involved (client-side)
-    const playerMatches = result.data.data.filter(match => {
-      const isInPremium = match.players.premium.inherited?.includes(playerId) ||
-        match.players.premium.overrides?.includes(playerId);
-      const isInDirect = match.players.direct.inherited?.includes(playerId) ||
-        match.players.direct.overrides?.includes(playerId);
-      const isGuest = match.players.guests?.includes(playerId);
-      const isRegistered = match.players.registered?.some(r => r.playerId === playerId);
-      const isReserve = match.players.reserves?.includes(playerId);
-
-      return isInPremium || isInDirect || isGuest || isRegistered || isReserve;
-    });
-
-    return {
-      success: true,
-      data: {
-        data: playerMatches.slice(0, pageSize),
-        lastDoc: result.data.lastDoc,
-        hasMore: result.data.hasMore || playerMatches.length > pageSize,
-      }
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error: {
-        code: 'GET_PLAYER_MATCHES_ERROR',
-        message: error.message || 'Oyuncu maçları alınamadı',
-        details: error,
-        statusCode: 500
-      }
-    };
-  }
-}
-
-/**
- * Get player match history with pagination
- */
-static async getPlayerMatchHistoryPaginated(
-  playerId: string,
-  pageSize: number = 20,
-  lastDoc?: any
-): Promise<ApiResponse<{
-  data: IMatch[];
-  lastDoc?: any;
-  hasMore: boolean;
-}>> {
-  try {
-    const now = new Date().toISOString();
-
-    // Get paginated past matches
-    const result = await matchAPI.getPaginated(
-      {
-        where: [
-          { field: 'schedule.matchStart', operator: '<=', value: now },
-        ],
-        orderBy: [{ field: 'schedule.matchStart', direction: 'desc' }],
-      },
-      {
-        pageSize: pageSize * 2, // Get more to filter client-side
-        lastDoc,
-      }
-    );
-
-    if (!result.success || !result.data) {
-      return {
-        success: false,
-        error: result.error || {
-          code: 'GET_MATCHES_ERROR',
-          message: 'Maçlar alınamadı',
-          statusCode: 500
-        }
-      };
-    }
-
-    // Filter matches where player is involved (client-side)
-    const playerMatches = result.data.data.filter(match => {
-      const isInPremium = match.players.premium.inherited?.includes(playerId) ||
-        match.players.premium.overrides?.includes(playerId);
-      const isInDirect = match.players.direct.inherited?.includes(playerId) ||
-        match.players.direct.overrides?.includes(playerId);
-      const isGuest = match.players.guests?.includes(playerId);
-      const isRegistered = match.players.registered?.some(r => r.playerId === playerId);
-      const isReserve = match.players.reserves?.includes(playerId);
-      const isInTeams = match.players.teams?.team1?.some(p => p.playerId === playerId) ||
-        match.players.teams?.team2?.some(p => p.playerId === playerId);
-
-      return isInPremium || isInDirect || isGuest || isRegistered || isReserve || isInTeams;
-    });
-
-    return {
-      success: true,
-      data: {
-        data: playerMatches.slice(0, pageSize),
-        lastDoc: result.data.lastDoc,
-        hasMore: result.data.hasMore || playerMatches.length > pageSize,
-      }
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error: {
-        code: 'GET_PLAYER_HISTORY_ERROR',
-        message: error.message || 'Oyuncu geçmişi alınamadı',
-        details: error,
-        statusCode: 500
-      }
-    };
-  }
-}
-
-/**
- * Get all player matches (upcoming + history) with pagination
- */
-static async getPlayerAllMatchesPaginated(
-  playerId: string,
-  pageSize: number = 20,
-  lastDoc?: any
-): Promise<ApiResponse<{
-  data: IMatch[];
-  lastDoc?: any;
-  hasMore: boolean;
-}>> {
-  try {
-    // Get paginated all matches
-    const result = await matchAPI.getPaginated(
-      {
-        orderBy: [{ field: 'schedule.matchStart', direction: 'desc' }],
-      },
-      {
-        pageSize: pageSize * 2, // Get more to filter client-side
-        lastDoc,
-      }
-    );
-
-    if (!result.success || !result.data) {
-      return {
-        success: false,
-        error: result.error || {
-          code: 'GET_MATCHES_ERROR',
-          message: 'Maçlar alınamadı',
-          statusCode: 500
-        }
-      };
-    }
-
-    // Filter matches where player is involved (client-side)
-    const playerMatches = result.data.data.filter(match => {
-      const isInPremium = match.players.premium.inherited?.includes(playerId) ||
-        match.players.premium.overrides?.includes(playerId);
-      const isInDirect = match.players.direct.inherited?.includes(playerId) ||
-        match.players.direct.overrides?.includes(playerId);
-      const isGuest = match.players.guests?.includes(playerId);
-      const isRegistered = match.players.registered?.some(r => r.playerId === playerId);
-      const isReserve = match.players.reserves?.includes(playerId);
-      const isInTeams = match.players.teams?.team1?.some(p => p.playerId === playerId) ||
-        match.players.teams?.team2?.some(p => p.playerId === playerId);
-
-      return isInPremium || isInDirect || isGuest || isRegistered || isReserve || isInTeams;
-    });
-
-    return {
-      success: true,
-      data: {
-        data: playerMatches.slice(0, pageSize),
-        lastDoc: result.data.lastDoc,
-        hasMore: result.data.hasMore || playerMatches.length > pageSize,
-      }
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      error: {
-        code: 'GET_ALL_MATCHES_ERROR',
-        message: error.message || 'Tüm maçlar alınamadı',
-        details: error,
-        statusCode: 500
-      }
-    };
-  }
-}
-
-// src/services/serviceLayer/matchService.ts
-// ✅ INVITATION CODE METHODS - ADD TO EXISTING FILE
-
-/**
- * Generate unique 6-character invitation code
- */
-private static generateInvitationCode(): string {
-  // Exclude confusing characters: 0,O,1,I
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
-
-/**
- * Check if code is unique in database
- */
-private static async isCodeUnique(code: string): Promise<boolean> {
-  try {
-    const result = await matchAPI.getAll({
-      where: [
-        { field: 'invitationCode.code', operator: '==', value: code },
-        { field: 'invitationCode.enabled', operator: '==', value: true }
-      ],
-      limit: 1
-    });
-    
-    return !result.success || !result.data || result.data.length === 0;
-  } catch (error) {
-    return false;
-  }
-}
-
-/**
- * Generate unique invitation code with retry logic
- */
-private static async generateUniqueCode(): Promise<string> {
-  let attempts = 0;
-  const maxAttempts = 10;
-  
-  while (attempts < maxAttempts) {
-    const code = this.generateInvitationCode();
-    if (await this.isCodeUnique(code)) {
-      return code;
-    }
-    attempts++;
-  }
-  
-  throw new Error('Benzersiz davet kodu oluşturulamadı');
-}
-
-// ============================================
-// CREATE FRIENDLY MATCH - UPDATED
-// ============================================
-
-
-// ============================================
-// JOIN WITH INVITATION CODE
-// ============================================
-
-/**
- * Join match with invitation code
- */
-static async joinWithInvitationCode(
-  code: string,
-  playerId: string
-): Promise<ApiResponse<IMatch>> {
-  try {
-    ApiLogger.log('MatchService', 'joinWithInvitationCode', { code, playerId });
-
-    // 1. Find match by code
-    const matchesResult = await matchAPI.getAll({
-      where: [
-        { field: 'invitationCode.code', operator: '==', value: code.toUpperCase() },
-        { field: 'invitationCode.enabled', operator: '==', value: true }
-      ],
-      limit: 1
-    });
-
-    if (!matchesResult.success || !matchesResult.data || matchesResult.data.length === 0) {
-      return {
-        success: false,
-        error: {
-          code: 'INVALID_CODE',
-          message: 'Geçersiz davet kodu',
-          statusCode: 404
-        }
-      };
-    }
-
-    const match = matchesResult.data[0];
-
-    // 2. Validate code
-    if (match.invitationCode?.expiresAt && 
-        new Date(match.invitationCode.expiresAt) < new Date()) {
-      return {
-        success: false,
-        error: {
-          code: 'CODE_EXPIRED',
-          message: 'Davet kodunun süresi dolmuş',
-          statusCode: 400
-        }
-      };
-    }
-
-    if (match.invitationCode?.maxUses && 
-        match.invitationCode.currentUses >= match.invitationCode.maxUses) {
-      return {
-        success: false,
-        error: {
-          code: 'CODE_LIMIT_REACHED',
-          message: 'Davet kodu kullanım limitine ulaşmış',
-          statusCode: 400
-        }
-      };
-    }
-
-    // 3. Check if player already registered
-    const isRegistered = match.players.registered?.some(r => r.playerId === playerId);
-    if (isRegistered) {
-      // Return success but with the match data
       return {
         success: true,
-        data: match,
+        data: {
+          data: result.data.data,
+          lastDoc: result.data.lastDoc,
+          hasMore: result.data.hasMore,
+        }
       };
-    }
-
-    // 4. Check if match is full
-    const totalPlayers = match.squad.totalPlayers;
-    const currentCount = (match.players.registered?.length || 0) + 
-                        (match.players.guests?.length || 0);
-    
-    if (currentCount >= totalPlayers) {
+    } catch (error: any) {
       return {
         success: false,
         error: {
-          code: 'MATCH_FULL',
-          message: 'Maç kadrosu dolu',
-          statusCode: 400
+          code: 'GET_FIXTURE_MATCHES_ERROR',
+          message: error.message || 'Fikstür maçları alınamadı',
+          details: error,
+          statusCode: 500
         }
       };
     }
-
-    // 5. Register player
-    const registerResult = await this.registerPlayer(match.id!, playerId);
-    
-    if (!registerResult.success) {
-      return registerResult;
-    }
-
-    // 6. Increment code usage
-    await matchAPI.update(match.id!, {
-      'invitationCode.currentUses': (match.invitationCode?.currentUses || 0) + 1
-    } as any);
-
-    ApiLogger.success('MatchService', 'joinWithInvitationCode', { 
-      code, 
-      playerId, 
-      matchId: match.id 
-    });
-
-    return registerResult;
-
-  } catch (error: any) {
-    ApiLogger.error('MatchService', 'joinWithInvitationCode', error);
-    return {
-      success: false,
-      error: {
-        code: 'JOIN_ERROR',
-        message: error.message || 'Maça katılma başarısız',
-        details: error,
-        statusCode: 500
-      }
-    };
   }
-}
 
-// ============================================
-// REGENERATE INVITATION CODE
-// ============================================
+  /**
+   * Get league matches with pagination
+   */
+  static async getLeagueMatchesPaginated(
+    leagueId: string,
+    pageSize: number = 20,
+    lastDoc?: any
+  ): Promise<ApiResponse<{
+    data: IMatch[];
+    lastDoc?: any;
+    hasMore: boolean;
+  }>> {
+    try {
+      const result = await matchAPI.getPaginated(
+        {
+          where: [{ field: 'leagueId', operator: '==', value: leagueId }],
+          orderBy: [{ field: 'schedule.matchStart', direction: 'desc' }],
+        },
+        {
+          pageSize,
+          lastDoc,
+        }
+      );
 
-/**
- * Regenerate invitation code (organizer only)
- */
-static async regenerateInvitationCode(
-  matchId: string,
-  organizerId: string
-): Promise<ApiResponse<{ code: string }>> {
-  try {
-    ApiLogger.log('MatchService', 'regenerateInvitationCode', { matchId, organizerId });
+      if (!result.success || !result.data) {
+        return {
+          success: false,
+          error: result.error || {
+            code: 'GET_MATCHES_ERROR',
+            message: 'Maçlar alınamadı',
+            statusCode: 500
+          }
+        };
+      }
 
-    // Check permissions
-    const matchResult = await matchAPI.getById(matchId);
-    if (!matchResult.success || !matchResult.data) {
+      return {
+        success: true,
+        data: {
+          data: result.data.data,
+          lastDoc: result.data.lastDoc,
+          hasMore: result.data.hasMore,
+        }
+      };
+    } catch (error: any) {
       return {
         success: false,
         error: {
-          code: 'MATCH_NOT_FOUND',
-          message: 'Maç bulunamadı',
-          statusCode: 404
+          code: 'GET_LEAGUE_MATCHES_ERROR',
+          message: error.message || 'Lig maçları alınamadı',
+          details: error,
+          statusCode: 500
         }
       };
     }
-
-    const match = matchResult.data;
-    if (!match.permissions.organizers.includes(organizerId)) {
-      return {
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Sadece organizatör kodu yenileyebilir',
-          statusCode: 403
-        }
-      };
-    }
-
-    // Generate new code
-    const newCode = await this.generateUniqueCode();
-
-    // Update match
-    await matchAPI.update(matchId, {
-      invitationCode: {
-        ...match.invitationCode!,
-        code: newCode,
-        currentUses: 0, // Reset usage
-        createdAt: new Date(),
-      }
-    } as any);
-
-    ApiLogger.success('MatchService', 'regenerateInvitationCode', { 
-      matchId, 
-      newCode 
-    });
-
-    return {
-      success: true,
-      data: { code: newCode }
-    };
-
-  } catch (error: any) {
-    ApiLogger.error('MatchService', 'regenerateInvitationCode', error);
-    return {
-      success: false,
-      error: {
-        code: 'REGENERATE_CODE_ERROR',
-        message: error.message || 'Kod yenilenemedi',
-        statusCode: 500
-      }
-    };
   }
-}
 
-// ============================================
-// TOGGLE INVITATION CODE
-// ============================================
+  /**
+   * Get player upcoming matches with pagination
+   */
+  static async getPlayerUpcomingMatchesPaginated(
+    playerId: string,
+    pageSize: number = 20,
+    lastDoc?: any
+  ): Promise<ApiResponse<{
+    data: IMatch[];
+    lastDoc?: any;
+    hasMore: boolean;
+  }>> {
+    try {
+      const now = new Date().toISOString();
 
-/**
- * Enable/Disable invitation code
- */
-static async toggleInvitationCode(
-  matchId: string,
-  organizerId: string,
-  enabled: boolean
-): Promise<ApiResponse<void>> {
-  try {
-    ApiLogger.log('MatchService', 'toggleInvitationCode', { 
-      matchId, 
-      organizerId, 
-      enabled 
-    });
-
-    const matchResult = await matchAPI.getById(matchId);
-    if (!matchResult.success || !matchResult.data) {
-      return {
-        success: false,
-        error: {
-          code: 'MATCH_NOT_FOUND',
-          message: 'Maç bulunamadı',
-          statusCode: 404
+      // Get paginated upcoming matches
+      const result = await matchAPI.getPaginated(
+        {
+          where: [
+            { field: 'schedule.matchStart', operator: '>', value: now },
+          ],
+          orderBy: [{ field: 'schedule.matchStart', direction: 'asc' }],
+        },
+        {
+          pageSize: pageSize * 2, // Get more to filter client-side
+          lastDoc,
         }
-      };
-    }
+      );
 
-    const match = matchResult.data;
-    if (!match.permissions.organizers.includes(organizerId)) {
-      return {
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Sadece organizatör kodu değiştirebilir',
-          statusCode: 403
-        }
-      };
-    }
-
-    await matchAPI.update(matchId, {
-      'invitationCode.enabled': enabled
-    } as any);
-
-    ApiLogger.success('MatchService', 'toggleInvitationCode', { 
-      matchId, 
-      enabled 
-    });
-
-    return { success: true };
-
-  } catch (error: any) {
-    ApiLogger.error('MatchService', 'toggleInvitationCode', error);
-    return {
-      success: false,
-      error: {
-        code: 'TOGGLE_CODE_ERROR',
-        message: error.message || 'Kod durumu değiştirilemedi',
-        statusCode: 500
+      if (!result.success || !result.data) {
+        return {
+          success: false,
+          error: result.error || {
+            code: 'GET_MATCHES_ERROR',
+            message: 'Maçlar alınamadı',
+            statusCode: 500
+          }
+        };
       }
-    };
+
+      // Filter matches where player is involved (client-side)
+      const playerMatches = result.data.data.filter(match => {
+        const isInPremium = match.players.premium.inherited?.includes(playerId) ||
+          match.players.premium.overrides?.includes(playerId);
+        const isInDirect = match.players.direct.inherited?.includes(playerId) ||
+          match.players.direct.overrides?.includes(playerId);
+        const isGuest = match.players.guests?.includes(playerId);
+        const isRegistered = match.players.registered?.some(r => r.playerId === playerId);
+        const isReserve = match.players.reserves?.includes(playerId);
+
+        return isInPremium || isInDirect || isGuest || isRegistered || isReserve;
+      });
+
+      return {
+        success: true,
+        data: {
+          data: playerMatches.slice(0, pageSize),
+          lastDoc: result.data.lastDoc,
+          hasMore: result.data.hasMore || playerMatches.length > pageSize,
+        }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'GET_PLAYER_MATCHES_ERROR',
+          message: error.message || 'Oyuncu maçları alınamadı',
+          details: error,
+          statusCode: 500
+        }
+      };
+    }
   }
-}
 
-// ============================================
-// GET INVITATION CODE INFO
-// ============================================
+  /**
+   * Get player match history with pagination
+   */
+  static async getPlayerMatchHistoryPaginated(
+    playerId: string,
+    pageSize: number = 20,
+    lastDoc?: any
+  ): Promise<ApiResponse<{
+    data: IMatch[];
+    lastDoc?: any;
+    hasMore: boolean;
+  }>> {
+    try {
+      const now = new Date().toISOString();
 
-/**
- * Get invitation code info (for display)
- */
-static async getInvitationCodeInfo(
-  matchId: string
-): Promise<ApiResponse<{
-  code: string;
-  enabled: boolean;
-  expiresAt?: Date;
-  maxUses?: number;
-  currentUses: number;
-  remainingUses: number;
-  isExpired: boolean;
-  isLimitReached: boolean;
-}>> {
-  try {
-    const matchResult = await matchAPI.getById(matchId);
-    if (!matchResult.success || !matchResult.data) {
+      // Get paginated past matches
+      const result = await matchAPI.getPaginated(
+        {
+          where: [
+                        { field: 'playerId', operator: '<=', value: now },
+            { field: 'schedule.matchStart', operator: '<=', value: now },
+          ],
+          orderBy: [{ field: 'schedule.matchStart', direction: 'desc' }],
+        },
+        {
+          pageSize: pageSize * 2, // Get more to filter client-side
+          lastDoc,
+        }
+      );
+
+      if (!result.success || !result.data) {
+        return {
+          success: false,
+          error: result.error || {
+            code: 'GET_MATCHES_ERROR',
+            message: 'Maçlar alınamadı',
+            statusCode: 500
+          }
+        };
+      }
+
+      // Filter matches where player is involved (client-side)
+      const playerMatches = result.data.data.filter(match => {
+        const isInPremium = match.players.premium.inherited?.includes(playerId) ||
+          match.players.premium.overrides?.includes(playerId);
+        const isInDirect = match.players.direct.inherited?.includes(playerId) ||
+          match.players.direct.overrides?.includes(playerId);
+        const isGuest = match.players.guests?.includes(playerId);
+        const isRegistered = match.players.registered?.some(r => r.playerId === playerId);
+        const isReserve = match.players.reserves?.includes(playerId);
+        const isInTeams = match.players.teams?.team1?.some(p => p.playerId === playerId) ||
+          match.players.teams?.team2?.some(p => p.playerId === playerId);
+
+        return isInPremium || isInDirect || isGuest || isRegistered || isReserve || isInTeams;
+      });
+
+      return {
+        success: true,
+        data: {
+          data: playerMatches.slice(0, pageSize),
+          lastDoc: result.data.lastDoc,
+          hasMore: result.data.hasMore || playerMatches.length > pageSize,
+        }
+      };
+    } catch (error: any) {
       return {
         success: false,
         error: {
-          code: 'MATCH_NOT_FOUND',
-          message: 'Maç bulunamadı',
-          statusCode: 404
+          code: 'GET_PLAYER_HISTORY_ERROR',
+          message: error.message || 'Oyuncu geçmişi alınamadı',
+          details: error,
+          statusCode: 500
         }
       };
     }
-
-    const match = matchResult.data;
-    const invCode = match.invitationCode;
-
-    if (!invCode) {
-      return {
-        success: false,
-        error: {
-          code: 'NO_CODE',
-          message: 'Bu maçın davet kodu yok',
-          statusCode: 404
-        }
-      };
-    }
-
-    const isExpired = invCode.expiresAt 
-      ? new Date(invCode.expiresAt) < new Date()
-      : false;
-
-    const remainingUses = invCode.maxUses 
-      ? Math.max(0, invCode.maxUses - invCode.currentUses)
-      : Infinity;
-
-    const isLimitReached = invCode.maxUses 
-      ? invCode.currentUses >= invCode.maxUses
-      : false;
-
-    return {
-      success: true,
-      data: {
-        code: invCode.code,
-        enabled: invCode.enabled,
-        expiresAt: invCode.expiresAt,
-        maxUses: invCode.maxUses,
-        currentUses: invCode.currentUses,
-        remainingUses,
-        isExpired,
-        isLimitReached,
-      }
-    };
-
-  } catch (error: any) {
-    ApiLogger.error('MatchService', 'getInvitationCodeInfo', error);
-    return {
-      success: false,
-      error: {
-        code: 'GET_CODE_INFO_ERROR',
-        message: error.message || 'Kod bilgisi alınamadı',
-        statusCode: 500
-      }
-    };
   }
-}
 
-/*
-USAGE EXAMPLES:
+  /**
+   * Get all player matches (upcoming + history) with pagination
+   */
+  static async getPlayerAllMatchesPaginated(
+    playerId: string,
+    pageSize: number = 20,
+    lastDoc?: any
+  ): Promise<ApiResponse<{
+    data: IMatch[];
+    lastDoc?: any;
+    hasMore: boolean;
+  }>> {
+    try {
+      // Get paginated all matches
+      const result = await matchAPI.getPaginated(
+        {
+          orderBy: [{ field: 'schedule.matchStart', direction: 'desc' }],
+        },
+        {
+          pageSize: pageSize * 2, // Get more to filter client-side
+          lastDoc,
+        }
+      );
 
-// ✅ Create match with invitation code
-const result = await MatchService.createFriendlyMatch({
-  organizerId: user.id,
-  sportType: 'Futbol',
-  title: 'Cumartesi Maçı',
-  matchStartTime: new Date(),
-  location: 'Ankara Halısaha',
-  staffPlayerCount: 10,
-  reservePlayerCount: 2,
-  isPublic: false, // Özel maç
-  affectsStats: true,
-  affectsStandings: false,
-  pricePerPlayer: 50,
-  
-  // Kod ayarları
-  enableInvitationCode: true,
-  invitationCodeExpiry: 48, // 48 saat
-  invitationCodeMaxUses: 10,
-});
+      if (!result.success || !result.data) {
+        return {
+          success: false,
+          error: result.error || {
+            code: 'GET_MATCHES_ERROR',
+            message: 'Maçlar alınamadı',
+            statusCode: 500
+          }
+        };
+      }
 
-// Kod: result.data.invitationCode.code
+      // Filter matches where player is involved (client-side)
+      const playerMatches = result.data.data.filter(match => {
+        const isInPremium = match.players.premium.inherited?.includes(playerId) ||
+          match.players.premium.overrides?.includes(playerId);
+        const isInDirect = match.players.direct.inherited?.includes(playerId) ||
+          match.players.direct.overrides?.includes(playerId);
+        const isGuest = match.players.guests?.includes(playerId);
+        const isRegistered = match.players.registered?.some(r => r.playerId === playerId);
+        const isReserve = match.players.reserves?.includes(playerId);
+        const isInTeams = match.players.teams?.team1?.some(p => p.playerId === playerId) ||
+          match.players.teams?.team2?.some(p => p.playerId === playerId);
 
-// ✅ Join with code
-const joinResult = await MatchService.joinWithInvitationCode(
-  'ABC123',
-  playerId
-);
+        return isInPremium || isInDirect || isGuest || isRegistered || isReserve || isInTeams;
+      });
 
-// ✅ Regenerate code
-const newCode = await MatchService.regenerateInvitationCode(
-  matchId,
-  organizerId
-);
+      return {
+        success: true,
+        data: {
+          data: playerMatches.slice(0, pageSize),
+          lastDoc: result.data.lastDoc,
+          hasMore: result.data.hasMore || playerMatches.length > pageSize,
+        }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'GET_ALL_MATCHES_ERROR',
+          message: error.message || 'Tüm maçlar alınamadı',
+          details: error,
+          statusCode: 500
+        }
+      };
+    }
+  }
 
-// ✅ Disable code
-await MatchService.toggleInvitationCode(matchId, organizerId, false);
+  // src/services/serviceLayer/matchService.ts
+  // ✅ INVITATION CODE METHODS - ADD TO EXISTING FILE
 
-// ✅ Get code info
-const codeInfo = await MatchService.getInvitationCodeInfo(matchId);
-console.log(`Kod: ${codeInfo.data.code}`);
-console.log(`Kullanım: ${codeInfo.data.currentUses}/${codeInfo.data.maxUses}`);
-console.log(`Kalan: ${codeInfo.data.remainingUses}`);
-*/
+  /**
+   * Generate unique 6-character invitation code
+   */
+  private static generateInvitationCode(): string {
+    // Exclude confusing characters: 0,O,1,I
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+
+  /**
+   * Check if code is unique in database
+   */
+  private static async isCodeUnique(code: string): Promise<boolean> {
+    try {
+      const result = await matchAPI.getAll({
+        where: [
+          { field: 'invitationCode.code', operator: '==', value: code },
+          { field: 'invitationCode.enabled', operator: '==', value: true }
+        ],
+        limit: 1
+      });
+
+      return !result.success || !result.data || result.data.length === 0;
+    } catch (error) {
+      return false;
+    }
+  }
+
 }
 
 export default MatchService;

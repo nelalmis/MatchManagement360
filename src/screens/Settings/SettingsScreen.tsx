@@ -1,12 +1,15 @@
-import React, { useState, useCallback } from 'react';
+// src/screens/Settings/SettingsScreen.tsx
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Switch,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import {
   User,
@@ -22,54 +25,159 @@ import {
   Mail,
   MessageCircle,
   Star,
-  Lock,
   Trash2,
   Download,
+  Lock,
+  GamepadIcon,
+  Calendar,
+  MapPin,
+  Eye,
+  Settings as SettingsIcon,
+  BarChart3,
+  Database,
+  Palette,
+  Accessibility,
+  Users,
+  CreditCard,
+  FlaskRound,
 } from 'lucide-react-native';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
+import UserSettingsService from '../../services/serviceLayer/userSettingsService';
+import { IUserSettings } from '../../types/entity/types';
+import { AuthNavigationService, goBack, SettingsNavigationService } from '../../navigation';
 
 interface SettingItem {
   id: string;
   icon: React.ReactNode;
   title: string;
   subtitle?: string;
+  value?: string;
   onPress: () => void;
   showChevron?: boolean;
-  showSwitch?: boolean;
-  switchValue?: boolean;
-  onSwitchChange?: (value: boolean) => void;
   destructive?: boolean;
+  badge?: number;
 }
 
 export const SettingsScreen: React.FC = () => {
   const { user, signOut } = useAuth();
 
-  const [darkMode, setDarkMode] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [settings, setSettings] = useState<IUserSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async (isRefresh = false) => {
+    if (!user?.id) return;
+
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      const result = await UserSettingsService.getUserSettings(user.id);
+
+      if (result.success && result.data) {
+        setSettings(result.data);
+      } else {
+        Alert.alert('Hata', 'Ayarlar yüklenemedi');
+      }
+    } catch (error) {
+      console.error('Settings load error:', error);
+      Alert.alert('Hata', 'Bir hata oluştu');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // ============================================
+  // HANDLERS
+  // ============================================
 
   const handleEditProfile = useCallback(() => {
-    NavigationService.navigateToEditProfile();
+    SettingsNavigationService.navigateToEditProfile();
   }, []);
 
   const handleNotifications = useCallback(() => {
-    NavigationService.navigateToNotificationSettings();
+    SettingsNavigationService.navigateToNotificationSettings();
   }, []);
 
   const handlePrivacy = useCallback(() => {
-    Alert.alert('Gizlilik', 'Gizlilik ayarları yakında eklenecek');
+     SettingsNavigationService.navigateToPrivacySettings();
+  }, []);
+
+  const handleSecurity = useCallback(() => {
+     SettingsNavigationService.navigateToSecuritySettings();
+  }, []);
+
+  const handleBlockedUsers = useCallback(() => {
+     SettingsNavigationService.navigateToBlockedUsers();
+  }, []);
+
+  const handleGamePreferences = useCallback(() => {
+     SettingsNavigationService.navigateToGamePreferences();
+  }, []);
+
+  const handleSportsPositions = useCallback(() => {
+     SettingsNavigationService.navigateToSportsPositions();
+  }, []);
+
+  const handleAvailability = useCallback(() => {
+     SettingsNavigationService.navigateToAvailability();
+  }, []);
+
+  const handleLocationPreferences = useCallback(() => {
+    // SettingsNavigationService.navigateToLocationPreferences();
+  }, []);
+
+  const handlePaymentPreferences = useCallback(() => {
+    //  SettingsNavigationService.navigateToPaymentPreferences();
+  }, []);
+
+  const handleAppearance = useCallback(() => {
+     SettingsNavigationService.navigateToAppearance();
+  }, []);
+
+  const handleAccessibility = useCallback(() => {
+     SettingsNavigationService.navigateToAccessibility();
+  }, []);
+
+  const handleCalendarSync = useCallback(() => {
+    SettingsNavigationService.navigateToCalendarSync();
+  }, []);
+
+  const handleSocialSettings = useCallback(() => {
+    //  SettingsNavigationService.navigateToSocialSettings();
+  }, []);
+
+  const handleAnalytics = useCallback(() => {
+    //  SettingsNavigationService.navigateToAnalyticsSettings();
+  }, []);
+
+  const handleStorage = useCallback(() => {
+    //  SettingsNavigationService.navigateToStorageSettings();
+  }, []);
+
+  const handleBetaFeatures = useCallback(() => {
+    //  SettingsNavigationService.navigateToBetaFeatures();
+  }, []);
+
+  const handleDevices = useCallback(() => {
+    Alert.alert('Cihazlar', 'Cihaz yönetimi yakında eklenecek');
   }, []);
 
   const handleHelp = useCallback(() => {
-    Alert.alert('Yardım', 'Yardım merkezi yakında eklenecek');
+    SettingsNavigationService.navigateToHelp();
   }, []);
 
   const handleAbout = useCallback(() => {
-    Alert.alert(
-      'Hakkında',
-      'Match Management 360\nVersiyon: 1.0.0\n\n© 2025 Tüm hakları saklıdır.'
-    );
+    SettingsNavigationService.navigateToAbout();
   }, []);
 
   const handleContactUs = useCallback(() => {
@@ -80,12 +188,12 @@ export const SettingsScreen: React.FC = () => {
     Alert.alert('Değerlendir', 'Uygulamamızı değerlendirmenizi bekliyoruz!');
   }, []);
 
-  const handleLanguage = useCallback(() => {
-    Alert.alert('Dil', 'Dil seçenekleri yakında eklenecek');
+  const handleFeedback = useCallback(() => {
+    Alert.alert('Geri Bildirim', 'Geri bildirim formu yakında eklenecek');
   }, []);
 
-  const handleDevices = useCallback(() => {
-    Alert.alert('Cihazlar', 'Cihaz yönetimi yakında eklenecek');
+  const handleTerms = useCallback(() => {
+     SettingsNavigationService.navigateToTerms();
   }, []);
 
   const handleDataExport = useCallback(() => {
@@ -96,11 +204,15 @@ export const SettingsScreen: React.FC = () => {
         { text: 'İptal', style: 'cancel' },
         {
           text: 'İndir',
-          onPress: () => Alert.alert('Başarılı', 'Verileriniz e-posta adresinize gönderilecek'),
+          onPress: async () => {
+            if (!user?.id) return;
+            // TODO: Implement data export
+            Alert.alert('Başarılı', 'Verileriniz e-posta adresinize gönderilecek');
+          },
         },
       ]
     );
-  }, []);
+  }, [user?.id]);
 
   const handleDeleteAccount = useCallback(() => {
     Alert.alert(
@@ -112,12 +224,39 @@ export const SettingsScreen: React.FC = () => {
           text: 'Sil',
           style: 'destructive',
           onPress: () => {
+            // TODO: Implement account deletion
             Alert.alert('Onay', 'Hesabınız silme işlemi için işaretlendi');
           },
         },
       ]
     );
   }, []);
+
+  const handleResetSettings = useCallback(() => {
+    Alert.alert(
+      'Ayarları Sıfırla',
+      'Tüm ayarlar varsayılan değerlere döndürülecek. Emin misiniz?',
+      [
+        { text: 'İptal', style: 'cancel' },
+        {
+          text: 'Sıfırla',
+          style: 'destructive',
+          onPress: async () => {
+            if (!user?.id) return;
+
+            const result = await UserSettingsService.resetToDefaults(user.id);
+
+            if (result.success) {
+              Alert.alert('Başarılı', 'Ayarlar sıfırlandı');
+              loadSettings(true);
+            } else {
+              Alert.alert('Hata', 'Ayarlar sıfırlanamadı');
+            }
+          },
+        },
+      ]
+    );
+  }, [user?.id]);
 
   const handleLogout = useCallback(() => {
     Alert.alert(
@@ -131,7 +270,7 @@ export const SettingsScreen: React.FC = () => {
           onPress: async () => {
             try {
               await signOut();
-              NavigationService.navigateToLogin();
+              AuthNavigationService.resetToAuth();
             } catch (error) {
               Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu');
             }
@@ -139,14 +278,20 @@ export const SettingsScreen: React.FC = () => {
         },
       ]
     );
-  }, []);
+  }, [signOut]);
+
+  // ============================================
+  // SETTING ITEMS
+  // ============================================
 
   const accountSettings: SettingItem[] = [
     {
       id: 'profile',
       icon: <User size={22} color="#16a34a" strokeWidth={2} />,
       title: 'Profili Düzenle',
-      subtitle: 'Ad, soyad, fotoğraf',
+      subtitle: settings?.profile?.displayName
+        ? `${settings.profile.displayName}`
+        : 'İsim, biyografi, görünürlük',
       onPress: handleEditProfile,
       showChevron: true,
     },
@@ -154,45 +299,176 @@ export const SettingsScreen: React.FC = () => {
       id: 'notifications',
       icon: <Bell size={22} color="#3B82F6" strokeWidth={2} />,
       title: 'Bildirimler',
-      subtitle: 'Push bildirimleri yönet',
+      subtitle: settings?.notifications?.enabled ? 'Açık' : 'Kapalı',
+      value: settings?.notifications?.enabled ? 'Açık' : 'Kapalı',
       onPress: handleNotifications,
       showChevron: true,
     },
+  ];
+
+  const privacySecuritySettings: SettingItem[] = [
     {
       id: 'privacy',
-      icon: <Shield size={22} color="#8B5CF6" strokeWidth={2} />,
+      icon: <Eye size={22} color="#8B5CF6" strokeWidth={2} />,
       title: 'Gizlilik',
-      subtitle: 'Gizlilik ayarları',
+      subtitle: settings?.privacy?.profileVisibility
+        ? settings.privacy.profileVisibility === 'public'
+          ? 'Herkese Açık'
+          : settings.privacy.profileVisibility === 'friends'
+            ? 'Arkadaşlar'
+            : 'Özel'
+        : 'Herkese Açık',
       onPress: handlePrivacy,
       showChevron: true,
     },
     {
+      id: 'security',
+      icon: <Lock size={22} color="#EF4444" strokeWidth={2} />,
+      title: 'Güvenlik',
+      subtitle: settings?.security?.twoFactorAuth
+        ? '2FA Aktif'
+        : 'İki faktörlü doğrulama kapalı',
+      onPress: handleSecurity,
+      showChevron: true,
+    },
+    {
+      id: 'blockedUsers',
+      icon: <Shield size={22} color="#F59E0B" strokeWidth={2} />,
+      title: 'Engellenmiş Kullanıcılar',
+      subtitle: `${settings?.privacy?.blockList?.length || 0} kullanıcı`,
+      badge: settings?.privacy?.blockList?.length || 0,
+      onPress: handleBlockedUsers,
+      showChevron: true,
+    },
+    {
       id: 'devices',
-      icon: <Smartphone size={22} color="#F59E0B" strokeWidth={2} />,
-      title: 'Cihazlar',
-      subtitle: 'Bağlı cihazları yönet',
+      icon: <Smartphone size={22} color="#10B981" strokeWidth={2} />,
+      title: 'Güvenilir Cihazlar',
+      subtitle: `${settings?.security?.trustedDevices?.length || 0} cihaz`,
       onPress: handleDevices,
+      showChevron: true,
+    },
+  ];
+
+  const gamePreferencesSettings: SettingItem[] = [
+    {
+      id: 'gamePreferences',
+      icon: <SettingsIcon size={22} color="#16a34a" strokeWidth={2} />,
+      title: 'Oyun Tercihleri',
+      subtitle: 'Genel tercihler',
+      onPress: handleGamePreferences,
+      showChevron: true,
+    },
+    {
+      id: 'sportsPositions',
+      icon: <GamepadIcon size={22} color="#3B82F6" strokeWidth={2} />,
+      title: 'Sporlar & Pozisyonlar',
+      subtitle: `${settings?.preferences?.favoriteSports?.length || 0} spor seçili`,
+      onPress: handleSportsPositions,
+      showChevron: true,
+    },
+    {
+      id: 'availability',
+      icon: <Calendar size={22} color="#8B5CF6" strokeWidth={2} />,
+      title: 'Müsaitlik',
+      subtitle: `${settings?.preferences?.availableDays?.length || 0} gün`,
+      onPress: handleAvailability,
+      showChevron: true,
+    },
+    {
+      id: 'location',
+      icon: <MapPin size={22} color="#EF4444" strokeWidth={2} />,
+      title: 'Konum Tercihleri',
+      subtitle: settings?.preferences?.maxDistanceKm
+        ? `Max ${settings.preferences.maxDistanceKm} km`
+        : 'Belirlenmedi',
+      onPress: handleLocationPreferences,
+      showChevron: true,
+    },
+    {
+      id: 'payment',
+      icon: <CreditCard size={22} color="#10B981" strokeWidth={2} />,
+      title: 'Ödeme Tercihleri',
+      subtitle: settings?.preferences?.paymentMethod
+        ? settings.preferences.paymentMethod === 'cash'
+          ? 'Nakit'
+          : settings.preferences.paymentMethod === 'card'
+            ? 'Kart'
+            : 'Karma'
+        : 'Belirlenmedi',
+      onPress: handlePaymentPreferences,
       showChevron: true,
     },
   ];
 
   const appSettings: SettingItem[] = [
     {
-      id: 'darkMode',
-      icon: <Moon size={22} color="#6B7280" strokeWidth={2} />,
-      title: 'Karanlık Mod',
-      subtitle: 'Yakında',
-      onPress: () => {},
-      showSwitch: true,
-      switchValue: darkMode,
-      onSwitchChange: setDarkMode,
+      id: 'appearance',
+      icon: <Palette size={22} color="#F59E0B" strokeWidth={2} />,
+      title: 'Görünüm',
+      subtitle: `${settings?.appearance?.theme === 'light'
+          ? 'Açık'
+          : settings?.appearance?.theme === 'dark'
+            ? 'Koyu'
+            : 'Otomatik'
+        } tema`,
+      value: settings?.appearance?.language === 'tr' ? 'Türkçe' : 'English',
+      onPress: handleAppearance,
+      showChevron: true,
     },
     {
-      id: 'language',
-      icon: <Globe size={22} color="#10B981" strokeWidth={2} />,
-      title: 'Dil',
-      subtitle: 'Türkçe',
-      onPress: handleLanguage,
+      id: 'accessibility',
+      icon: <Accessibility size={22} color="#8B5CF6" strokeWidth={2} />,
+      title: 'Erişilebilirlik',
+      subtitle: `Font: ${settings?.accessibility?.textSize || 'medium'}`,
+      onPress: handleAccessibility,
+      showChevron: true,
+    },
+    {
+      id: 'calendar',
+      icon: <Calendar size={22} color="#3B82F6" strokeWidth={2} />,
+      title: 'Takvim Senkronizasyonu',
+      subtitle: settings?.calendar?.syncWithDevice ? 'Aktif' : 'Devre dışı',
+      onPress: handleCalendarSync,
+      showChevron: true,
+    },
+    {
+      id: 'social',
+      icon: <Users size={22} color="#10B981" strokeWidth={2} />,
+      title: 'Sosyal Ayarlar',
+      subtitle: settings?.social?.showOnlineStatus ? 'Çevrimiçi göster' : undefined,
+      onPress: handleSocialSettings,
+      showChevron: true,
+    },
+  ];
+
+  const dataAnalyticsSettings: SettingItem[] = [
+    {
+      id: 'analytics',
+      icon: <BarChart3 size={22} color="#8B5CF6" strokeWidth={2} />,
+      title: 'Analitik & Performans',
+      subtitle: settings?.analytics?.trackPerformance ? 'Aktif' : 'Devre dışı',
+      onPress: handleAnalytics,
+      showChevron: true,
+    },
+    {
+      id: 'storage',
+      icon: <Database size={22} color="#6B7280" strokeWidth={2} />,
+      title: 'Depolama & Veri',
+      subtitle: `Önbellek: ${settings?.storage?.cacheEnabled ? 'Açık' : 'Kapalı'}`,
+      onPress: handleStorage,
+      showChevron: true,
+    },
+  ];
+
+  const betaSettings: SettingItem[] = [
+    {
+      id: 'beta',
+      icon: <FlaskRound size={22} color="#F59E0B" strokeWidth={2} />,
+      title: 'Beta Özellikler',
+      subtitle: `${settings?.beta?.enabledFeatures?.length || 0} özellik aktif`,
+      badge: settings?.beta?.enabledFeatures?.length || 0,
+      onPress: handleBetaFeatures,
       showChevron: true,
     },
   ];
@@ -216,7 +492,7 @@ export const SettingsScreen: React.FC = () => {
       id: 'feedback',
       icon: <MessageCircle size={22} color="#F59E0B" strokeWidth={2} />,
       title: 'Geri Bildirim Gönder',
-      onPress: handleContactUs,
+      onPress: handleFeedback,
       showChevron: true,
     },
     {
@@ -230,18 +506,34 @@ export const SettingsScreen: React.FC = () => {
       id: 'about',
       icon: <Info size={22} color="#6B7280" strokeWidth={2} />,
       title: 'Hakkında',
+      subtitle: `Versiyon ${settings?.version || '1.0.0'}`,
       onPress: handleAbout,
+      showChevron: true,
+    },
+    {
+      id: 'terms',
+      icon: <Info size={22} color="#6B7280" strokeWidth={2} />,
+      title: 'Şartlar & Gizlilik',
+      onPress: handleTerms,
       showChevron: true,
     },
   ];
 
-  const dataSettings: SettingItem[] = [
+  const dangerZoneSettings: SettingItem[] = [
     {
       id: 'export',
       icon: <Download size={22} color="#10B981" strokeWidth={2} />,
       title: 'Verilerimi İndir',
       subtitle: 'Tüm verilerinizi indirin',
       onPress: handleDataExport,
+      showChevron: true,
+    },
+    {
+      id: 'reset',
+      icon: <SettingsIcon size={22} color="#F59E0B" strokeWidth={2} />,
+      title: 'Ayarları Sıfırla',
+      subtitle: 'Tüm ayarları varsayılana döndür',
+      onPress: handleResetSettings,
       showChevron: true,
     },
     {
@@ -255,13 +547,16 @@ export const SettingsScreen: React.FC = () => {
     },
   ];
 
+  // ============================================
+  // RENDER HELPERS
+  // ============================================
+
   const renderSettingItem = (item: SettingItem) => (
     <TouchableOpacity
       key={item.id}
       style={styles.settingItem}
       onPress={item.onPress}
       activeOpacity={0.7}
-      disabled={item.showSwitch}
     >
       <View style={styles.settingItemLeft}>
         <View style={styles.settingIcon}>{item.icon}</View>
@@ -280,28 +575,73 @@ export const SettingsScreen: React.FC = () => {
         </View>
       </View>
 
-      {item.showSwitch && (
-        <Switch
-          value={item.switchValue}
-          onValueChange={item.onSwitchChange}
-          trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-          thumbColor={item.switchValue ? '#16a34a' : '#F3F4F6'}
-        />
-      )}
-
-      {item.showChevron && (
-        <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-      )}
+      <View style={styles.settingItemRight}>
+        {item.value && (
+          <Text style={styles.settingValue}>{item.value}</Text>
+        )}
+        {item.badge !== undefined && item.badge > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{item.badge}</Text>
+          </View>
+        )}
+        {item.showChevron && (
+          <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
+        )}
+      </View>
     </TouchableOpacity>
   );
 
+  const renderSection = (title: string, items: SettingItem[]) => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.settingsGroup}>
+        {items.map(renderSettingItem)}
+      </View>
+    </View>
+  );
+
+  // ============================================
+  // LOADING STATE
+  // ============================================
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <CustomHeader
+          title="Ayarlar"
+          showBack={true}
+          onLeftPress={() => goBack()}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#16a34a" />
+          <Text style={styles.loadingText}>Ayarlar yükleniyor...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // ============================================
+  // MAIN RENDER
+  // ============================================
+
   return (
     <View style={styles.container}>
-      <CustomHeader title="Ayarlar" 
-      showBack={true}
-      onLeftPress={() => NavigationService.goBack()}
+      <CustomHeader
+        title="Ayarlar"
+        showBack={true}
+        onLeftPress={() => goBack()}
       />
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadSettings(true)}
+            tintColor="#16a34a"
+            colors={['#16a34a']}
+          />}
+      >
         {/* User Card */}
         <View style={styles.userCard}>
           <View style={styles.userAvatar}>
@@ -309,7 +649,7 @@ export const SettingsScreen: React.FC = () => {
           </View>
           <View style={styles.userInfo}>
             <Text style={styles.userName}>
-              {user?.name} {user?.surname}
+              {user?.name || 'Kullanıcı'} {user?.surname || ''}
             </Text>
             {user?.email && (
               <Text style={styles.userEmail}>{user.email}</Text>
@@ -321,36 +661,28 @@ export const SettingsScreen: React.FC = () => {
         </View>
 
         {/* Account Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hesap</Text>
-          <View style={styles.settingsGroup}>
-            {accountSettings.map(renderSettingItem)}
-          </View>
-        </View>
+        {renderSection('Hesap', accountSettings)}
+
+        {/* Privacy & Security */}
+        {renderSection('Gizlilik & Güvenlik', privacySecuritySettings)}
+
+        {/* Game Preferences */}
+        {renderSection('Oyun Tercihleri', gamePreferencesSettings)}
 
         {/* App Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Uygulama</Text>
-          <View style={styles.settingsGroup}>
-            {appSettings.map(renderSettingItem)}
-          </View>
-        </View>
+        {renderSection('Uygulama', appSettings)}
+
+        {/* Data & Analytics */}
+        {renderSection('Veri & Analitik', dataAnalyticsSettings)}
+
+        {/* Beta Features */}
+        {settings?.beta?.optInToNewFeatures && renderSection('Beta', betaSettings)}
 
         {/* Support */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Destek</Text>
-          <View style={styles.settingsGroup}>
-            {supportSettings.map(renderSettingItem)}
-          </View>
-        </View>
+        {renderSection('Destek', supportSettings)}
 
-        {/* Data & Privacy */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Veri & Gizlilik</Text>
-          <View style={styles.settingsGroup}>
-            {dataSettings.map(renderSettingItem)}
-          </View>
-        </View>
+        {/* Danger Zone */}
+        {renderSection('Veri & Gizlilik', dangerZoneSettings)}
 
         {/* Logout Button */}
         <TouchableOpacity
@@ -365,7 +697,15 @@ export const SettingsScreen: React.FC = () => {
         {/* Version Info */}
         <View style={styles.versionContainer}>
           <Text style={styles.versionText}>Match Management 360</Text>
-          <Text style={styles.versionNumber}>Versiyon 1.0.0</Text>
+          <Text style={styles.versionNumber}>
+            Versiyon {settings?.version || '1.0.0'}
+          </Text>
+          {settings?.lastSyncedAt && (
+            <Text style={styles.syncText}>
+              Son senkronizasyon:{' '}
+              {new Date(settings.lastSyncedAt).toLocaleString('tr-TR')}
+            </Text>
+          )}
         </View>
 
         <View style={styles.bottomSpacing} />
@@ -381,6 +721,16 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
   },
   userCard: {
     flexDirection: 'row',
@@ -441,6 +791,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 12,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   settingItem: {
     flexDirection: 'row',
@@ -478,6 +833,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#9CA3AF',
   },
+  settingItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  settingValue: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginRight: 4,
+  },
+  badge: {
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   destructiveText: {
     color: '#EF4444',
   },
@@ -493,6 +871,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2,
     borderColor: '#EF4444',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   logoutText: {
     fontSize: 16,
@@ -513,6 +896,12 @@ const styles = StyleSheet.create({
   versionNumber: {
     fontSize: 12,
     color: '#D1D5DB',
+    marginBottom: 4,
+  },
+  syncText: {
+    fontSize: 10,
+    color: '#D1D5DB',
+    marginTop: 4,
   },
   bottomSpacing: {
     height: 32,

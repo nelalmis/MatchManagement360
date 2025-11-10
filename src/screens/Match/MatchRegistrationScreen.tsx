@@ -39,15 +39,15 @@ import {
     ILeague,
     MatchType,
     MatchStatus,
-    SPORT_CONFIGS,
 } from '../../types/entity/types';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
-import { NavigationService } from '../../navigation/NavigationService';
 import { eventManager, Events } from '../../utils';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
+import { sportThemes } from '../../utils/theme';
+import { goBack, MatchNavigationService } from '../../navigation';
 
 export const MatchRegistrationScreen: React.FC = () => {
     const route: any = useRoute();
@@ -70,7 +70,7 @@ export const MatchRegistrationScreen: React.FC = () => {
     const loadData = useCallback(async () => {
         if (!matchId || !user?.id) {
             Alert.alert('Hata', 'Geçersiz bilgi');
-            NavigationService.goBack();
+           goBack();
             return;
         }
 
@@ -83,7 +83,7 @@ export const MatchRegistrationScreen: React.FC = () => {
             const matchResult = await MatchService.getMatch(matchId);
             if (!matchResult.success || !matchResult.data) {
                 Alert.alert('Hata', 'Maç bulunamadı');
-                NavigationService.goBack();
+               goBack();
                 return;
             }
 
@@ -126,7 +126,7 @@ export const MatchRegistrationScreen: React.FC = () => {
         } catch (error) {
             console.error('Error loading match:', error);
             Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu');
-            NavigationService.goBack();
+           goBack();
         } finally {
             setLoading(false);
         }
@@ -206,7 +206,7 @@ export const MatchRegistrationScreen: React.FC = () => {
                                     [
                                         {
                                             text: 'Tamam',
-                                            onPress: () => NavigationService.goBack()
+                                            onPress: () =>goBack()
                                         }
                                     ]
                                 );
@@ -250,7 +250,7 @@ export const MatchRegistrationScreen: React.FC = () => {
                                 Alert.alert('Başarılı', 'Kayıt iptal edildi', [
                                     {
                                         text: 'Tamam',
-                                        onPress: () => NavigationService.goBack()
+                                        onPress: () =>goBack()
                                     }
                                 ]);
                             } else {
@@ -270,7 +270,7 @@ export const MatchRegistrationScreen: React.FC = () => {
 
     const handleGoToMatch = () => {
         if (!match?.id) return;
-        NavigationService.navigateToMatch(match.id);
+        MatchNavigationService.navigateToMatchDetail(match.id);
     };
 
     const formatDateTime = useCallback((date: Date) => {
@@ -310,7 +310,7 @@ export const MatchRegistrationScreen: React.FC = () => {
     }, [match, league]);
 
     const sportColor = useMemo(() =>
-        sportType ? SPORT_CONFIGS[sportType].color : '#16a34a',
+        sportType ? sportThemes[sportType].primary : '#16a34a',
         [sportType]
     );
 
@@ -410,7 +410,7 @@ export const MatchRegistrationScreen: React.FC = () => {
                 sportType={sportType}
                 showIcon={!!sportType}
                 showBack={true}
-                onLeftPress={() => NavigationService.goBack()}
+                onLeftPress={() =>goBack()}
             />
 
             <ScrollView

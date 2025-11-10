@@ -29,9 +29,9 @@ import {
 import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { PlayerStatsService } from '../../services/serviceLayer/playerStatsService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
-import { NavigationService } from '../../navigation/NavigationService';
 import { useAuth } from '../../hooks';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
+import { goBack, ProfileNavigationService } from '../../navigation';
 
 interface TopAssister {
   playerId: string;
@@ -82,7 +82,7 @@ export const TopAssistsScreen: React.FC = () => {
   const loadData = useCallback(async () => {
     if (!leagueId) {
       Alert.alert('Hata', 'Lig ID bulunamadı');
-      NavigationService.goBack();
+      goBack();
       return;
     }
 
@@ -93,7 +93,7 @@ export const TopAssistsScreen: React.FC = () => {
       const leagueResult = await LeagueService.getLeague(leagueId);
       if (!leagueResult.success || !leagueResult.data) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
       setLeague(leagueResult.data);
@@ -173,7 +173,7 @@ export const TopAssistsScreen: React.FC = () => {
   };
 
   const handlePlayerPress = useCallback((playerId: string) => {
-    NavigationService.navigateToPlayerProfile(playerId);
+    ProfileNavigationService.navigateToPlayerProfile(playerId);
   }, []);
 
   if (loading || !league) {
@@ -182,7 +182,7 @@ export const TopAssistsScreen: React.FC = () => {
         <CustomHeader
           title="Asist Krallığı"
           showBack
-          onLeftPress={() => NavigationService.goBack()}
+          onLeftPress={() => goBack()}
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#10B981" />
@@ -198,7 +198,7 @@ export const TopAssistsScreen: React.FC = () => {
         title="Asist Krallığı"
         subtitle={league.title}
         showBack
-        onLeftPress={() => NavigationService.goBack()}
+        onLeftPress={() => goBack()}
       />
 
       {/* Search Bar */}

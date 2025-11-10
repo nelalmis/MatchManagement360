@@ -30,11 +30,11 @@ import { useRoute } from '@react-navigation/native';
 import { IMatch, SportType, MatchStatus } from '../../types/entity/types';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
-import { NavigationService } from '../../navigation';
 import { eventManager, Events } from '../../utils';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { getSportBackgroundColor, getSportEmoji } from '../../utils/theme';
+import { goBack } from '../../navigation';
 
 // Sport helpers
 
@@ -57,7 +57,7 @@ export const PaymentTrackingScreen: React.FC = () => {
   const loadData = async () => {
     if (!matchId || !user?.id) {
       Alert.alert('Hata', 'Maç ID bulunamadı');
-      NavigationService.goBack();
+     goBack();
       return;
     }
 
@@ -68,7 +68,7 @@ export const PaymentTrackingScreen: React.FC = () => {
       
       if (!result.success || !result.data) {
         Alert.alert('Hata', 'Maç bulunamadı');
-        NavigationService.goBack();
+       goBack();
         return;
       }
 
@@ -77,7 +77,7 @@ export const PaymentTrackingScreen: React.FC = () => {
       // Check organizer permission
       if (!matchData.permissions.organizers.includes(user.id)) {
         Alert.alert('Hata', 'Sadece organizatörler ödeme takibi yapabilir');
-        NavigationService.goBack();
+       goBack();
         return;
       }
 
@@ -99,7 +99,7 @@ export const PaymentTrackingScreen: React.FC = () => {
     } catch (error) {
       console.error('Error loading match:', error);
       Alert.alert('Hata', 'Maç yüklenirken bir hata oluştu');
-      NavigationService.goBack();
+     goBack();
     } finally {
       setLoading(false);
     }
@@ -248,7 +248,7 @@ export const PaymentTrackingScreen: React.FC = () => {
                 Alert.alert(
                   '🎉 Tebrikler!',
                   'Maç başarıyla tamamlandı!',
-                  [{ text: 'Tamam', onPress: () => NavigationService.goBack() }]
+                  [{ text: 'Tamam', onPress: () =>goBack() }]
                 );
               } else {
                 Alert.alert('Hata', result.error?.message || 'Maç tamamlanamadı');

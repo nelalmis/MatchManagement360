@@ -54,7 +54,6 @@ import {
 } from 'lucide-react-native';
 import { RouteProp, useFocusEffect, useRoute } from '@react-navigation/native';
 import { useAuth } from '../../hooks';
-import { NavigationService } from '../../navigation/NavigationService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
 import { StandingsService } from '../../services/serviceLayer/standingsService';
@@ -75,6 +74,7 @@ import PlayerService from '../../services/serviceLayer/playerService';
 import { CustomHeader } from '../../components/CustomHeader';
 import { ILeagueInvitation, InvitationType } from '../../types/entity/invitation';
 import LeagueInvitationService from '../../services/serviceLayer/invitationService';
+import { FixtureNavigationService, goBack, LeagueNavigationService, MatchNavigationService } from '../../navigation';
 
 // ============================================
 // TYPES
@@ -256,7 +256,7 @@ export const LeagueDetailScreen: React.FC = () => {
       Alert.alert('Yetkisiz', 'Bu işlem için admin olmalısınız');
       return;
     }
-    NavigationService.navigateToCreateFixture(leagueId);
+    FixtureNavigationService.navigateToCreateFixture(leagueId);
   };
 
   const handleCreateInvite = async () => {
@@ -606,7 +606,7 @@ export const LeagueDetailScreen: React.FC = () => {
               { borderColor: sportColor, borderStyle: 'dashed' },
             ]}
             onPress={() => {
-              NavigationService.navigateToCreateFriendlyMatch(leagueId);
+              MatchNavigationService.navigateToCreateFriendlyMatch(leagueId);
             }}
             activeOpacity={0.7}
           >
@@ -631,7 +631,7 @@ export const LeagueDetailScreen: React.FC = () => {
           style={[styles.quickActionButton, { borderColor: sportColor }]}
           onPress={() =>
             // NavigationService.navigateToManageLeagueInvitations(leagueId, league.title)
-            NavigationService.navigateToManageInvitations(InvitationType.LEAGUE, leagueId, league.title, league.sportType)
+            LeagueNavigationService.navigateToManageInvitations(leagueId, league.title, league.sportType)
           }
           activeOpacity={0.7}
         >
@@ -782,7 +782,7 @@ export const LeagueDetailScreen: React.FC = () => {
                 key={fixture.id}
                 style={styles.fixtureCard}
                 onPress={() =>
-                  NavigationService.navigateToFixtureDetail(fixture.id!)
+                  FixtureNavigationService.navigateToFixtureDetail(fixture.id!)
                 }
                 activeOpacity={0.7}
               >
@@ -861,7 +861,7 @@ export const LeagueDetailScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.viewAllButton}
               onPress={() =>
-                NavigationService.navigateToFixtureList(league.id)
+                FixtureNavigationService.navigateToFixtureList(league.id)
               }
               activeOpacity={0.7}
             >
@@ -948,7 +948,7 @@ export const LeagueDetailScreen: React.FC = () => {
                     <View style={[styles.playerIcon, { backgroundColor: '#8B5CF620' }]}>
                       <Crown size={16} color="#8B5CF6" strokeWidth={2} />
                     </View>
-                    <Text style={styles.playerName}>{playerId}</Text>
+                    <Text style={styles.playerName}>{leagueMembers[playerId]?.displayName || playerId}</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.removePlayerButton}
@@ -982,7 +982,7 @@ export const LeagueDetailScreen: React.FC = () => {
                     <View style={[styles.playerIcon, { backgroundColor: '#16a34a20' }]}>
                       <Shield size={16} color="#16a34a" strokeWidth={2} />
                     </View>
-                    <Text style={styles.playerName}>{playerId}</Text>
+                    <Text style={styles.playerName}>{leagueMembers[playerId]?.displayName || playerId}</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.removePlayerButton}
@@ -1056,7 +1056,7 @@ export const LeagueDetailScreen: React.FC = () => {
             {/* Edit League Info */}
             <TouchableOpacity
               style={styles.settingCard}
-              onPress={() => NavigationService.navigateToEditLeague(leagueId)}
+              onPress={() => LeagueNavigationService.navigateToEditLeague(leagueId)}
               activeOpacity={0.7}
             >
               <View style={[styles.settingIconContainer, { backgroundColor: '#EFF6FF' }]}>
@@ -1074,7 +1074,7 @@ export const LeagueDetailScreen: React.FC = () => {
             {/* Advanced Settings */}
             <TouchableOpacity
               style={styles.settingCard}
-              onPress={() => NavigationService.navigateToLeagueSettings(leagueId)}
+              onPress={() => LeagueNavigationService.navigateToLeagueSettings(leagueId)}
               activeOpacity={0.7}
             >
               <View style={[styles.settingIconContainer, { backgroundColor: '#F0FDF4' }]}>
@@ -1093,7 +1093,7 @@ export const LeagueDetailScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.settingCard}
               onPress={() =>
-                NavigationService.navigateToManageLeagueInvitations(leagueId, league.title)
+                LeagueNavigationService.navigateToManageInvitations(leagueId, league.title, league.sportType)
               }
               activeOpacity={0.7}
             >
@@ -1113,7 +1113,7 @@ export const LeagueDetailScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.settingCard}
               onPress={() => {
-                NavigationService.navigateToManageLeagueMembers(leagueId);
+                LeagueNavigationService.navigateToManageLeagueMembers(leagueId);
               }}
               activeOpacity={0.7}
             >
@@ -1300,7 +1300,7 @@ export const LeagueDetailScreen: React.FC = () => {
                                     Alert.alert('✅ Silindi', 'Lig başarıyla silindi', [
                                       {
                                         text: 'Tamam',
-                                        onPress: () => NavigationService.navigateToLeaguesTab(),
+                                        onPress: () => LeagueNavigationService.navigateToLeagueList(),
                                       },
                                     ]);
                                   } else {
@@ -1367,7 +1367,7 @@ export const LeagueDetailScreen: React.FC = () => {
                                 text: 'Tamam',
                                 onPress: () => {
                                   loadLeagueData();
-                                  NavigationService.navigateToLeaguesTab();
+                                  LeagueNavigationService.navigateToLeagueList();
                                 },
                               },
                             ]);
@@ -1433,7 +1433,8 @@ export const LeagueDetailScreen: React.FC = () => {
               style={styles.manageInvitesButton}
               onPress={() => {
                 setShowInviteModal(false);
-                NavigationService.navigateToManageLeagueInvitations(leagueId, league!.title);
+                // NavigationService.navigateToManageLeagueInvitations(leagueId, league!.title);
+                LeagueNavigationService.navigateToManageInvitations(leagueId, league!.title, league!.sportType);
               }}
               activeOpacity={0.7}
             >
@@ -1557,7 +1558,7 @@ export const LeagueDetailScreen: React.FC = () => {
       <View style={styles.errorContainer}>
         <AlertCircle size={48} color="#EF4444" strokeWidth={2} />
         <Text style={styles.errorText}>Lig bulunamadı</Text>
-        <TouchableOpacity style={styles.errorButton} onPress={() => NavigationService.goBack()}>
+        <TouchableOpacity style={styles.errorButton} onPress={() => goBack()}>
           <Text style={styles.errorButtonText}>Geri Dön</Text>
         </TouchableOpacity>
       </View>
@@ -1617,8 +1618,8 @@ export const LeagueDetailScreen: React.FC = () => {
         subtitle={league.sportType}
         sportType={league.sportType}
         showBack={true}
-        onLeftPress={() => NavigationService.goBack()}
-        showNotifications={true}
+        onLeftPress={() => goBack()}
+        // showNotifications={true}
         showIcon={true}
         onNotificationPress={() => Alert.alert('Bildirimler', 'Yakında eklenecek')}
       />

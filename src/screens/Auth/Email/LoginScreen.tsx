@@ -24,10 +24,10 @@ import { AuthButton } from '../components/AuthButton';
 import { spacing } from '../../../utils/theme';
 import { getEmailError } from '../../../utils/validation';
 import { isProfileComplete } from '../../../helper/helper';
-import { NavigationService } from '../../../navigation/NavigationService';
 import { useAuth } from '../../../hooks';
 import { AuthStackParamList } from '../../../navigation/types';
 import { IPlayer } from '../../../types/entity/types';
+import { AuthNavigationService } from '../../../navigation';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'login'>;
 
@@ -243,7 +243,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
           [
             {
               text: 'Tamam',
-              onPress: () => NavigationService.navigateToRegister(),
+              onPress: () => AuthNavigationService.navigateToRegister(),
             },
           ]
         );

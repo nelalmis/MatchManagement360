@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Alert, ActivityIndicator } from 'react-native';
 import { useRoute } from '@react-navigation/native';
-import { EditFixtureRouteProp, NavigationService } from '../../navigation';
+import { EditFixtureRouteProp, goBack } from '../../navigation';
 import { useAuth } from '../../hooks';
 import { IFixture, ILeague, IPlayer } from '../../types/entity/types';
 import { FixtureService } from '../../services/serviceLayer/fixtureService';
@@ -31,7 +31,7 @@ export const EditFixtureScreen: React.FC = () => {
       const fixtureResponse = await FixtureService.getFixture(fixtureId);
       if (!fixtureResponse.success || !fixtureResponse.data) {
         Alert.alert('Hata', 'Fikstür bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -41,7 +41,7 @@ export const EditFixtureScreen: React.FC = () => {
       const leagueResponse = await LeagueService.getLeague(fixtureData.leagueId);
       if (!leagueResponse.success || !leagueResponse.data) {
         Alert.alert('Hata', 'Lig bulunamadı');
-        NavigationService.goBack();
+        goBack();
         return;
       }
 
@@ -112,7 +112,7 @@ export const EditFixtureScreen: React.FC = () => {
       Alert.alert('✅ Başarılı', 'Fikstür güncellendi', [
         {
           text: 'Tamam',
-          onPress: () => NavigationService.goBack(),
+          onPress: () => goBack(),
         },
       ]);
     } catch (error: any) {
@@ -136,7 +136,7 @@ export const EditFixtureScreen: React.FC = () => {
       leagueMembers={leagueMembers}
       initialData={fixture}
       onSubmit={handleSubmit}
-      onCancel={() => NavigationService.goBack()}
+      onCancel={() => goBack()}
     />
   );
 };

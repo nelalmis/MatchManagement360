@@ -5,6 +5,7 @@ import { playerAPI } from '../../api/apiLayer/playerAPI';
 import { ApiResponse } from '../../api/base/BaseAPI';
 import { IPlayer, SportType } from '../../types/entity/types';
 import { ApiLogger } from '../../api/base/ApiLogger';
+import { userSettingsAPI } from '../../api/apiLayer/userSettingsAPI';
 
 export class PlayerService {
   // ============================================
@@ -85,6 +86,13 @@ export class PlayerService {
       if (result.success) {
         ApiLogger.success('PlayerService', 'registerPlayer', {
           playerId: result.data?.id
+        });
+      }
+
+      const resultUserSettings = await userSettingsAPI.initializeSettings(data.id);
+      if (resultUserSettings.success) { 
+        ApiLogger.success('PlayerService', 'initializeUserSettings', {
+          playerId: data.id
         });
       }
 

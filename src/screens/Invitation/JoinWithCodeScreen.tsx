@@ -24,13 +24,12 @@ import {
     Calendar,
     MapPin,
 } from 'lucide-react-native';
-import { NavigationService } from '../../navigation/NavigationService';
 import LeagueInvitationService, { InvitationService, MatchInvitationService } from '../../services/serviceLayer/invitationService';
 import { useAuth } from '../../hooks';
 import { InvitationType } from '../../types/entity/invitation';
 import { getSportEmoji, getSportPrimaryColor, getSportDisplayName } from '../../utils/theme';
 import { SportType } from '../../types/entity/types';
-import { useRoute } from '../../navigation';
+import { goBack, LeagueNavigationService, MatchNavigationService, useRoute } from '../../navigation';
 import { CustomHeader } from '../../components/CustomHeader';
 
 type JoinWithCodeParams = {
@@ -239,7 +238,7 @@ export const JoinWithCodeScreen: React.FC = () => {
                         {
                             text: 'Lige Git',
                             onPress: () => {
-                                NavigationService.navigateToLeague(result.data!.leagueId);
+                                LeagueNavigationService.navigateToLeagueDetail(result.data!.leagueId);
                             },
                         },
                     ]
@@ -268,7 +267,7 @@ export const JoinWithCodeScreen: React.FC = () => {
                             setError('Bu maça zaten kayıtlısınız.');
                             setTimeout(() => {
                                 if (result.data?.matchId) {
-                                    NavigationService.navigateToMatch(result.data.matchId);
+                                    MatchNavigationService.navigateToMatchDetail(result.data.matchId);
                                 }
                             }, 1500);
                             break;
@@ -296,7 +295,7 @@ export const JoinWithCodeScreen: React.FC = () => {
                             text: 'Devam Et',
                             onPress: () => {
                                 // Navigate to match registration screen
-                                NavigationService.navigateToMatchRegistration(result.data!.matchId);
+                                MatchNavigationService.navigateToMatchRegistration(result.data!.matchId);
                             },
                         },
                     ]
@@ -492,7 +491,7 @@ export const JoinWithCodeScreen: React.FC = () => {
             <CustomHeader
                 title="Davet Kodu ile Katıl"
                 showClose={true}
-                onLeftPress={() => NavigationService.goBack()}
+                onLeftPress={() => goBack()}
             />
 
             <View style={styles.content}>

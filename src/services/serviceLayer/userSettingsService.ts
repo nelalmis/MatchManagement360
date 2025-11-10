@@ -1,9 +1,16 @@
 // ============================================
-// services/UserSettingsService.ts - COMPLETE PRODUCTION VERSION
+// services/UserSettingsService.ts - UPDATED VERSION
 // ============================================
 import { userSettingsAPI } from '../../api/apiLayer/userSettingsAPI';
 import { ApiResponse } from '../../api/base/BaseAPI';
-import { IUserSettings, SportType } from '../../types/entity/types';
+import { 
+  IUserSettings, 
+  SportType,
+  NotificationChannel,
+  NotificationFrequency,
+  DayOfWeek,
+  TimeSlot,
+} from '../../types/entity/types';
 import { ApiLogger } from '../../api/base/ApiLogger';
 
 export class UserSettingsService {
@@ -17,7 +24,6 @@ export class UserSettingsService {
   static async getUserSettings(userId: string): Promise<ApiResponse<IUserSettings>> {
     try {
       const result = await userSettingsAPI.getByUserId(userId);
-
       // If settings don't exist, initialize them
       if (!result.success || !result.data) {
         return this.initializeSettings(userId);
@@ -47,9 +53,7 @@ export class UserSettingsService {
       const result = await userSettingsAPI.initializeSettings(userId);
 
       if (result.success) {
-        ApiLogger.success('UserSettingsService', 'initializeSettings', {
-          userId,
-        });
+        ApiLogger.success('UserSettingsService', 'initializeSettings', { userId });
       }
 
       return result;
@@ -77,9 +81,7 @@ export class UserSettingsService {
       const result = await userSettingsAPI.resetToDefaults(userId);
 
       if (result.success) {
-        ApiLogger.success('UserSettingsService', 'resetToDefaults', {
-          userId,
-        });
+        ApiLogger.success('UserSettingsService', 'resetToDefaults', { userId });
       }
 
       return result;
@@ -90,6 +92,34 @@ export class UserSettingsService {
         error: {
           code: 'RESET_SETTINGS_ERROR',
           message: error.message || 'Ayarlar sıfırlanamadı',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  /**
+   * Sync settings
+   */
+  static async syncSettings(userId: string): Promise<ApiResponse<IUserSettings>> {
+    try {
+      ApiLogger.log('UserSettingsService', 'syncSettings', { userId });
+
+      const result = await userSettingsAPI.syncSettings(userId);
+
+      if (result.success) {
+        ApiLogger.success('UserSettingsService', 'syncSettings', { userId });
+      }
+
+      return result;
+    } catch (error: any) {
+      ApiLogger.error('UserSettingsService', 'syncSettings', error);
+      return {
+        success: false,
+        error: {
+          code: 'SYNC_SETTINGS_ERROR',
+          message: error.message || 'Ayarlar senkronize edilemedi',
           details: error,
           statusCode: 500,
         },
@@ -142,6 +172,26 @@ export class UserSettingsService {
     return this.updateProfile(userId, { displayName: displayName.trim() });
   }
 
+  /**
+   * Set bio
+   */
+  static async setBio(
+    userId: string,
+    bio: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    if (bio.length > 200) {
+      return {
+        success: false,
+        error: {
+          code: 'BIO_TOO_LONG',
+          message: 'Biyografi 200 karakterden uzun olamaz',
+          statusCode: 400,
+        },
+      };
+    }
+    return this.updateProfile(userId, { bio: bio.trim() });
+  }
+
   // ============================================
   // 3. NOTIFICATION SETTINGS
   // ============================================
@@ -159,9 +209,7 @@ export class UserSettingsService {
       const result = await userSettingsAPI.updateNotifications(userId, notifications);
 
       if (result.success) {
-        ApiLogger.success('UserSettingsService', 'updateNotifications', {
-          userId,
-        });
+        ApiLogger.success('UserSettingsService', 'updateNotifications', { userId });
       }
 
       return result;
@@ -200,20 +248,47 @@ export class UserSettingsService {
   }
 
   /**
+   * Update SMS notifications
+   */
+  static async updateSmsNotifications(
+    userId: string,
+    smsSettings: Partial<IUserSettings['notifications']['sms']>
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.updateSmsNotifications(userId, smsSettings);
+  }
+
+  /**
+   * Update in-app notifications
+   */
+  static async updateInAppNotifications(
+    userId: string,
+    inAppSettings: Partial<IUserSettings['notifications']['inApp']>
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.updateInAppNotifications(userId, inAppSettings);
+  }
+
+  /**
+   * Set quiet hours
+   */
+  static async setQuietHours(
+    userId: string,
+    quietHours: Partial<IUserSettings['notifications']['quietHours']>
+    
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.setQuietHours(userId, quietHours);
+  }
+
+  /**
    * Disable all notifications
    */
-  static async disableAllNotifications(
-    userId: string
-  ): Promise<ApiResponse<IUserSettings>> {
+  static async disableAllNotifications(userId: string): Promise<ApiResponse<IUserSettings>> {
     try {
       ApiLogger.log('UserSettingsService', 'disableAllNotifications', { userId });
 
       const result = await userSettingsAPI.disableAllNotifications(userId);
 
       if (result.success) {
-        ApiLogger.success('UserSettingsService', 'disableAllNotifications', {
-          userId,
-        });
+        ApiLogger.success('UserSettingsService', 'disableAllNotifications', { userId });
       }
 
       return result;
@@ -236,10 +311,10 @@ export class UserSettingsService {
    */
   static async canReceiveNotification(
     userId: string,
-    type: 'email' | 'push' | 'sms',
+    channel: NotificationChannel,
     notificationName: string
   ): Promise<ApiResponse<boolean>> {
-    return userSettingsAPI.canReceiveNotification(userId, type, notificationName);
+    return userSettingsAPI.canReceiveNotification(userId, channel, notificationName);
   }
 
   // ============================================
@@ -285,6 +360,36 @@ export class UserSettingsService {
     visibility: 'public' | 'friends' | 'private'
   ): Promise<ApiResponse<IUserSettings>> {
     return userSettingsAPI.setProfileVisibility(userId, visibility);
+  }
+
+  /**
+   * Block user
+   */
+  static async blockUser(
+    userId: string,
+    blockedUserId: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.blockUser(userId, blockedUserId);
+  }
+
+  /**
+   * Unblock user
+   */
+  static async unblockUser(
+    userId: string,
+    blockedUserId: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.unblockUser(userId, blockedUserId);
+  }
+
+  /**
+   * Check if user is blocked
+   */
+  static async isUserBlocked(
+    userId: string,
+    targetUserId: string
+  ): Promise<ApiResponse<boolean>> {
+    return userSettingsAPI.isUserBlocked(userId, targetUserId);
   }
 
   /**
@@ -357,6 +462,95 @@ export class UserSettingsService {
     }
   }
 
+  /**
+   * Check if user allows friend requests
+   */
+  static async allowsFriendRequests(userId: string): Promise<ApiResponse<boolean>> {
+    try {
+      const settingsResult = await this.getUserSettings(userId);
+
+      if (!settingsResult.success || !settingsResult.data) {
+        return {
+          success: false,
+          error: settingsResult.error || {
+            code: 'GET_SETTINGS_ERROR',
+            message: 'Ayarlar alınamadı',
+            statusCode: 500,
+          },
+        };
+      }
+
+      return {
+        success: true,
+        data: settingsResult.data.privacy.allowFriendRequests,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'CHECK_FRIEND_REQUESTS_ERROR',
+          message: error.message || 'Arkadaşlık isteği kontrolü yapılamadı',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  /**
+   * Check if user allows messages
+   */
+  static async allowsMessages(
+    userId: string,
+    fromUserId: string
+  ): Promise<ApiResponse<boolean>> {
+    try {
+      const settingsResult = await this.getUserSettings(userId);
+
+      if (!settingsResult.success || !settingsResult.data) {
+        return {
+          success: false,
+          error: settingsResult.error || {
+            code: 'GET_SETTINGS_ERROR',
+            message: 'Ayarlar alınamadı',
+            statusCode: 500,
+          },
+        };
+      }
+
+      const allowMessages = settingsResult.data.privacy.allowMessages;
+
+      // Check if user is blocked
+      const isBlocked = await this.isUserBlocked(userId, fromUserId);
+      if (isBlocked.success && isBlocked.data) {
+        return { success: true, data: false };
+      }
+
+      // Check message settings
+      if (allowMessages === 'nobody') {
+        return { success: true, data: false };
+      }
+
+      if (allowMessages === 'everyone') {
+        return { success: true, data: true };
+      }
+
+      // TODO: Check if users are friends for 'friends' setting
+      // This would require a FriendshipService check
+      return { success: true, data: false };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: {
+          code: 'CHECK_MESSAGES_ERROR',
+          message: error.message || 'Mesaj izni kontrolü yapılamadı',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
   // ============================================
   // 5. PREFERENCES SETTINGS
   // ============================================
@@ -374,9 +568,7 @@ export class UserSettingsService {
       const result = await userSettingsAPI.updatePreferences(userId, preferences);
 
       if (result.success) {
-        ApiLogger.success('UserSettingsService', 'updatePreferences', {
-          userId,
-        });
+        ApiLogger.success('UserSettingsService', 'updatePreferences', { userId });
       }
 
       return result;
@@ -395,6 +587,16 @@ export class UserSettingsService {
   }
 
   /**
+   * Set favorite sports
+   */
+  static async setFavoriteSports(
+    userId: string,
+    sports: SportType[]
+  ): Promise<ApiResponse<IUserSettings>> {
+    return this.updatePreferences(userId, { favoriteSports: sports });
+  }
+
+  /**
    * Set favorite positions for a sport
    */
   static async setFavoritePositions(
@@ -406,11 +608,22 @@ export class UserSettingsService {
   }
 
   /**
+   * Set skill level for a sport
+   */
+  static async setSkillLevel(
+    userId: string,
+    sport: SportType,
+    level: 'beginner' | 'intermediate' | 'advanced' | 'expert'
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.setSkillLevel(userId, sport, level);
+  }
+
+  /**
    * Set available days
    */
   static async setAvailableDays(
     userId: string,
-    days: number[]
+    days: DayOfWeek[]
   ): Promise<ApiResponse<IUserSettings>> {
     // Validate days (0-6)
     const validDays = days.filter(day => day >= 0 && day <= 6);
@@ -440,6 +653,26 @@ export class UserSettingsService {
   }
 
   /**
+   * Add preferred location
+   */
+  static async addPreferredLocation(
+    userId: string,
+    location: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.addPreferredLocation(userId, location);
+  }
+
+  /**
+   * Remove preferred location
+   */
+  static async removePreferredLocation(
+    userId: string,
+    location: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.removePreferredLocation(userId, location);
+  }
+
+  /**
    * Set max distance
    */
   static async setMaxDistance(
@@ -464,7 +697,7 @@ export class UserSettingsService {
    * Get user availability (days + times)
    */
   static async getUserAvailability(userId: string): Promise<ApiResponse<{
-    days: number[];
+    days: DayOfWeek[];
     times: IUserSettings['preferences']['preferredTimes'];
     maxDistanceKm?: number;
   }>> {
@@ -520,9 +753,7 @@ export class UserSettingsService {
       const result = await userSettingsAPI.updateAppearance(userId, appearance);
 
       if (result.success) {
-        ApiLogger.success('UserSettingsService', 'updateAppearance', {
-          userId,
-        });
+        ApiLogger.success('UserSettingsService', 'updateAppearance', { userId });
       }
 
       return result;
@@ -545,7 +776,7 @@ export class UserSettingsService {
    */
   static async setTheme(
     userId: string,
-    theme: 'light' | 'dark' | 'auto'
+    theme: 'light' | 'dark' | 'system'
   ): Promise<ApiResponse<IUserSettings>> {
     return userSettingsAPI.setTheme(userId, theme);
   }
@@ -558,6 +789,16 @@ export class UserSettingsService {
     language: 'tr' | 'en'
   ): Promise<ApiResponse<IUserSettings>> {
     return userSettingsAPI.setLanguage(userId, language);
+  }
+
+  /**
+   * Set currency
+   */
+  static async setCurrency(
+    userId: string,
+    currency: 'TRY' | 'USD' | 'EUR'
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.setCurrency(userId, currency);
   }
 
   /**
@@ -596,7 +837,237 @@ export class UserSettingsService {
   }
 
   // ============================================
-  // 7. QUICK ACTIONS (CACHE)
+  // 7. ACCESSIBILITY SETTINGS
+  // ============================================
+
+  /**
+   * Update accessibility settings
+   */
+  static async updateAccessibility(
+    userId: string,
+    accessibility: Partial<IUserSettings['accessibility']>
+  ): Promise<ApiResponse<IUserSettings>> {
+    try {
+      ApiLogger.log('UserSettingsService', 'updateAccessibility', { userId });
+
+      const result = await userSettingsAPI.updateAccessibility(userId, accessibility);
+
+      if (result.success) {
+        ApiLogger.success('UserSettingsService', 'updateAccessibility', { userId });
+      }
+
+      return result;
+    } catch (error: any) {
+      ApiLogger.error('UserSettingsService', 'updateAccessibility', error);
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_ACCESSIBILITY_ERROR',
+          message: error.message || 'Erişilebilirlik ayarları güncellenemedi',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  // ============================================
+  // 8. CALENDAR SETTINGS
+  // ============================================
+
+  /**
+   * Update calendar settings
+   */
+  static async updateCalendar(
+    userId: string,
+    calendar: Partial<IUserSettings['calendar']>
+  ): Promise<ApiResponse<IUserSettings>> {
+    try {
+      ApiLogger.log('UserSettingsService', 'updateCalendar', { userId });
+
+      const result = await userSettingsAPI.updateCalendar(userId, calendar);
+
+      if (result.success) {
+        ApiLogger.success('UserSettingsService', 'updateCalendar', { userId });
+      }
+
+      return result;
+    } catch (error: any) {
+      ApiLogger.error('UserSettingsService', 'updateCalendar', error);
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_CALENDAR_ERROR',
+          message: error.message || 'Takvim ayarları güncellenemedi',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  // ============================================
+  // 9. SOCIAL SETTINGS
+  // ============================================
+
+  /**
+   * Update social settings
+   */
+  static async updateSocial(
+    userId: string,
+    social: Partial<IUserSettings['social']>
+  ): Promise<ApiResponse<IUserSettings>> {
+    try {
+      ApiLogger.log('UserSettingsService', 'updateSocial', { userId });
+
+      const result = await userSettingsAPI.updateSocial(userId, social);
+
+      if (result.success) {
+        ApiLogger.success('UserSettingsService', 'updateSocial', { userId });
+      }
+
+      return result;
+    } catch (error: any) {
+      ApiLogger.error('UserSettingsService', 'updateSocial', error);
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_SOCIAL_ERROR',
+          message: error.message || 'Sosyal ayarlar güncellenemedi',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  // ============================================
+  // 10. ANALYTICS SETTINGS
+  // ============================================
+
+  /**
+   * Update analytics settings
+   */
+  static async updateAnalytics(
+    userId: string,
+    analytics: Partial<IUserSettings['analytics']>
+  ): Promise<ApiResponse<IUserSettings>> {
+    try {
+      ApiLogger.log('UserSettingsService', 'updateAnalytics', { userId });
+
+      const result = await userSettingsAPI.updateAnalytics(userId, analytics);
+
+      if (result.success) {
+        ApiLogger.success('UserSettingsService', 'updateAnalytics', { userId });
+      }
+
+      return result;
+    } catch (error: any) {
+      ApiLogger.error('UserSettingsService', 'updateAnalytics', error);
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_ANALYTICS_ERROR',
+          message: error.message || 'Analitik ayarları güncellenemedi',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  // ============================================
+  // 11. STORAGE SETTINGS
+  // ============================================
+
+  /**
+   * Update storage settings
+   */
+  static async updateStorage(
+    userId: string,
+    storage: Partial<IUserSettings['storage']>
+  ): Promise<ApiResponse<IUserSettings>> {
+    try {
+      ApiLogger.log('UserSettingsService', 'updateStorage', { userId });
+
+      const result = await userSettingsAPI.updateStorage(userId, storage);
+
+      if (result.success) {
+        ApiLogger.success('UserSettingsService', 'updateStorage', { userId });
+      }
+
+      return result;
+    } catch (error: any) {
+      ApiLogger.error('UserSettingsService', 'updateStorage', error);
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_STORAGE_ERROR',
+          message: error.message || 'Depolama ayarları güncellenemedi',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  // ============================================
+  // 12. SECURITY SETTINGS
+  // ============================================
+
+  /**
+   * Update security settings
+   */
+  static async updateSecurity(
+    userId: string,
+    security: Partial<IUserSettings['security']>
+  ): Promise<ApiResponse<IUserSettings>> {
+    try {
+      ApiLogger.log('UserSettingsService', 'updateSecurity', { userId });
+
+      const result = await userSettingsAPI.updateSecurity(userId, security);
+
+      if (result.success) {
+        ApiLogger.success('UserSettingsService', 'updateSecurity', { userId });
+      }
+
+      return result;
+    } catch (error: any) {
+      ApiLogger.error('UserSettingsService', 'updateSecurity', error);
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_SECURITY_ERROR',
+          message: error.message || 'Güvenlik ayarları güncellenemedi',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  /**
+   * Add trusted device
+   */
+  static async addTrustedDevice(
+    userId: string,
+    deviceId: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.addTrustedDevice(userId, deviceId);
+  }
+
+  /**
+   * Remove trusted device
+   */
+  static async removeTrustedDevice(
+    userId: string,
+    deviceId: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.removeTrustedDevice(userId, deviceId);
+  }
+
+  // ============================================
+  // 13. QUICK ACTIONS (CACHE)
   // ============================================
 
   /**
@@ -627,6 +1098,37 @@ export class UserSettingsService {
     matchId: string
   ): Promise<ApiResponse<IUserSettings>> {
     return userSettingsAPI.addRecentMatch(userId, matchId);
+  }
+
+  /**
+   * Add pinned venue
+   */
+  static async addPinnedVenue(
+    userId: string,
+    venueId: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.addPinnedVenue(userId, venueId);
+  }
+
+  /**
+   * Remove pinned venue
+   */
+  static async removePinnedVenue(
+    userId: string,
+    venueId: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.removePinnedVenue(userId, venueId);
+  }
+
+  /**
+   * Save search
+   */
+  static async saveSearch(
+    userId: string,
+    query: string,
+    filters: any
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.saveSearch(userId, query, filters);
   }
 
   /**
@@ -709,7 +1211,62 @@ export class UserSettingsService {
   }
 
   // ============================================
-  // 8. SETTINGS SUMMARY
+  // 14. BETA FEATURES
+  // ============================================
+
+  /**
+   * Update beta settings
+   */
+  static async updateBeta(
+    userId: string,
+    beta: Partial<NonNullable<IUserSettings['beta']>>
+  ): Promise<ApiResponse<IUserSettings>> {
+    try {
+      ApiLogger.log('UserSettingsService', 'updateBeta', { userId });
+
+      const result = await userSettingsAPI.updateBeta(userId, beta);
+
+      if (result.success) {
+        ApiLogger.success('UserSettingsService', 'updateBeta', { userId });
+      }
+
+      return result;
+    } catch (error: any) {
+      ApiLogger.error('UserSettingsService', 'updateBeta', error);
+      return {
+        success: false,
+        error: {
+          code: 'UPDATE_BETA_ERROR',
+          message: error.message || 'Beta ayarları güncellenemedi',
+          details: error,
+          statusCode: 500,
+        },
+      };
+    }
+  }
+
+  /**
+   * Enable beta feature
+   */
+  static async enableBetaFeature(
+    userId: string,
+    featureName: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.enableBetaFeature(userId, featureName);
+  }
+
+  /**
+   * Disable beta feature
+   */
+  static async disableBetaFeature(
+    userId: string,
+    featureName: string
+  ): Promise<ApiResponse<IUserSettings>> {
+    return userSettingsAPI.disableBetaFeature(userId, featureName);
+  }
+
+  // ============================================
+  // 15. SETTINGS SUMMARY
   // ============================================
 
   /**
@@ -718,10 +1275,13 @@ export class UserSettingsService {
   static async getSettingsSummary(userId: string): Promise<ApiResponse<{
     theme: string;
     language: string;
+    currency: string;
     profileVisibility: string;
     notificationsEnabled: boolean;
     favoriteLeaguesCount: number;
     availableDaysCount: number;
+    biometricEnabled: boolean;
+    twoFactorEnabled: boolean;
   }>> {
     try {
       const settingsResult = await this.getUserSettings(userId);
@@ -739,25 +1299,18 @@ export class UserSettingsService {
 
       const settings = settingsResult.data;
 
-      // Check if any notification is enabled
-      const emailNotifs = Object.values(settings.notifications.email);
-      const pushNotifs = Object.values(settings.notifications.push);
-      const smsNotifs = Object.values(settings.notifications.sms);
-      const notificationsEnabled = [
-        ...emailNotifs,
-        ...pushNotifs,
-        ...smsNotifs,
-      ].some(enabled => enabled);
-
       return {
         success: true,
         data: {
           theme: settings.appearance.theme,
           language: settings.appearance.language,
+          currency: settings.appearance.currency,
           profileVisibility: settings.privacy.profileVisibility,
-          notificationsEnabled,
+          notificationsEnabled: settings.notifications.enabled,
           favoriteLeaguesCount: settings.quickActions?.favoriteLeagues?.length || 0,
           availableDaysCount: settings.preferences.availableDays.length,
+          biometricEnabled: settings.security.biometricLogin,
+          twoFactorEnabled: settings.security.twoFactorAuth,
         },
       };
     } catch (error: any) {
@@ -774,14 +1327,14 @@ export class UserSettingsService {
   }
 
   // ============================================
-  // 9. HELPER METHODS
+  // 16. HELPER METHODS
   // ============================================
 
   /**
    * Get day names in Turkish
    */
-  static getDayNames(days: number[]): string[] {
-    const dayMap: Record<number, string> = {
+  static getDayNames(days: DayOfWeek[]): string[] {
+    const dayMap: Record<DayOfWeek, string> = {
       0: 'Pazar',
       1: 'Pazartesi',
       2: 'Salı',
@@ -803,6 +1356,7 @@ export class UserSettingsService {
     if (times.morning) slots.push('Sabah (06:00-12:00)');
     if (times.afternoon) slots.push('Öğleden Sonra (12:00-18:00)');
     if (times.evening) slots.push('Akşam (18:00-00:00)');
+    if (times.night) slots.push('Gece (00:00-06:00)');
 
     return slots.length > 0 ? slots : ['Müsait değil'];
   }
@@ -811,7 +1365,7 @@ export class UserSettingsService {
    * Format availability for display
    */
   static formatAvailability(
-    days: number[],
+    days: DayOfWeek[],
     times: IUserSettings['preferences']['preferredTimes']
   ): string {
     const dayNames = this.getDayNames(days);
@@ -852,8 +1406,8 @@ export class UserSettingsService {
       }
 
       // Validate preferred times
-      const { morning, afternoon, evening } = settings.preferences.preferredTimes;
-      if (!morning && !afternoon && !evening) {
+      const { morning, afternoon, evening, night } = settings.preferences.preferredTimes;
+      if (!morning && !afternoon && !evening && !night) {
         warnings.push('Hiç tercih edilen zaman dilimi seçilmemiş');
       }
 
@@ -863,17 +1417,13 @@ export class UserSettingsService {
       }
 
       // Check notification settings
-      const emailNotifs = Object.values(settings.notifications.email);
-      const pushNotifs = Object.values(settings.notifications.push);
-      const smsNotifs = Object.values(settings.notifications.sms);
-      const anyEnabled = [
-        ...emailNotifs,
-        ...pushNotifs,
-        ...smsNotifs,
-      ].some(enabled => enabled);
+      if (!settings.notifications.enabled) {
+        warnings.push('Bildirimler kapalı');
+      }
 
-      if (!anyEnabled) {
-        warnings.push('Tüm bildirimler kapalı');
+      // Check security
+      if (!settings.security.biometricLogin && !settings.security.twoFactorAuth) {
+        warnings.push('Ekstra güvenlik önlemi yok');
       }
 
       const valid = errors.length === 0;
@@ -902,73 +1452,53 @@ export class UserSettingsService {
 
 export default UserSettingsService;
 
-/*
-// ✅ Get settings (auto-initialize if not exists)
-const settings = await UserSettingsService.getUserSettings(userId);
+/* 
 
-// ✅ Check if user can receive notification
-const canReceive = await UserSettingsService.canReceiveNotification(
-  userId,
-  'email',
-  'matchInvitations'
-);
-if (canReceive.data) {
-  await sendEmail(...);
-}
+// ✅ Initialize settings for new user
+await UserSettingsService.initializeSettings(userId);
 
-// ✅ Check privacy before showing profile
-const isPublic = await UserSettingsService.isProfilePublic(userId);
-if (!isPublic.data && currentUserId !== userId) {
-  return res.status(403).json({ message: 'Profile is private' });
-}
+// ✅ Update profile bio
+await UserSettingsService.setBio(userId, 'Futbol tutkunu, her akşam oynuyorum!');
 
-// ✅ Check if user allows invitations
-const allowsInvites = await UserSettingsService.allowsInvitations(userId);
-if (!allowsInvites.data) {
-  return res.status(403).json({ message: 'User does not accept invitations' });
-}
+// ✅ Set quiet hours
+await UserSettingsService.setQuietHours(userId, true, '22:00', '08:00');
 
-// ✅ Set theme
-await UserSettingsService.setTheme(userId, 'dark');
+// ✅ Block/unblock user
+await UserSettingsService.blockUser(userId, blockedUserId);
+await UserSettingsService.unblockUser(userId, blockedUserId);
 
-// ✅ Set favorite positions
-await UserSettingsService.setFavoritePositions(
-  userId,
-  'FOOTBALL',
-  ['Kaleci', 'Orta Saha']
-);
+// ✅ Check if user is blocked
+const isBlocked = await UserSettingsService.isUserBlocked(userId, targetUserId);
 
-// ✅ Set available days
-await UserSettingsService.setAvailableDays(userId, [1, 2, 3, 4, 5]); // Mon-Fri
+// ✅ Set skill level
+await UserSettingsService.setSkillLevel(userId, 'football', 'advanced');
 
-// ✅ Add to favorites
-await UserSettingsService.addFavoriteLeague(userId, leagueId);
+// ✅ Add/remove preferred location
+await UserSettingsService.addPreferredLocation(userId, 'Merkez Saha');
+await UserSettingsService.removePreferredLocation(userId, 'Eski Saha');
 
-// ✅ Track recent match (cache)
-await UserSettingsService.addRecentMatch(userId, matchId);
+// ✅ Update security settings
+await UserSettingsService.updateSecurity(userId, {
+  biometricLogin: true,
+  twoFactorAuth: true,
+  sessionTimeout: 30,
+});
 
-// ✅ Get user availability
-const availability = await UserSettingsService.getUserAvailability(userId);
-console.log(availability.data.days); // [1, 2, 3, 4, 5]
-console.log(availability.data.times); // { morning: true, afternoon: true, evening: false }
+// ✅ Pin venue
+await UserSettingsService.addPinnedVenue(userId, venueId);
 
-// ✅ Format availability for display
-const formatted = UserSettingsService.formatAvailability(
-  [1, 2, 3],
-  { morning: true, afternoon: false, evening: true }
-);
-// "Pazartesi, Salı, Çarşamba - Sabah (06:00-12:00), Akşam (18:00-00:00)"
+// ✅ Save search
+await UserSettingsService.saveSearch(userId, 'futbol ligi', { city: 'Mersin' });
 
-// ✅ Settings validation
-const validation = await UserSettingsService.validateSettings(userId);
-if (!validation.data?.valid) {
-  console.error('Errors:', validation.data?.errors);
-}
-console.log('Warnings:', validation.data?.warnings);
+// ✅ Enable beta feature
+await UserSettingsService.enableBetaFeature(userId, 'ai-match-suggestions');
 
-// ✅ Disable all notifications
-await UserSettingsService.disableAllNotifications(userId);
+// ✅ Check message permissions
+const canMessage = await UserSettingsService.allowsMessages(userId, fromUserId);
 
-// ✅ Reset to defaults
-await UserSettingsService.resetToDefaults(userId);
+// ✅ Sync settings
+await UserSettingsService.syncSettings(userId);
+
+// ✅ Get settings summary
+const summary = await UserSettingsService.getSettingsSummary(userId);
 */
