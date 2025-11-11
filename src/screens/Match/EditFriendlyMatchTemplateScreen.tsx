@@ -32,6 +32,8 @@ import { SportType, IFriendlyMatchConfig } from '../../types/entity/types';
 import { useAuth } from '../../hooks';
 import { sportThemes } from '../../utils/theme';
 import { goBack } from '../../navigation';
+import { LoadingScreen } from '../Common';
+import { CustomHeader } from '../../components/CustomHeader';
 
 type EditTemplateRouteProp = RouteProp<{
   params: {
@@ -81,7 +83,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
 
       // Load template
       const result = await FriendlyMatchConfigService.getTemplate(user!.id!, templateId);
-      
+
       if (!result.success || !result.data) {
         Alert.alert('Hata', 'Şablon bulunamadı');
         goBack();
@@ -97,7 +99,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
       if (template.sportType) {
         setSelectedSport(template.sportType as SportType);
       }
-      
+
       setLocation(settings.location || '');
       setPricePerPlayer(settings.pricePerPlayer?.toString() || '');
       setStaffCount(settings.staffCount?.toString() || '10');
@@ -106,7 +108,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
       // setAffectsStandings(settings.affectsStandings || false);
       // setAffectsStats(settings.affectsStats !== false);
       // setIsPublic(settings.isPublic !== false);
-      
+
       // Payment info (old field names for backward compatibility)
       setPaymentIban(settings.paymentInfo?.iban || '');
       setPaymentAccountName(settings.paymentInfo?.accountName || '');
@@ -179,7 +181,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
           affectsStandings,
           affectsStats,
           isPublic,
-          
+
           // Payment info (keeping old field names for now)
           peterIban: paymentIban.trim() || "",
           peterFullName: paymentAccountName.trim() || "",
@@ -248,47 +250,30 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
   };
 
   const sportColor = sportThemes[selectedSport].primary;
+  const renderHeader = () => (
+    <CustomHeader
+      title="Şablonu Düzenle"
+      showBack={true}
+      onLeftPress={() => goBack()}
+      showSave={true}
+      sportType={selectedSport}
+      showIcon={true}
+      onSavePress={handleSave}
+      disableSave={saving}
+      loading={saving}
+    />
+  );
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10B981" />
-        <Text style={styles.loadingText}>Şablon yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} loadingText="Şablon yükleniyor..." color={sportColor} />;
   }
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: sportColor }]}>
-        <TouchableOpacity 
-          onPress={() => goBack()} 
-          style={styles.headerButton}
-        >
-          <ArrowLeft size={24} color="white" strokeWidth={2} />
-        </TouchableOpacity>
+      {renderHeader()}
 
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Şablonu Düzenle</Text>
-          <Text style={styles.headerSubtitle}>
-            {sportThemes[selectedSport].emoji} {sportThemes[selectedSport].label}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          onPress={handleSave}
-          style={styles.headerButton}
-          disabled={saving}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <Save size={24} color="white" strokeWidth={2} />
-          )}
-        </TouchableOpacity>
-      </View>
-
+      {/* Content */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Template Name */}
         <View style={styles.section}>
@@ -406,7 +391,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
           {/* Payment Info */}
           <View style={styles.paymentSection}>
             <Text style={styles.subsectionTitle}>Ödeme Bilgileri (Opsiyonel)</Text>
-            
+
             <View style={styles.inputContainer}>
               <CreditCard size={20} color="#6B7280" strokeWidth={2} />
               <TextInput
@@ -438,7 +423,7 @@ export const EditFriendlyMatchTemplateScreen: React.FC = () => {
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>Herkese Açık</Text>
               <Text style={styles.settingDescription}>
-                {isPublic 
+                {isPublic
                   ? 'Herkes görebilir ve katılabilir'
                   : 'Sadece davet kodu ile katılım'}
               </Text>
@@ -514,46 +499,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 16,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: 'white',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
   },
   scrollView: {
     flex: 1,

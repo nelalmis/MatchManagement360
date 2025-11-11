@@ -40,6 +40,7 @@ import { MatchService } from '../../services/serviceLayer/matchService';
 import { useAuth } from '../../hooks';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { goBack, MatchNavigationService, ProfileNavigationService, SettingsNavigationService, StandingsNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 interface CareerStats {
   totalMatches: number;
@@ -200,22 +201,18 @@ export const PlayerProfileScreen: React.FC = () => {
         // showBack
         // onLeftPress={() => goBack()}
         showMenu
-        // showEdit={isOwnProfile}
-        // onEditPress={handleEditProfile}
+      // showEdit={isOwnProfile}
+      // onEditPress={handleEditProfile}
       />
     );
   };
 
   if (loading || !player) {
-    return (
-      <View style={styles.container}>
-        {renderHeader()}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>Profil yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen
+      loadingText="Profil yükleniyor..."
+      header={renderHeader()}
+      visibleHeader={true}
+    />;
   }
 
   return (
@@ -225,8 +222,8 @@ export const PlayerProfileScreen: React.FC = () => {
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor="#16a34a"
             colors={['#16a34a']}
@@ -516,18 +513,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
   },
   content: {
     flex: 1,

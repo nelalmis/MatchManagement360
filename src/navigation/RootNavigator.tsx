@@ -15,6 +15,7 @@ import { MainNavigatorV2 } from './MainNavigatorV2';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { MaintenanceScreen } from '../screens/Common/MaintenanceScreen';
 import { navigationRef } from './navigationServices/NavigationBaseService';
+import { LoadingScreen } from '../screens';
 
 const Stack = createNativeStackNavigator();
 
@@ -86,22 +87,12 @@ export function RootNavigator() {
 
   // ✅ Config loading
   if (configLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Yapılandırma yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen loadingText='Yapılandırma yükleniyor...'/>;
   }
 
   // ✅ Auth validation loading
   if (isValidating) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen loadingText='Yükleniyor...'/>;
   }
 
   return (
@@ -120,22 +111,3 @@ export function RootNavigator() {
     </>
   );
 }
-
-// ============================================
-// STYLES
-// ============================================
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#16a34a',
-    marginTop: 16,
-    fontWeight: '600',
-  },
-});

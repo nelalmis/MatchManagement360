@@ -31,6 +31,7 @@ import { SportType, ILeague } from '../../types/entity/types';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { EditLeagueRouteProp, goBack, LeagueNavigationService, useRoute } from '../../navigation';
 import { CustomHeader } from '../../components/CustomHeader';
+import { LoadingScreen } from '../Common';
 
 // ============================================
 // MAIN COMPONENT
@@ -158,7 +159,7 @@ export const EditLeagueScreen: React.FC = () => {
 
   const handleSaveBasicInfo = async () => {
     if (!user?.id || !league) return;
-    if(!hasChanges){
+    if (!hasChanges) {
       setCurrentStep(2);
       return;
     }
@@ -189,7 +190,7 @@ export const EditLeagueScreen: React.FC = () => {
 
   const handleSaveSeasonSettings = async () => {
     if (!user?.id || !league) return;
-    if(!hasChanges){
+    if (!hasChanges) {
       setCurrentStep(3);
       return;
     }
@@ -374,12 +375,7 @@ export const EditLeagueScreen: React.FC = () => {
   // ============================================
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={styles.loadingText}>Lig bilgileri yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen loadingText='Lig bilgileri yükleniyor...' />;
   }
 
   if (!league) {
@@ -394,7 +390,7 @@ export const EditLeagueScreen: React.FC = () => {
   // ============================================
 
   const renderHeader = () => (
-    <CustomHeader 
+    <CustomHeader
       showClose={true}
       onLeftPress={handleBack}
       title="Lig Düzenle"
@@ -848,63 +844,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 2,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitleContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 12,
-    gap: 12,
-  },
-  headerEmoji: {
-    fontSize: 32,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1F2937',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  saveButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 12,
-  },
-
+  
   // Content
   content: {
     flex: 1,

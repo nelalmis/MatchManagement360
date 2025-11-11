@@ -34,6 +34,7 @@ import { PlayerStatsService } from '../../services/serviceLayer/playerStatsServi
 import { useAuth } from '../../hooks';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { goBack, MatchNavigationService, ProfileNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 interface MVPPlayer {
   playerId: string;
@@ -67,7 +68,7 @@ export const MVPScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const sportColor = useMemo(() => 
+  const sportColor = useMemo(() =>
     league ? getSportPrimaryColor(league.sportType) : '#16a34a',
     [league]
   );
@@ -100,8 +101,8 @@ export const MVPScreen: React.FC = () => {
       // Get all completed matches
       const matchesResult = await MatchService.getLeagueMatches(leagueId);
       const allMatches = matchesResult.success && matchesResult.data ? matchesResult.data : [];
-      
-      const completedMatches = allMatches.filter(m => 
+
+      const completedMatches = allMatches.filter(m =>
         m.status === MatchStatus.COMPLETED && m.mvp?.playerId
       );
 
@@ -109,13 +110,13 @@ export const MVPScreen: React.FC = () => {
       let allPlayerStats;
       if (seasonId) {
         const seasonStatsResult = await PlayerStatsService.getSeasonStats(seasonId);
-        allPlayerStats = seasonStatsResult.success && seasonStatsResult.data 
-          ? seasonStatsResult.data 
+        allPlayerStats = seasonStatsResult.success && seasonStatsResult.data
+          ? seasonStatsResult.data
           : [];
       } else {
         const leagueStatsResult = await PlayerStatsService.getLeagueStats(leagueId);
-        allPlayerStats = leagueStatsResult.success && leagueStatsResult.data 
-          ? leagueStatsResult.data 
+        allPlayerStats = leagueStatsResult.success && leagueStatsResult.data
+          ? leagueStatsResult.data
           : [];
       }
 
@@ -124,11 +125,11 @@ export const MVPScreen: React.FC = () => {
 
       for (const match of completedMatches) {
         const mvpId = match.mvp?.playerId!;
-        
+
         if (!mvpStats[mvpId]) {
           const playerResult = await PlayerService.getPlayer(mvpId);
           const playerStat = allPlayerStats.find(s => s.playerId === mvpId);
-          
+
           mvpStats[mvpId] = {
             playerId: mvpId,
             playerName: playerResult.success && playerResult.data
@@ -142,14 +143,14 @@ export const MVPScreen: React.FC = () => {
             mvpPercentage: 0,
           };
         }
-        
+
         mvpStats[mvpId].mvpCount++;
       }
 
       // Calculate MVP percentage
       const mvpArray: MVPPlayer[] = Object.values(mvpStats).map(player => ({
         ...player,
-        mvpPercentage: player.totalMatches > 0 
+        mvpPercentage: player.totalMatches > 0
           ? parseFloat(((player.mvpCount / player.totalMatches) * 100).toFixed(1))
           : 0,
       }));
@@ -168,10 +169,10 @@ export const MVPScreen: React.FC = () => {
         .slice(0, 10);
 
       const recentMVPsData: RecentMVP[] = [];
-      
+
       for (const match of recentMatches) {
         const playerResult = await PlayerService.getPlayer(match.mvp?.playerId!);
-        
+
         recentMVPsData.push({
           matchId: match.id,
           matchTitle: match.title,
@@ -222,37 +223,28 @@ export const MVPScreen: React.FC = () => {
     MatchNavigationService.navigateToMatchDetail(matchId);
   }, []);
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="En Değerli Oyuncular"
+      showBack={true}
+      onLeftPress={() => goBack()}
+    />
+  );
+
   if (loading || !league) {
-    return (
-      <View style={styles.container}>
-        <CustomHeader
-          title="En Değerli Oyuncular"
-          showBack
-          onLeftPress={() => goBack()}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>MVP verileri yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} loadingText='MVP verileri yükleniyor...' />;
   }
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="En Değerli Oyuncular"
-        subtitle={league.title}
-        showBack
-        onLeftPress={() => goBack()}
-      />
+      {renderHeader()}
 
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={sportColor}
             colors={[sportColor]}
@@ -354,7 +346,7 @@ export const MVPScreen: React.FC = () => {
         {/* All MVP Rankings */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tüm Sıralama</Text>
-          
+
           {mvpPlayers.map((player, index) => {
             const isCurrentUser = player.playerId === user?.id;
             const medal = getMedalEmoji(index);
@@ -432,7 +424,7 @@ export const MVPScreen: React.FC = () => {
         {recentMVPs.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Son MVP'ler</Text>
-            
+
             {recentMVPs.map((mvp) => (
               <TouchableOpacity
                 key={mvp.matchId}
@@ -476,18 +468,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
   },
   content: {
     flex: 1,

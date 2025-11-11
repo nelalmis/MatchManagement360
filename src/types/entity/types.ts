@@ -1100,6 +1100,8 @@ export interface IAppConfig {
   // ============================================
   app: {
     name: string;
+    welcomeMessage?: string;
+    splashText?: string;
     version: string;
     environment: 'development' | 'staging' | 'production';
     maintenanceMode: boolean;

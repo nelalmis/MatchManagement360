@@ -43,6 +43,7 @@ import { ILeague, IPlayer, SportType } from '../../types/entity/types';
 import { getSportPrimaryColor, getSportEmoji } from '../../utils/theme';
 import { CustomHeader } from '../../components/CustomHeader';
 import { goBack, LeagueNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 // ============================================
 // TYPES
@@ -1029,12 +1030,7 @@ export const ManageLeagueMembersScreen: React.FC = () => {
   // ============================================
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={styles.loadingText}>Üyeler yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen loadingText="Üyeler yükleniyor..." />;
   }
 
   if (!league || !isAdmin) {
@@ -1086,18 +1082,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1123,45 +1107,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'white',
   },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 2,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1F2937',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 12,
-  },
-
   // Content
   content: {
     flex: 1,

@@ -585,16 +585,6 @@
 //         fontWeight: '600',
 //         color: '#007AFF',
 //     },
-//     loadingContainer: {
-//         flex: 1,
-//         justifyContent: 'center',
-//         alignItems: 'center',
-//     },
-//     loadingText: {
-//         marginTop: 12,
-//         fontSize: 16,
-//         color: '#666',
-//     },
 //     scrollView: {
 //         flex: 1,
 //     },

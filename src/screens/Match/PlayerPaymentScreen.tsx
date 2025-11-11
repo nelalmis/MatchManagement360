@@ -33,6 +33,7 @@ import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { getSportBackgroundColor, getSportEmoji } from '../../utils/theme';
 import { goBack } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 export const PlayerPaymentScreen: React.FC = () => {
   const route: any = useRoute();
@@ -201,12 +202,7 @@ Tutar: ${amount} ₺
   };
 
   if (loading || !match) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   const sportColor = getSportBackgroundColor(match.sportType);
@@ -440,8 +436,6 @@ Tutar: ${amount} ₺
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
-  loadingText: { marginTop: 12, fontSize: 14, color: '#6B7280', fontWeight: '600' },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
   errorText: { marginTop: 16, fontSize: 16, color: '#DC2626', fontWeight: '600', textAlign: 'center' },
   content: { flex: 1 },

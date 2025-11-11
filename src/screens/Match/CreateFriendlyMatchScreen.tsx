@@ -43,6 +43,7 @@ import { CustomHeader } from '../../components/CustomHeader';
 import { CustomDateTimePicker } from '../../components';
 import { getThemeForSport, sportThemes } from '../../utils/theme';
 import { goBack, MatchNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 type FriendlyMatchTemplate = IFriendlyMatchConfig['templates'][0];
 
@@ -528,12 +529,7 @@ export const CreateFriendlyMatchScreen: React.FC = () => {
   // ============================================
 
   if (loadingTemplates) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10B981" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -1054,18 +1050,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: '600',
   },
   scrollView: {
     flex: 1,

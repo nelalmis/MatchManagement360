@@ -9,19 +9,15 @@ import {
     ScrollView,
     TouchableOpacity,
     Alert,
-    ActivityIndicator,
     RefreshControl,
     Platform,
 } from 'react-native';
 import {
-    ArrowLeft,
-    Edit,
     MapPin,
     Calendar,
     Clock,
     Users,
     DollarSign,
-    Plus,
     Repeat,
     Trophy,
     Settings,
@@ -39,11 +35,12 @@ import { FixtureService } from '../../services/serviceLayer/fixtureService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { MatchService } from '../../services/serviceLayer/matchService';
 import { PlayerService } from '../../services/serviceLayer/playerService';
-import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
+import { getSportPrimaryColor } from '../../utils/theme';
 import * as Clipboard from 'expo-clipboard';
 import { getPatternDisplayName } from '../../types/entity/recurringPattern';
 import { calculateRegistrationCloseTime, calculateRegistrationOpenTime, getRegistrationStatusColor, getRegistrationStatusText, getRegistrationTimingDescription } from '../../types/entity/registrationScheduleType';
 import { CustomHeader } from '../../components/CustomHeader';
+import { LoadingScreen } from '../Common';
 
 export const FixtureDetailScreen: React.FC = () => {
     const route = useRoute<FixtureDetailRouteProp>();
@@ -159,8 +156,6 @@ export const FixtureDetailScreen: React.FC = () => {
         Alert.alert('✓ Kopyalandı', 'IBAN panoya kopyalandı');
     };
 
-    const formatTime = (time: string) => time;
-
     const formatDateTime = (date: Date) => {
         return new Date(date).toLocaleDateString('tr-TR', {
             day: 'numeric',
@@ -178,24 +173,6 @@ export const FixtureDetailScreen: React.FC = () => {
             hour: '2-digit',
             minute: '2-digit',
         });
-    };
-
-    const getPatternText = () => {
-        if (!fixture?.schedule.isRecurring || !fixture.schedule.pattern) return null;
-        const pattern = fixture.schedule.pattern;
-
-        switch (pattern.type) {
-            case 'weekly':
-                return 'Her hafta';
-            case 'biweekly':
-                return 'İki haftada bir';
-            case 'monthly':
-                return 'Her ay';
-            case 'custom':
-                return `${pattern.interval} günde bir`;
-            default:
-                return null;
-        }
     };
 
     const getMatchStatusColor = (status: MatchStatus) => {
@@ -239,12 +216,7 @@ export const FixtureDetailScreen: React.FC = () => {
     };
 
     if (loading || !fixture || !league) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#16a34a" />
-                <Text style={styles.loadingText}>Yükleniyor...</Text>
-            </View>
-        );
+        return <LoadingScreen />;
     }
 
     const sportColor = getSportPrimaryColor(league.sportType);
@@ -714,66 +686,7 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#F9FAFB',
     },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F9FAFB',
-    },
-    loadingText: {
-        marginTop: 12,
-        fontSize: 14,
-        color: '#6B7280',
-        fontWeight: '600',
-    },
-
-    // Header
-    header: {
-        paddingTop: Platform.OS === 'ios' ? 50 : 20,
-        paddingBottom: 24,
-        paddingHorizontal: 16,
-    },
-    headerTop: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 20,
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    editButton: {
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerContent: {
-        alignItems: 'center',
-    },
-    headerEmoji: {
-        fontSize: 48,
-        marginBottom: 12,
-    },
-    headerTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: 'white',
-        textAlign: 'center',
-        marginBottom: 4,
-    },
-    headerSubtitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: 'rgba(255,255,255,0.9)',
-        marginBottom: 16,
-    },
+    // Status Badge
     statusBadgeContainer: {
         flexDirection: 'row',
         alignItems: 'center',

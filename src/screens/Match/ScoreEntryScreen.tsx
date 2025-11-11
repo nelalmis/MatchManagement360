@@ -35,6 +35,7 @@ import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { sportThemes } from '../../utils/theme';
 import { goBack } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 export const ScoreEntryScreen: React.FC = () => {
   const route: any = useRoute();
@@ -269,12 +270,7 @@ export const ScoreEntryScreen: React.FC = () => {
   };
 
   if (loading || !match) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   const sportColor = sportThemes[match.sportType].primary;
@@ -511,18 +507,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '600',
   },
   content: {
     flex: 1,

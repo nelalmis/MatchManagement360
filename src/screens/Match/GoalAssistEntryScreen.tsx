@@ -38,6 +38,7 @@ import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { getSportBackgroundColor, getSportEmoji } from '../../utils/theme';
 import { goBack } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 export const GoalAssistEntryScreen: React.FC = () => {
   const route: any = useRoute();
@@ -369,12 +370,7 @@ export const GoalAssistEntryScreen: React.FC = () => {
   };
 
   if (loading || !match) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen loadingText="Yükleniyor..." color="#16a34a" />;
   }
 
   const sportColor = getSportBackgroundColor(match.sportType);
@@ -622,46 +618,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: 'white',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
   },
   content: {
     flex: 1,

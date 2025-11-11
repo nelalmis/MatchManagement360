@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Animated,
 } from 'react-native';
 import {
   Plus,
@@ -20,6 +21,7 @@ import {
   X,
   Trophy,
   ChevronRight,
+  Key,
 } from 'lucide-react-native';
 import {
   ILeague,
@@ -28,8 +30,11 @@ import {
 import { LeagueService } from '../../services/serviceLayer/leagueService';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
-import { getSportEmoji, getThemeForSport } from '../../utils/theme';
+import { commonColors, getSportEmoji, getThemeForSport } from '../../utils/theme';
 import { goBack, LeagueNavigationService } from '../../navigation';
+import { Fab } from '../../components/ui/Fab';
+import { LoadingScreen } from '../Common';
+import { LeagueCard } from './components';
 
 export const LeagueListScreen: React.FC = () => {
   const { user } = useAuth();
@@ -66,8 +71,8 @@ export const LeagueListScreen: React.FC = () => {
 
       // Kullanıcının liglerini getir
       const myLeaguesResponse = await LeagueService.getPlayerLeagues(user.id);
-      const myLeagues = myLeaguesResponse.success && myLeaguesResponse.data 
-        ? myLeaguesResponse.data 
+      const myLeagues = myLeaguesResponse.success && myLeaguesResponse.data
+        ? myLeaguesResponse.data
         : [];
 
       setLeagues(myLeagues);
@@ -125,14 +130,6 @@ export const LeagueListScreen: React.FC = () => {
     setSearchQuery('');
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('tr-TR', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
   const handleCreateLeague = () => {
     LeagueNavigationService.navigateToCreateLeague();
   };
@@ -155,110 +152,136 @@ export const LeagueListScreen: React.FC = () => {
     <CustomHeader
       title="Ligler"
       showBack={true}
-      onLeftPress={()=> goBack()}
+      onLeftPress={() => goBack()}
     />
   );
 
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const menuItems = [
+    {
+      id: 'join-code',
+      label: 'Kodla Katıl',
+      icon: <Key size={20} color="white" strokeWidth={2.5} />,
+      color: '#F59E0B',
+      onPress: () => {
+        LeagueNavigationService.navigateToJoinWithCode();
+      },
+    },
+    {
+      id: 'create-league',
+      label: 'Lig Oluştur',
+      icon: <Plus size={20} color="white" strokeWidth={2.5} />,
+      color: '#10B981',
+      onPress: () => {
+        handleCreateLeague();
+      },
+    },
+  ];
+
   if (loading) {
     return (
-      <View style={styles.container}>
-        {renderHeader()}
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Ligler yükleniyor...</Text>
-      </View>
-      </View>
+      <LoadingScreen
+        header={renderHeader()}
+        loadingText='Ligler Yükleniyor'
+        visibleHeader={true}
+      />
     );
   }
 
   return (
     <View style={styles.container}>
-      {renderHeader()}
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Search size={20} color="#9CA3AF" strokeWidth={2} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Lig ara..."
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={clearSearch} activeOpacity={0.7}>
-              <X size={20} color="#9CA3AF" strokeWidth={2} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setShowFilters(!showFilters)}
-          activeOpacity={0.7}
-        >
-          <Filter
-            size={20}
-            color={showFilters ? '#16a34a' : '#6B7280'}
-            strokeWidth={2}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Sport Filters */}
-      {showFilters && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filtersContainer}
-          contentContainerStyle={styles.filtersContent}
-        >
-          {sportTypes.map((sport) => {
-            const isSelected = selectedSport === sport;
-            const sportConfig = sport !== 'all' ? getThemeForSport(sport) : null;
-
-            return (
-              <TouchableOpacity
-                key={sport}
-                style={[
-                  styles.filterChip,
-                  isSelected && styles.filterChipActive,
-                  isSelected && sportConfig && {
-                    backgroundColor: sportConfig.sport.background + '20',
-                    borderColor: sportConfig.sport.primary,
-                  },
-                ]}
-                onPress={() => setSelectedSport(sport)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    isSelected && styles.filterChipTextActive,
-                    isSelected && sportConfig && { color: sportConfig.sport.primary },
-                  ]}
-                >
-                  {sport === 'all' ? '🌐 Tümü' : `${getSportEmoji(sport)} ${sport}`}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      )}
-
-      {/* League List */}
-      <ScrollView
-        style={styles.leagueList}
+      <Animated.ScrollView
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             colors={['#16a34a']}
             tintColor="#16a34a"
           />
         }
       >
+        {renderHeader()}
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Search size={20} color="#9CA3AF" strokeWidth={2} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Lig ara..."
+              placeholderTextColor="#9CA3AF"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={clearSearch} activeOpacity={0.7}>
+                <X size={20} color="#9CA3AF" strokeWidth={2} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setShowFilters(!showFilters)}
+            activeOpacity={0.7}
+          >
+            <Filter
+              size={20}
+              color={showFilters ? '#16a34a' : '#6B7280'}
+              strokeWidth={2}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Sport Filters */}
+        {showFilters && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filtersContainer}
+            contentContainerStyle={styles.filtersContent}
+            nestedScrollEnabled={true} // ✅ Bu önemli!
+          >
+            {sportTypes.map((sport) => {
+              const isSelected = selectedSport === sport;
+              const sportConfig = sport !== 'all' ? getThemeForSport(sport) : null;
+
+              return (
+                <TouchableOpacity
+                  key={sport}
+                  style={[
+                    styles.filterChip,
+                    isSelected && styles.filterChipActive,
+                    isSelected && sportConfig && {
+                      backgroundColor: sportConfig.sport.background + '20',
+                      borderColor: sportConfig.sport.primary,
+                    },
+                  ]}
+                  onPress={() => setSelectedSport(sport)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      isSelected && styles.filterChipTextActive,
+                      isSelected && sportConfig && { color: sportConfig.sport.primary },
+                    ]}
+                  >
+                    {sport === 'all' ? '🌐 Tümü' : `${getSportEmoji(sport)} ${sport}`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
@@ -280,6 +303,7 @@ export const LeagueListScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* League List - İÇ SCROLLVIEW KALDIRILDI */}
         {filteredLeagues.length > 0 ? (
           <>
             {/* My Leagues Section */}
@@ -295,8 +319,6 @@ export const LeagueListScreen: React.FC = () => {
                       isMember={true}
                       isAdmin={league.members.admins.includes(user?.id || '')}
                       onPress={() => handleLeaguePress(league)}
-                      formatDate={formatDate}
-                      getSportIcon={getSportEmoji}
                     />
                   ))}
               </>
@@ -315,8 +337,6 @@ export const LeagueListScreen: React.FC = () => {
                       isMember={false}
                       isAdmin={false}
                       onPress={() => handleLeaguePress(league)}
-                      formatDate={formatDate}
-                      getSportIcon={getSportEmoji}
                     />
                   ))}
               </>
@@ -337,117 +357,16 @@ export const LeagueListScreen: React.FC = () => {
             </Text>
           </View>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
 
-      {/* Create League FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={handleCreateLeague}
-        activeOpacity={0.8}
-      >
-        <Plus size={28} color="white" strokeWidth={2.5} />
-      </TouchableOpacity>
+      <Fab
+        mainColor={commonColors.primary}
+        menuItems={menuItems}
+        visible={true}
+        onScrollY={scrollY}
+        autoHideOnScroll={true}
+      />
     </View>
-  );
-};
-
-// ============================================
-// LEAGUE CARD COMPONENT
-// ============================================
-interface LeagueCardProps {
-  league: ILeague;
-  isMember: boolean;
-  isAdmin: boolean;
-  onPress: () => void;
-  formatDate: (date: string) => string;
-  getSportIcon: (sport: SportType) => string;
-}
-
-const LeagueCard: React.FC<LeagueCardProps> = ({
-  league,
-  isMember,
-  isAdmin,
-  onPress,
-  formatDate,
-  getSportIcon,
-}) => {
-
-  const sportConfig = getThemeForSport(league.sportType);
-  const sportColor = sportConfig?.sport.primary || '#16a34a';
-
-  return (
-    <TouchableOpacity
-      style={[
-        styles.leagueCard,
-        isMember && styles.leagueCardMember,
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      {/* Header */}
-      <View style={styles.leagueCardHeader}>
-        <View style={styles.leagueCardLeft}>
-          <View style={[styles.sportIcon, { backgroundColor: sportColor + '20' }]}>
-            <Text style={styles.sportEmoji}>{getSportIcon(league.sportType)}</Text>
-          </View>
-
-          <View style={styles.leagueCardInfo}>
-            <View style={styles.leagueCardTitleRow}>
-              <Text style={styles.leagueCardTitle} numberOfLines={1}>
-                {league.title}
-              </Text>
-              {isMember && (
-                <View style={styles.memberBadge}>
-                  <Text style={styles.memberBadgeText}>
-                    {isAdmin ? 'YÖNETİCİ' : 'ÜYE'}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.leagueCardMeta}>
-              <View style={styles.metaItem}>
-                <Users size={14} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.metaText}>{league.totalMembers} üye</Text>
-              </View>
-
-              <View style={styles.metaItem}>
-                <Calendar size={14} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.metaText}>{league.totalSeasons} sezon</Text>
-              </View>
-
-              <View style={styles.metaItem}>
-                <Trophy size={14} color="#6B7280" strokeWidth={2} />
-                <Text style={styles.metaText}>{league.totalMatches} maç</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-      </View>
-
-      {/* Description */}
-      {league.description && (
-        <Text style={styles.leagueDescription} numberOfLines={2}>
-          {league.description}
-        </Text>
-      )}
-
-      {/* Footer */}
-      <View style={styles.leagueCardFooter}>
-        <Text style={styles.leagueCardDate}>
-          Oluşturulma: {formatDate(league.createdAt)}
-        </Text>
-        {league.currentSeasonId && (
-          <View style={[styles.activeBadge, { backgroundColor: sportColor + '20' }]}>
-            <Text style={[styles.activeBadgeText, { color: sportColor }]}>
-              Aktif Sezon
-            </Text>
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
   );
 };
 
@@ -455,18 +374,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -574,114 +481,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 12,
   },
-  leagueCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  leagueCardMember: {
-    borderWidth: 2,
-    borderColor: '#16a34a',
-  },
-  leagueCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  leagueCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 12,
-  },
-  sportIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  sportEmoji: {
-    fontSize: 24,
-  },
-  leagueCardInfo: {
-    flex: 1,
-  },
-  leagueCardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  leagueCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    flex: 1,
-  },
-  memberBadge: {
-    backgroundColor: '#16a34a',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  memberBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: 'white',
-  },
-  leagueCardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  leagueDescription: {
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  leagueCardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  leagueCardDate: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  activeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  activeBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
+
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
@@ -705,21 +505,5 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 80,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#16a34a',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#16a34a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
 });

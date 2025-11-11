@@ -53,8 +53,12 @@ import { CustomHeader } from '../../components/CustomHeader';
 import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { InvitationType } from '../../types/entity/invitation';
 import { useAutoHideTabBar } from '../../context/TabBarContext';
-import { sportThemes } from '../../utils/theme';
+import { commonColors, sportThemes } from '../../utils/theme';
 import { goBack, LeagueNavigationService, MatchNavigationService } from '../../navigation';
+import { Fab } from '../../components/ui/Fab';
+import { LoadingScreen } from '../Common';
+import { isPlayerInMatch } from '../../helper/matchHelper';
+import { MatchCard } from './components';
 
 type FilterType = 'all' | 'upcoming' | 'past' | 'myMatches';
 type MatchTypeFilter = 'all' | 'league' | 'friendly';
@@ -100,12 +104,6 @@ export const MatchListScreen: React.FC = () => {
     leagueMatches: 0,
     friendlyMatches: 0,
   });
-
-  // ✅ FAB visibility and animation
-  const [showFab, setShowFab] = useState(true);
-  const [fabExpanded, setFabExpanded] = useState(false); // ✅ NEW
-  const fabScale = useRef(new Animated.Value(1)).current;
-  const fabRotation = useRef(new Animated.Value(0)).current; // ✅ NEW
 
   // const [showJoinModal, setShowJoinModal] = useState(false); // ✅ NEW
 
@@ -318,11 +316,9 @@ export const MatchListScreen: React.FC = () => {
         filteredData = filteredData.filter(m => m.sportType === selectedSport);
       }
 
-
-
       // My matches filter
       if (selectedFilter === 'myMatches') {
-        filteredData = filteredData.filter(m => isPlayerInMatch(m));
+        filteredData = filteredData.filter(m => isPlayerInMatch(user?.id, m));
       }
 
       // ✅ Update state
@@ -342,7 +338,7 @@ export const MatchListScreen: React.FC = () => {
           m.status !== MatchStatus.COMPLETED
         );
         const completed = allMatches.filter((m) => m.status === MatchStatus.COMPLETED);
-        const myMatches = allMatches.filter((m) => isPlayerInMatch(m));
+        const myMatches = allMatches.filter((m) => isPlayerInMatch(user?.id, m));
         const leagueMatches = allMatches.filter((m) => m.type === MatchType.LEAGUE);
         const friendlyMatches = allMatches.filter((m) => m.type === MatchType.FRIENDLY);
 
@@ -379,37 +375,6 @@ export const MatchListScreen: React.FC = () => {
     league,
   ]);
 
-  const toggleFabMenu = () => {
-    const toValue = fabExpanded ? 0 : 1;
-
-    setFabExpanded(!fabExpanded);
-
-    Animated.parallel([
-      Animated.spring(fabRotation, {
-        toValue,
-        useNativeDriver: true,
-        friction: 8,
-      }),
-    ]).start();
-  };
-
-  const closeFabMenu = () => {
-    if (fabExpanded) {
-      setFabExpanded(false);
-      Animated.spring(fabRotation, {
-        toValue: 0,
-        useNativeDriver: true,
-        friction: 8,
-      }).start();
-    }
-  };
-
-  const fabRotationInterpolate = fabRotation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '45deg'],
-  });
-
-
   // ✅ Load more when reaching end
   const handleLoadMore = useCallback(() => {
     if (!loadingMore && hasMore) {
@@ -438,84 +403,6 @@ export const MatchListScreen: React.FC = () => {
     setSearchQuery('');
   }, []);
 
-  const isPlayerInMatch = useCallback((match: IMatch): boolean => {
-    if (!user?.id) return false;
-
-    if (match.players.registered?.some(r => r.playerId === user.id)) return true;
-    if (match.players.guests?.includes(user.id)) return true;
-
-    if (match.players.teams) {
-      const inTeam1 = match.players.teams.team1.some(p => p.playerId === user.id);
-      const inTeam2 = match.players.teams.team2.some(p => p.playerId === user.id);
-      if (inTeam1 || inTeam2) return true;
-    }
-
-    return false;
-  }, [user?.id]);
-
-  const getMatchStatusColor = useCallback((status: MatchStatus): string => {
-    switch (status) {
-      case MatchStatus.CREATED: return '#9CA3AF';
-      case MatchStatus.REGISTRATION_OPEN: return '#10B981';
-      case MatchStatus.REGISTRATION_CLOSED: return '#F59E0B';
-      case MatchStatus.TEAMS_SET: return '#2563EB';
-      case MatchStatus.IN_PROGRESS: return '#8B5CF6';
-      case MatchStatus.AWAITING_SCORE: return '#F59E0B';
-      case MatchStatus.COMPLETED: return '#16a34a';
-      case MatchStatus.CANCELLED: return '#DC2626';
-      default: return '#6B7280';
-    }
-  }, []);
-
-  const getMatchStatusText = useCallback((status: MatchStatus): string => {
-    switch (status) {
-      case MatchStatus.CREATED: return 'Oluşturuldu';
-      case MatchStatus.REGISTRATION_OPEN: return 'Kayıt Açık';
-      case MatchStatus.REGISTRATION_CLOSED: return 'Kayıt Kapandı';
-      case MatchStatus.TEAMS_SET: return 'Takımlar Kuruldu';
-      case MatchStatus.IN_PROGRESS: return 'Oynanıyor';
-      case MatchStatus.AWAITING_SCORE: return 'Skor Bekleniyor';
-      case MatchStatus.COMPLETED: return 'Tamamlandı';
-      case MatchStatus.CANCELLED: return 'İptal';
-      default: return status;
-    }
-  }, []);
-
-
-  // formatDateTime fonksiyonunu kontrol et
-  const formatDateTime = (date: any): string => {
-    try {
-      if (!date) return 'Tarih belirtilmemiş';
-
-      // Timestamp ise
-      if (date && typeof date === 'object' && 'toDate' in date) {
-        date = date.toDate();
-      }
-      // ISO String ise
-      else if (typeof date === 'string') {
-        date = new Date(date);
-      }
-      // Number (Unix timestamp) ise
-      else if (typeof date === 'number') {
-        date = new Date(date);
-      }
-
-      // Geçersiz tarih kontrolü
-      if (!(date instanceof Date) || isNaN(date.getTime())) {
-        return 'Geçersiz tarih';
-      }
-
-      return new Date(date).toLocaleDateString('tr-TR', {
-        day: 'numeric',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch (error) {
-      console.error('formatDateTime error:', error);
-      return 'Tarih formatlanamadı';
-    }
-  };
   const handleCreateFriendlyMatch = () => {
     MatchNavigationService.navigateToCreateFriendlyMatch();
   };
@@ -870,26 +757,49 @@ export const MatchListScreen: React.FC = () => {
   );
 
   const renderHeader = () => (
-     <CustomHeader
-          title={title}
-          subtitle={league && leagueId ? `${stats.totalMatches}+ Maç` : undefined}
-          sportType={leagueId && league ? league?.sportType : undefined}
-          showIcon={!!league || !!leagueId}
-          showBack={true}
-          //showMenu={!(fixtureId || leagueId)}
-          onLeftPress={() => goBack()}
-        />
+    <CustomHeader
+      title={title}
+      subtitle={league && leagueId ? `${stats.totalMatches}+ Maç` : undefined}
+      sportType={leagueId && league ? league?.sportType : undefined}
+      showIcon={!!league || !!leagueId}
+      showBack={true}
+      //showMenu={!(fixtureId || leagueId)}
+      onLeftPress={() => goBack()}
+    />
   );
+
+
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const menuItems = [
+    {
+      id: 'join-code',
+      label: 'Kodla Katıl',
+      icon: <Key size={20} color="white" strokeWidth={2.5} />,
+      color: '#F59E0B',
+      onPress: () => {
+        MatchNavigationService.navigateToJoinWithCode();
+      },
+    },
+    {
+      id: 'create-league',
+      label: 'Dostluk Maçı Oluştur',
+      icon: <Plus size={20} color="white" strokeWidth={2.5} />,
+      color: '#10B981',
+      onPress: () => {
+        handleCreateFriendlyMatch();
+      },
+    },
+  ];
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        {renderHeader()}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>Maçlar yükleniyor...</Text>
-        </View>
-      </View>
+      <LoadingScreen
+        header={renderHeader()}
+        sportType={league && leagueId ? league?.sportType : undefined}
+        loadingText='Maçlar Yükleniyor'
+        visibleHeader={true}
+      />
     );
   }
 
@@ -921,18 +831,15 @@ export const MatchListScreen: React.FC = () => {
     <View style={styles.container}>
       {renderHeader()}
       {/* ✅ FlatList with pagination */}
-      <FlatList
+      <Animated.FlatList
         data={filteredMatches}
         renderItem={({ item }) => (
           <MatchCard
             match={item}
-            isPlayerInMatch={isPlayerInMatch(item)}
             sportColor={sportColor}
             onPress={() => MatchNavigationService.navigateToMatchDetail(item.id!)}
-            getMatchStatusColor={getMatchStatusColor}
-            getMatchStatusText={getMatchStatusText}
-            formatDateTime={formatDateTime}
-
+            playerId={user?.id || null}
+            league={league}
           />
         )}
         keyExtractor={(item) => item.id!}
@@ -977,356 +884,23 @@ export const MatchListScreen: React.FC = () => {
         onEndReachedThreshold={0.5}
         contentContainerStyle={styles.flatListContent}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
       />
-
-      {/* FAB Menu Items */}
-      {fabExpanded && (
-        <Animated.View style={styles.fabMenu}>
-          {/* Join with Code */}
-          <TouchableOpacity
-            style={styles.fabMenuItem}
-            onPress={() => {
-              closeFabMenu();
-              MatchNavigationService.navigateToJoinWithCode();
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.fabMenuLabelContainer}>
-              <Text style={styles.fabMenuLabel}>Kodla Katıl</Text>
-            </View>
-            <View style={[styles.fabMenuButton, { backgroundColor: '#F59E0B' }]}>
-              <Key size={20} color="white" strokeWidth={2.5} />
-            </View>
-          </TouchableOpacity>
-
-          {/* Create Friendly Match */}
-          <TouchableOpacity
-            style={styles.fabMenuItem}
-            onPress={() => {
-              closeFabMenu();
-              handleCreateFriendlyMatch();
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.fabMenuLabelContainer}>
-              <Text style={styles.fabMenuLabel}>Dostluk Maçı Oluştur</Text>
-            </View>
-            <View style={[styles.fabMenuButton, { backgroundColor: '#10B981' }]}>
-              <Plus size={20} color="white" strokeWidth={2.5} />
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
-
-      {/* Main FAB Button */}
-      <Animated.View
-        style={[
-          styles.fabContainer,
-          {
-            transform: [{ scale: fabScale }],
-            opacity: fabScale,
-          },
-        ]}
-        pointerEvents={showFab ? 'auto' : 'none'}
-      >
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: sportColor }]}
-          onPress={toggleFabMenu}
-          activeOpacity={0.8}
-        >
-          <Animated.View
-            style={{
-              transform: [{ rotate: fabRotationInterpolate }],
-            }}
-          >
-            <Plus size={28} color="white" strokeWidth={2.5} />
-          </Animated.View>
-        </TouchableOpacity>
-      </Animated.View>
-
-      {/* Backdrop - FAB menü açıkken */}
-      {fabExpanded && (
-        <TouchableOpacity
-          style={styles.fabBackdrop}
-          activeOpacity={1}
-          onPress={closeFabMenu}
-        />
-      )}
-
-      {/* Join with Code Modal */}
-      {/* <Modal
-        visible={showJoinModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowJoinModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitleContainer}>
-                <Key size={24} color="#F59E0B" strokeWidth={2} />
-                <Text style={styles.modalTitle}>Kodla Katıl</Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowJoinModal(false)}>
-                <X size={24} color="#1F2937" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalBody}>
-              <Text style={styles.modalDescription}>
-                Dostluk maçına katılmak için 6 haneli davet kodunu girin
-              </Text>
-
-              <View style={styles.codeInputContainer}>
-                <Key size={20} color="#9CA3AF" strokeWidth={2} />
-                <TextInput
-                  style={styles.codeInput}
-                  placeholder="ABC123"
-                  placeholderTextColor="#9CA3AF"
-                  value={joinCode}
-                  onChangeText={(text) => setJoinCode(text.toUpperCase())}
-                  autoCapitalize="characters"
-                  maxLength={6}
-                />
-              </View>
-
-              <View style={styles.codeInfoBox}>
-                <View style={styles.codeInfoIconContainer}>
-                  <Globe size={16} color="#10B981" strokeWidth={2} />
-                </View>
-                <Text style={styles.codeInfoText}>
-                  Maç organizatörü tarafından paylaşılan kodu kullanabilirsiniz
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => {
-                  setShowJoinModal(false);
-                  setJoinCode('');
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.modalCancelButtonText}>İptal</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.modalJoinButton,
-                  (!joinCode.trim() || joiningMatch) && styles.modalJoinButtonDisabled,
-                ]}
-                onPress={()=>NavigationService.navigateToJoinWithCode(InvitationType.MATCH)}
-                disabled={!joinCode.trim() || joiningMatch}
-                activeOpacity={0.7}
-              >
-                {joiningMatch ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <>
-                    <Send size={18} color="white" strokeWidth={2} />
-                    <Text style={styles.modalJoinButtonText}>Katıl</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal> */}
-
+      <Fab
+        mainColor={commonColors.primary}
+        menuItems={menuItems}
+        visible={true}
+        onScrollY={scrollY}
+        autoHideOnScroll={true}
+      />
     </View>
   );
 };
-// ============================================
-// MATCH CARD COMPONENT
-// ============================================
 
-interface MatchCardProps {
-  match: IMatch;
-  isPlayerInMatch: boolean;
-  sportColor: string;
-  onPress: () => void;
-  getMatchStatusColor: (status: MatchStatus) => string;
-  getMatchStatusText: (status: MatchStatus) => string;
-  formatDateTime: (date: Date) => string;
-}
-
-const MatchCard: React.FC<MatchCardProps> = ({
-  match,
-  isPlayerInMatch,
-  sportColor,
-  onPress,
-  getMatchStatusColor,
-  getMatchStatusText,
-  formatDateTime,
-}) => {
-  const statusColor = getMatchStatusColor(match.status);
-  const isPast = new Date(match.schedule.matchStart) < new Date() || match.status === MatchStatus.COMPLETED;
-  const isFriendly = match.type === MatchType.FRIENDLY;
-  const matchSportColor = match.sportType ? sportThemes[match.sportType].primary : sportColor;
-
-  // Calculate total registered players
-  const registeredCount = (match.players.registered?.length || 0) +
-    (match.players.guests?.length || 0);
-
-  return (
-    <ErrorBoundary>
-      <TouchableOpacity
-        style={[
-          styles.matchCard,
-          isPast && styles.matchCardPast,
-          isPlayerInMatch && styles.matchCardPlayer,
-        ]}
-        onPress={onPress}
-        activeOpacity={0.7}
-      >
-        {/* Match Type Badge */}
-        <View style={styles.matchTypeHeaderBadge}>
-          {isFriendly ? (
-            <View style={[styles.matchTypeBadge, { backgroundColor: '#10B981' + '20' }]}>
-              <Users size={12} color="#10B981" strokeWidth={2} />
-              <Text style={[styles.matchTypeBadgeText, { color: '#10B981' }]}>Dostluk</Text>
-            </View>
-          ) : (
-            <View style={[styles.matchTypeBadge, { backgroundColor: '#3B82F6' + '20' }]}>
-              <Trophy size={12} color="#3B82F6" strokeWidth={2} />
-              <Text style={[styles.matchTypeBadgeText, { color: '#3B82F6' }]}>Lig</Text>
-            </View>
-          )}
-
-          {/* Privacy Badge for Friendly */}
-          {isFriendly && match.friendlySettings && (
-            <View style={[styles.privacyBadge, {
-              backgroundColor: match.friendlySettings.isPublic ? '#10B981' + '15' : '#F59E0B' + '15'
-            }]}>
-              {match.friendlySettings.isPublic ? (
-                <>
-                  <Globe size={10} color="#10B981" strokeWidth={2} />
-                  <Text style={[styles.privacyBadgeText, { color: '#10B981' }]}>Açık</Text>
-                </>
-              ) : (
-                <>
-                  <Lock size={10} color="#F59E0B" strokeWidth={2} />
-                  <Text style={[styles.privacyBadgeText, { color: '#F59E0B' }]}>Özel</Text>
-                </>
-              )}
-            </View>
-          )}
-          {/* {isFriendly &&
-            match.friendlySettings?.isPublic === false &&
-            match.invitationCode?.code && (
-              <View style={styles.codeBadge}>
-                <Key size={10} color="#F59E0B" strokeWidth={2} />
-                <Text style={styles.codeBadgeText}>
-                  {match.invitationCode.code}
-                </Text>
-              </View>
-            )} */}
-        </View>
-
-        <View style={styles.matchCardHeader}>
-          <View style={styles.matchCardLeft}>
-            <View style={[styles.matchIcon, { backgroundColor: matchSportColor + '20' }]}>
-              {match.sportType ? (
-                <Text style={styles.sportEmoji}>{sportThemes[match.sportType].emoji}</Text>
-              ) : (
-                <Trophy size={20} color={matchSportColor} strokeWidth={2} />
-              )}
-            </View>
-
-            <View style={styles.matchCardInfo}>
-              <View style={styles.matchCardTitleRow}>
-                <Text style={styles.matchCardTitle} numberOfLines={1}>
-                  {match.title}
-                </Text>
-                {isPlayerInMatch && (
-                  <View style={[styles.playerBadge, { backgroundColor: matchSportColor }]}>
-                    <Text style={styles.playerBadgeText}>✓</Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.matchCardMeta}>
-                <View style={styles.metaItem}>
-                  <Calendar size={14} color="#6B7280" strokeWidth={2} />
-                  <Text style={styles.metaText}>{formatDateTime(match.schedule.matchStart)}</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-        </View>
-
-        <View style={styles.matchCardBody}>
-          {match.venue?.location && (
-            <View style={styles.matchDetailRow}>
-              <MapPin size={14} color="#6B7280" strokeWidth={2} />
-              <Text style={styles.matchDetailText} numberOfLines={1}>
-                {match.venue.location}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.matchDetailRow}>
-            <Users size={14} color="#6B7280" strokeWidth={2} />
-            <Text style={styles.matchDetailText}>
-              {registeredCount} / {match.squad?.totalPlayers || 0} kayıtlı
-              {match.players.teams && (
-                ` • Takımlar: ${match.players.teams.team1.length} vs ${match.players.teams.team2.length}`
-              )}
-            </Text>
-          </View>
-
-          {match.venue?.pricePerPlayer != null && match.venue.pricePerPlayer > 0 && (
-            <View style={styles.matchDetailRow}>
-              <Text style={styles.priceText}>💰 {match.venue.pricePerPlayer} TL / Kişi</Text>
-            </View>
-          )}
-          {/* Friendly Stats Impact */}
-          {isFriendly && match.friendlySettings && !match.friendlySettings.affectsStandings && (
-            <View style={styles.friendlyInfoBanner}>
-              <Text style={styles.friendlyInfoText}>Puan durumunu etkilemez</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.matchCardFooter}>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-            <Text style={[styles.statusText, { color: statusColor }]}>
-              {getMatchStatusText(match.status)}
-            </Text>
-          </View>
-
-          {match.score && (
-            <View style={styles.scoreBadge}>
-              <Text style={styles.scoreText}>
-                {match.score.team1} - {match.score.team2}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Registration Banner */}
-        {match.status === MatchStatus.REGISTRATION_OPEN && !isPlayerInMatch && (
-          <TouchableOpacity
-            style={styles.registrationBanner}
-            onPress={(e) => {
-              e.stopPropagation();
-              MatchNavigationService.navigateToMatchRegistration(match.id!);
-            }}
-            activeOpacity={0.7}
-          >
-            <CheckCircle size={16} color="#10B981" strokeWidth={2} />
-            <Text style={styles.registrationText}>Kayıt açık - Hemen katıl!</Text>
-            <ChevronRight size={16} color="#10B981" strokeWidth={2} />
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
-    </ErrorBoundary>
-  );
-};
 
 // ============================================
 // STYLES
@@ -1336,18 +910,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,
@@ -1493,76 +1055,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#92400E',
     letterSpacing: 0.5,
-  },
-
-  // FAB Styles
-  fabContainer: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    zIndex: 1002,
-  },
-  fab: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  fabBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    zIndex: 1000,
-  },
-  fabMenu: {
-    position: 'absolute',
-    bottom: 96,
-    right: 24,
-    gap: 16,
-    alignItems: 'flex-end',
-    zIndex: 1001,
-  },
-  fabMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  fabMenuLabelContainer: {
-    backgroundColor: 'white',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  fabMenuLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  fabMenuButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
   },
 
   // Modal Styles
@@ -1766,200 +1258,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#6B7280',
     fontWeight: '500',
-  },
-  matchCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  matchCardPast: {
-    opacity: 0.7,
-  },
-  matchCardPlayer: {
-    borderWidth: 2,
-    borderColor: '#16a34a',
-  },
-  matchTypeHeaderBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  matchTypeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  matchTypeBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  privacyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  privacyBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  matchCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  matchCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 12,
-  },
-  matchIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  sportEmoji: {
-    fontSize: 22,
-  },
-  matchCardInfo: {
-    flex: 1,
-  },
-  matchCardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  matchCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    flex: 1,
-  },
-  playerBadge: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playerBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'white',
-  },
-  matchCardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  matchCardBody: {
-    gap: 8,
-    marginBottom: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  matchDetailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  matchDetailText: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-    flex: 1,
-  },
-  priceText: {
-    fontSize: 13,
-    color: '#10B981',
-    fontWeight: '700',
-  },
-  friendlyInfoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 6,
-  },
-  friendlyInfoText: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontWeight: '600',
-  },
-  matchCardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  scoreBadge: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  scoreText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  registrationBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 12,
-    paddingVertical: 8,
-    backgroundColor: '#DCFCE7',
-    borderRadius: 8,
-  },
-  registrationText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#15803d',
   },
   emptyState: {
     alignItems: 'center',

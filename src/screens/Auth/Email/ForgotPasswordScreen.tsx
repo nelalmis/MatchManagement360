@@ -23,6 +23,8 @@ import { commonColors, typography, spacing } from '../../../utils/theme';
 import { validateEmail, getEmailError } from '../../../utils/validation';
 import { AuthStackParamList } from '../../../navigation/types';
 import { useAuth } from '../../../hooks';
+import { Auth } from 'firebase-admin/auth';
+import { AuthNavigationService } from '../../../navigation';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'forgotPassword'>;
 
@@ -330,7 +332,7 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
                   {/* Back to Login */}
                   <AuthButton
                     title="Giriş Sayfasına Dön"
-                    onPress={() => navigation.navigate('login')}
+                    onPress={() => AuthNavigationService.navigateToLogin()}
                     variant="outline"
                     icon="arrow-back"
                   />
@@ -344,7 +346,7 @@ export const ForgotPasswordScreen: React.FC<Props> = ({ navigation }) => {
             <Animated.View style={[styles.loginContainer, { opacity: fadeAnim }]}>
               <Text style={styles.loginText}>Şifrenizi hatırladınız mı? </Text>
               <TouchableOpacity
-                onPress={() => navigation.navigate('login')}
+                onPress={() => AuthNavigationService.navigateToLogin()}
                 activeOpacity={0.7}
                 disabled={loading}
               >

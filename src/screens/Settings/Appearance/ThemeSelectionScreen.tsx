@@ -28,6 +28,7 @@ import { useAuth } from '../../../hooks';
 import UserSettingsService from '../../../services/serviceLayer/userSettingsService';
 import { IUserSettings } from '../../../types/entity/types';
 import { goBack } from '../../../navigation';
+import { LoadingScreen } from '../..';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -152,15 +153,14 @@ export const ThemeSelectionScreen: React.FC = () => {
 
       if (result.success && result.data) {
         setSettings(result.data);
-        
+
         const themeOption = THEME_OPTIONS.find((t) => t.value === theme);
         Alert.alert(
           'Tema Değiştirildi',
-          `${themeOption?.label} aktif edildi.${
-            theme === 'system'
-              ? '\n\nŞu anda: ' +
-                (systemColorScheme === 'dark' ? 'Koyu Tema' : 'Açık Tema')
-              : ''
+          `${themeOption?.label} aktif edildi.${theme === 'system'
+            ? '\n\nŞu anda: ' +
+            (systemColorScheme === 'dark' ? 'Koyu Tema' : 'Açık Tema')
+            : ''
           }`
         );
       } else {
@@ -181,38 +181,29 @@ export const ThemeSelectionScreen: React.FC = () => {
 
   const getCurrentThemeColors = (): ColorScheme => {
     if (!settings) return LIGHT_COLORS;
-    
+
     if (settings.appearance.theme === 'system') {
       return systemColorScheme === 'dark' ? DARK_COLORS : LIGHT_COLORS;
     }
-    
+
     return settings.appearance.theme === 'dark' ? DARK_COLORS : LIGHT_COLORS;
   };
+  const renderHeader = () => (
+    <CustomHeader
+      title="Tema Seçimi"
+      showBack={true}
+      onLeftPress={() => goBack()}
+    />
+  );
 
   if (loading) {
-    return (
-      <View style={styles.container}>
-        <CustomHeader
-          title="Tema Seçimi"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>Yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} />;
   }
 
   if (!settings) {
     return (
       <View style={styles.container}>
-        <CustomHeader
-          title="Tema Seçimi"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
+        {renderHeader()}
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Ayarlar yüklenemedi</Text>
         </View>
@@ -225,11 +216,7 @@ export const ThemeSelectionScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="Tema Seçimi"
-        showBack={true}
-        onLeftPress={() => goBack()}
-      />
+      {renderHeader()}
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
@@ -322,10 +309,10 @@ export const ThemeSelectionScreen: React.FC = () => {
                             theme.value === 'dark'
                               ? DARK_COLORS.background
                               : theme.value === 'light'
-                              ? LIGHT_COLORS.background
-                              : systemColorScheme === 'dark'
-                              ? DARK_COLORS.background
-                              : LIGHT_COLORS.background,
+                                ? LIGHT_COLORS.background
+                                : systemColorScheme === 'dark'
+                                  ? DARK_COLORS.background
+                                  : LIGHT_COLORS.background,
                         },
                       ]}
                     >
@@ -337,10 +324,10 @@ export const ThemeSelectionScreen: React.FC = () => {
                               theme.value === 'dark'
                                 ? DARK_COLORS.surface
                                 : theme.value === 'light'
-                                ? LIGHT_COLORS.surface
-                                : systemColorScheme === 'dark'
-                                ? DARK_COLORS.surface
-                                : LIGHT_COLORS.surface,
+                                  ? LIGHT_COLORS.surface
+                                  : systemColorScheme === 'dark'
+                                    ? DARK_COLORS.surface
+                                    : LIGHT_COLORS.surface,
                           },
                         ]}
                       />
@@ -353,10 +340,10 @@ export const ThemeSelectionScreen: React.FC = () => {
                               theme.value === 'dark'
                                 ? DARK_COLORS.primary
                                 : theme.value === 'light'
-                                ? LIGHT_COLORS.primary
-                                : systemColorScheme === 'dark'
-                                ? DARK_COLORS.primary
-                                : LIGHT_COLORS.primary,
+                                  ? LIGHT_COLORS.primary
+                                  : systemColorScheme === 'dark'
+                                    ? DARK_COLORS.primary
+                                    : LIGHT_COLORS.primary,
                           },
                         ]}
                       />
@@ -486,16 +473,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
   },
   errorContainer: {
     flex: 1,

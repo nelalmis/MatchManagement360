@@ -32,6 +32,7 @@ import { PlayerService } from '../../services/serviceLayer/playerService';
 import { useAuth } from '../../hooks';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { goBack, ProfileNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 interface TopAssister {
   playerId: string;
@@ -57,7 +58,7 @@ export const TopAssistsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const sportColor = useMemo(() => 
+  const sportColor = useMemo(() =>
     league ? getSportPrimaryColor(league.sportType) : '#10B981',
     [league]
   );
@@ -102,13 +103,13 @@ export const TopAssistsScreen: React.FC = () => {
       let allPlayerStats;
       if (seasonId) {
         const seasonStatsResult = await PlayerStatsService.getSeasonStats(seasonId);
-        allPlayerStats = seasonStatsResult.success && seasonStatsResult.data 
-          ? seasonStatsResult.data 
+        allPlayerStats = seasonStatsResult.success && seasonStatsResult.data
+          ? seasonStatsResult.data
           : [];
       } else {
         const leagueStatsResult = await PlayerStatsService.getLeagueStats(leagueId);
-        allPlayerStats = leagueStatsResult.success && leagueStatsResult.data 
-          ? leagueStatsResult.data 
+        allPlayerStats = leagueStatsResult.success && leagueStatsResult.data
+          ? leagueStatsResult.data
           : [];
       }
 
@@ -118,7 +119,7 @@ export const TopAssistsScreen: React.FC = () => {
       for (const stat of allPlayerStats) {
         if (stat.total.assists > 0) {
           const playerResult = await PlayerService.getPlayer(stat.playerId);
-          
+
           assistersData.push({
             playerId: stat.playerId,
             playerName: playerResult.success && playerResult.data
@@ -176,31 +177,22 @@ export const TopAssistsScreen: React.FC = () => {
     ProfileNavigationService.navigateToPlayerProfile(playerId);
   }, []);
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="Asist Krallığı"
+      subtitle={league ? league.title : ''}
+      showBack
+      onLeftPress={() => goBack()}
+    />
+  );
+
   if (loading || !league) {
-    return (
-      <View style={styles.container}>
-        <CustomHeader
-          title="Asist Krallığı"
-          showBack
-          onLeftPress={() => goBack()}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#10B981" />
-          <Text style={styles.loadingText}>Asist krallığı yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} loadingText='Asist krallığı yükleniyor...' />;
   }
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="Asist Krallığı"
-        subtitle={league.title}
-        showBack
-        onLeftPress={() => goBack()}
-      />
-
+      {renderHeader()}
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
@@ -224,8 +216,8 @@ export const TopAssistsScreen: React.FC = () => {
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={sportColor}
             colors={[sportColor]}
@@ -441,8 +433,8 @@ export const TopAssistsScreen: React.FC = () => {
                   {[...filteredAssisters]
                     .sort((a, b) => b.averageAssistsPerMatch - a.averageAssistsPerMatch)[0]
                     .playerName} - {[...filteredAssisters]
-                    .sort((a, b) => b.averageAssistsPerMatch - a.averageAssistsPerMatch)[0]
-                    .averageAssistsPerMatch.toFixed(2)}
+                      .sort((a, b) => b.averageAssistsPerMatch - a.averageAssistsPerMatch)[0]
+                      .averageAssistsPerMatch.toFixed(2)}
                 </Text>
               </View>
             </View>
@@ -469,18 +461,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
   },
   searchContainer: {
     paddingHorizontal: 16,

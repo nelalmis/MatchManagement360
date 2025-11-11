@@ -75,6 +75,8 @@ import { CustomHeader } from '../../components/CustomHeader';
 import { ILeagueInvitation, InvitationType } from '../../types/entity/invitation';
 import LeagueInvitationService from '../../services/serviceLayer/invitationService';
 import { FixtureNavigationService, goBack, LeagueNavigationService, MatchNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
+import { FixtureCard } from '../Fixture/components';
 
 // ============================================
 // TYPES
@@ -501,7 +503,7 @@ export const LeagueDetailScreen: React.FC = () => {
     });
   };
 
- 
+
   // ============================================
   // RENDER STATS CARDS
   // ============================================
@@ -778,83 +780,14 @@ export const LeagueDetailScreen: React.FC = () => {
             </View>
 
             {displayFixtures.map(fixture => (
-              <TouchableOpacity
+              <FixtureCard 
                 key={fixture.id}
-                style={styles.fixtureCard}
-                onPress={() =>
-                  FixtureNavigationService.navigateToFixtureDetail(fixture.id!)
-                }
-                activeOpacity={0.7}
-              >
-                <View style={styles.fixtureHeader}>
-                  <View style={styles.fixtureTitleRow}>
-                    <ListOrdered size={18} color={sportColor} strokeWidth={2} />
-                    <Text style={styles.fixtureTitle}>{fixture.title}</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.fixtureStatusBadge,
-                      styles.fixtureStatusActive,
-                    ]}
-                  >
-                    <Text style={styles.fixtureStatusText}>Aktif</Text>
-                  </View>
-                </View>
-
-                {/* Next Match Date */}
-                {fixture.nextMatchDate ? (
-                  <View style={styles.fixtureInfo}>
-                    <Calendar size={16} color="#6B7280" strokeWidth={2} />
-                    <Text style={styles.fixtureInfoText}>
-                      Sonraki Maç: {formatDate(fixture.nextMatchDate)}
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={styles.fixtureInfo}>
-                    <Calendar size={16} color="#9CA3AF" strokeWidth={2} />
-                    <Text style={[styles.fixtureInfoText, { color: '#9CA3AF' }]}>
-                      Maç planlanmadı
-                    </Text>
-                  </View>
-                )}
-
-                {/* Location */}
-                {fixture.venue.location && (
-                  <View style={styles.fixtureInfo}>
-                    <MapPin size={16} color="#6B7280" strokeWidth={2} />
-                    <Text style={styles.fixtureInfoText}>
-                      {fixture.venue.location}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Stats Row */}
-                <View style={styles.fixtureStatsRow}>
-                  <View style={styles.fixtureStatItem}>
-                    <Calendar size={14} color="#9CA3AF" strokeWidth={2} />
-                    <Text style={styles.fixtureStatText}>
-                      {fixture.totalMatches} maç
-                    </Text>
-                  </View>
-                  {fixture.schedule.isRecurring && (
-                    <View style={styles.fixtureStatItem}>
-                      <Repeat size={14} color="#9CA3AF" strokeWidth={2} />
-                      <Text style={styles.fixtureStatText}>
-                        {fixture.schedule.pattern?.type === 'weekly' && 'Haftalık'}
-                        {fixture.schedule.pattern?.type === 'biweekly' && 'İki haftada bir'}
-                        {fixture.schedule.pattern?.type === 'monthly' && 'Aylık'}
-                        {fixture.schedule.pattern?.type === 'custom' && 'Özel'}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={styles.fixtureStatItem}>
-                    <DollarSign size={14} color="#9CA3AF" strokeWidth={2} />
-                    <Text style={styles.fixtureStatText}>
-                      {fixture.venue.pricePerPlayer} TL
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
+                fixture={fixture}
+                sportColor={sportColor}
+                isOrganizer={permissions.isAdmin}
+                onPress={() => FixtureNavigationService.navigateToFixtureDetail(fixture.id!)}
+                viewMode="compact"
+              />
             ))}
 
             {/* View All Fixtures Button */}
@@ -1543,14 +1476,21 @@ export const LeagueDetailScreen: React.FC = () => {
   // ============================================
   // MAIN RENDER
   // ============================================
+  const renderHeader = () => (
+    <CustomHeader
+      title={league?.title || 'Lig Detayları'}
+      subtitle={league?.sportType || ''}
+      sportType={league?.sportType || undefined}
+      showBack={true}
+      onLeftPress={() => goBack()}
+      // showNotifications={true}
+      showIcon={true}
+    // onNotificationPress={() => Alert.alert('Bildirimler', 'Yakında eklenecek')}
+    />
+  );
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={styles.loadingText}>Lig yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} loadingText='Lig yükleniyor...' />;
   }
 
   if (!league) {
@@ -1613,16 +1553,7 @@ export const LeagueDetailScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* HEADER */}
-      <CustomHeader 
-        title={league.title}
-        subtitle={league.sportType}
-        sportType={league.sportType}
-        showBack={true}
-        onLeftPress={() => goBack()}
-        // showNotifications={true}
-        showIcon={true}
-        onNotificationPress={() => Alert.alert('Bildirimler', 'Yakında eklenecek')}
-      />
+      {renderHeader()}
 
       {/* <ScrollView
         style={styles.content}
@@ -1682,18 +1613,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1720,52 +1639,6 @@ const styles = StyleSheet.create({
     color: 'white',
   },
 
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 2,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 12,
-    gap: 12,
-  },
-  headerEmoji: {
-    fontSize: 32,
-  },
-  headerTextContainer: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1F2937',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 12,
-  },
   // Content
   content: {
     flex: 1,
@@ -1970,7 +1843,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: 'white',
   },
-
   // Fixtures Section
   fixtureSectionHeader: {
     flexDirection: 'row',
@@ -1988,43 +1860,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#6B7280',
-  },
-
-  // Fixture Card Updates
-  fixtureTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  fixtureStatusActive: {
-    backgroundColor: '#DCFCE7',
-  },
-  fixtureInfoText: {
-    fontSize: 13,
-    color: '#6B7280',
-    flex: 1,
-  },
-
-  // Fixture Stats Row
-  fixtureStatsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  fixtureStatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  fixtureStatText: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
   },
 
   // View All Button
@@ -2047,50 +1882,6 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
 
-  // Fixture Card Styles
-  fixtureCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  fixtureHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  fixtureTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    flex: 1,
-    marginRight: 8,
-  },
-  fixtureStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  fixtureStatusText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#16a34a',
-  },
-  fixtureInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-
   // Standings
   standingsContainer: {
     backgroundColor: 'white',
@@ -2102,7 +1893,6 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-
   // Players
   playersContent: {
     padding: 16,

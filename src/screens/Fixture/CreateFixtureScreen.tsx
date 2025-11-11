@@ -8,6 +8,7 @@ import { FixtureService } from '../../services/serviceLayer/fixtureService';
 import { LeagueService } from '../../services/serviceLayer/leagueService';
 import PlayerService from '../../services/serviceLayer/playerService';
 import { FixtureForm, FixtureFormData } from './components/FixtureForm';
+import { LoadingScreen } from '../Common';
 
 export const CreateFixtureScreen: React.FC = () => {
   const route = useRoute<CreateFixtureRouteProp>();
@@ -97,11 +98,7 @@ export const CreateFixtureScreen: React.FC = () => {
   };
 
   if (loading || !league) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#16a34a" />
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   return (

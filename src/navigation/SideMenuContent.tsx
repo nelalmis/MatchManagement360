@@ -275,7 +275,7 @@ export const SideMenuContent: React.FC<{ onClose: () => void }> = ({ onClose }) 
                     <Text style={styles.userName}>
                         {user?.name} {user?.surname}
                     </Text>
-                    <Text style={styles.userPhone}>{user?.phone || user?.email}</Text>
+                    <Text style={styles.userPhone}>{user?.email || user?.phone}</Text>
                 </View>
             </View>
 

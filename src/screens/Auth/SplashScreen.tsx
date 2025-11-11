@@ -16,12 +16,15 @@ import { AuthStackParamList } from '../../navigation/types';
 import { useAuth } from '../../hooks/useAuth';
 import { OnboardingStorage } from '../../services/storage/onboardingStorage';
 import { isProfileComplete } from '../../helper/helper';
+import { useAppConfig } from '../../hooks/useAppConfig';
+import { AuthNavigationService } from '../../navigation';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'splash'>;
 
 export const SplashScreen: React.FC<Props> = ({ navigation }) => {
   // ✅ useAuth hook'undan checkAutoLogin'i alıyoruz
   const { checkAutoLogin, loading: authLoading } = useAuth();
+  const {config} = useAppConfig();
   
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -68,7 +71,7 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
           // Profile completion check
           if (!isProfileComplete(autoLoginUser)) {
             console.log('➡️ Profile incomplete, navigating to complete profile');
-            navigation.navigate('completeProfile');
+            AuthNavigationService.navigateToCompleteProfile(); 
           } else {
             console.log('✅ Profile complete, user authenticated');
             // RootNavigator otomatik olarak Main stack'e geçecek
@@ -84,16 +87,16 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
         if (isFirstLaunch) {
           // İlk açılış
           console.log('➡️ First launch, navigating to welcome');
-          navigation.navigate('welcome');
+          AuthNavigationService.navigateToWelcome();
         } else {
           // İlk açılış değil, login'e git
           console.log('➡️ Not first launch, navigating to login');
-          navigation.navigate('login');
+          AuthNavigationService.navigateToLogin();
         }
       } catch (error) {
         console.error('❌ Splash initialization error:', error);
         // Hata durumunda login'e yönlendir
-        navigation.navigate('login');
+        AuthNavigationService.resetToAuth();
       }
     };
 
@@ -140,8 +143,8 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
               },
             ]}
           >
-            <Text style={styles.appName}>SportMatch</Text>
-            <Text style={styles.tagline}>Spor Arkadaşını Bul</Text>
+            <Text style={styles.appName}>{config?.app.name || 'Match Management 360'}</Text>
+            <Text style={styles.tagline}>{config?.app.splashText || 'Maç Yap, Maçlarını Takip Et'}</Text>
           </Animated.View>
 
           {/* Loading Indicator */}

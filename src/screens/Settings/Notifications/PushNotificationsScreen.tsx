@@ -20,6 +20,7 @@ import UserSettingsService from '../../../services/serviceLayer/userSettingsServ
 import { IUserSettings } from '../../../types/entity/types';
 import * as Notifications from 'expo-notifications';
 import { goBack } from '../../../navigation';
+import { LoadingScreen } from '../..';
 
 export const PushNotificationsScreen: React.FC = () => {
   const { user } = useAuth();
@@ -66,7 +67,7 @@ export const PushNotificationsScreen: React.FC = () => {
   const handleRequestPermission = async () => {
     try {
       const { status } = await Notifications.requestPermissionsAsync();
-      
+
       if (status === 'granted') {
         setSystemPermission(true);
         Alert.alert('Başarılı', 'Push bildirim izni verildi');
@@ -139,7 +140,7 @@ export const PushNotificationsScreen: React.FC = () => {
 
       if (result.success && result.data) {
         setSettings(result.data);
-        
+
         if (!value) {
           Alert.alert(
             'Push Bildirimleri Kapatıldı',
@@ -304,30 +305,22 @@ export const PushNotificationsScreen: React.FC = () => {
     );
   };
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="Push Bildirimleri"
+      showBack={true}
+      onLeftPress={() => goBack()}
+    />
+  );
+
   if (loading) {
-    return (
-      <View style={styles.container}>
-        <CustomHeader
-          title="Push Bildirimleri"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>Yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} />;
   }
 
   if (!settings) {
     return (
       <View style={styles.container}>
-        <CustomHeader
-          title="Push Bildirimleri"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
+        {renderHeader()}
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Ayarlar yüklenemedi</Text>
         </View>
@@ -339,11 +332,7 @@ export const PushNotificationsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="Push Bildirimleri"
-        showBack={true}
-        onLeftPress={() => goBack()}
-      />
+      {renderHeader()}
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
@@ -401,8 +390,8 @@ export const PushNotificationsScreen: React.FC = () => {
                   {systemPermission === null
                     ? 'Kontrol Ediliyor...'
                     : systemPermission
-                    ? 'Verildi'
-                    : 'Verilmedi'}
+                      ? 'Verildi'
+                      : 'Verilmedi'}
                 </Text>
               </View>
             </View>
@@ -705,16 +694,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
   },
   errorContainer: {
     flex: 1,

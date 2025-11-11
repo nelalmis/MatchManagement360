@@ -63,13 +63,14 @@ import { MatchInvitationService } from '../../services/serviceLayer/invitationSe
 import { useAutoHideTabBar } from '../../context/TabBarContext';
 import { sportThemes } from '../../utils/theme';
 import { goBack, MatchNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 export const MatchDetailScreen: React.FC = () => {
 
   const route: any = useRoute();
   const { user } = useAuth();
   const matchId = route.params?.matchId;
-
+  console.log('MatchDetailScreen rendered with matchId:', matchId);
   const [match, setMatch] = useState<IMatch | null>(null);
   const [fixture, setFixture] = useState<IFixture | null>(null);
   const [league, setLeague] = useState<ILeague | null>(null);
@@ -525,12 +526,7 @@ export const MatchDetailScreen: React.FC = () => {
   }, [matchInvitation?.usedCount, matchInvitation?.maxUses]);
 
   if (loading || !match) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Maç yükleniyor...</Text>
-      </View>
-    );
+    return (<LoadingScreen loadingText="Maç yükleniyor..." color={sportColor} />);
   }
 
   return (
@@ -1158,18 +1154,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '600',
   },
   content: {
     flex: 1,

@@ -24,6 +24,7 @@ import UserSettingsService from '../../../services/serviceLayer/userSettingsServ
 import { IUserSettings, SKILL_LEVELS, SkillLevel, SportType } from '../../../types/entity/types';
 import { sportThemes } from '../../../utils/theme';
 import { goBack } from '../../../navigation';
+import { LoadingScreen } from '../..';
 
 
 export const SportsPositionsScreen: React.FC = () => {
@@ -252,30 +253,22 @@ export const SportsPositionsScreen: React.FC = () => {
     return Object.values(settings.preferences.favoritePositions).flat().length;
   };
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="Sporlar & Pozisyonlar"
+      showBack={true}
+      onLeftPress={() => goBack()}
+    />
+  );
+
   if (loading) {
-    return (
-      <View style={styles.container}>
-        <CustomHeader
-          title="Sporlar & Pozisyonlar"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>Yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} />;
   }
 
   if (!settings) {
     return (
       <View style={styles.container}>
-        <CustomHeader
-          title="Sporlar & Pozisyonlar"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
+        {renderHeader()}
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Ayarlar yüklenemedi</Text>
         </View>
@@ -285,11 +278,7 @@ export const SportsPositionsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="Sporlar & Pozisyonlar"
-        showBack={true}
-        onLeftPress={() => goBack()}
-      />
+      {renderHeader()}
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
@@ -506,16 +495,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
   },
   errorContainer: {
     flex: 1,

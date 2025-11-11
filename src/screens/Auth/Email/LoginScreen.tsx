@@ -28,11 +28,13 @@ import { useAuth } from '../../../hooks';
 import { AuthStackParamList } from '../../../navigation/types';
 import { IPlayer } from '../../../types/entity/types';
 import { AuthNavigationService } from '../../../navigation';
+import { useAppConfig } from '../../../hooks/useAppConfig';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'login'>;
 
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { loading, error: authError, clearError, signIn, signOut } = useAuth();
+  const { config } = useAppConfig();
 
   // Refs
   const scrollViewRef = useRef<ScrollView>(null);
@@ -226,7 +228,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               text: 'Doğrula',
               onPress: () => {
                 // Email verification ekranına yönlendir
-                navigation.navigate('emailVerification', { email: formData.email });
+                AuthNavigationService.navigateToEmailVerification(formData.email);
               },
             },
           ],
@@ -334,10 +336,10 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             </View>
             {!isKeyboardVisible && (
               <>
-                <Text style={styles.appName}>Maç Yönetimi</Text>
+                <Text style={styles.appName}>{config?.app.name || 'Match Management 360'}</Text>
                 <Text style={styles.title}>Hoş Geldin!</Text>
                 <Text style={styles.subtitle}>
-                  Maçlara katılmak için giriş yap
+                  {config?.app.welcomeMessage || 'Hesabına giriş yaparak maçlarını yönetmeye başla.'}
                 </Text>
               </>
             )}
@@ -398,7 +400,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => navigation.navigate('forgotPassword', { email: formData.email })}
+                onPress={() => AuthNavigationService.navigateToForgotPassword(formData.email)}
                 activeOpacity={0.7}
                 disabled={loading}
               >
@@ -454,7 +456,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             <Animated.View style={[styles.registerContainer, { opacity: fadeAnim }]}>
               <Text style={styles.registerText}>Hesabın yok mu? </Text>
               <TouchableOpacity
-                onPress={() => navigation.navigate('register')}
+                onPress={() => AuthNavigationService.navigateToRegister()}
                 activeOpacity={0.7}
                 disabled={loading}
               >

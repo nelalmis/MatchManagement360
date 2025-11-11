@@ -50,11 +50,13 @@ import { AnnouncementService } from '../../services/serviceLayer/announcementSer
 import { useAuth } from '../../hooks';
 import {
   getSportEmoji,
-  getSportPrimaryColor,
 } from '../../utils/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CustomHeader } from '../../components/CustomHeader';
 import { LeagueNavigationService, MatchNavigationService, SettingsNavigationService, StandingsNavigationService } from '../../navigation';
+import { LeagueCard } from '../League';
+import { AnnouncementCard, AnnouncementPopup } from './components';
+import { MatchCard } from '../Match/components';
 
 // ============================================
 // CONSTANTS
@@ -193,117 +195,6 @@ const getMatchStatusText = (status: MatchStatus): string => {
     [MatchStatus.CANCELLED]: 'İptal Edildi',
   };
   return textMap[status] || 'Bilinmiyor';
-};
-
-// ============================================
-// ANNOUNCEMENT CARD COMPONENT
-// ============================================
-
-interface AnnouncementCardProps {
-  announcement: IAnnouncement;
-  onDismiss: () => void;
-  onAction?: () => void;
-}
-
-const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
-  announcement,
-  onDismiss,
-  onAction,
-}) => {
-  const getTypeColor = (type: IAnnouncement['type']) => {
-    const colors = {
-      info: '#2563EB',
-      warning: '#F59E0B',
-      success: '#16a34a',
-      error: '#EF4444',
-    };
-    return colors[type];
-  };
-
-  const getTypeIcon = (type: IAnnouncement['type']) => {
-    const color = getTypeColor(type);
-    switch (type) {
-      case 'info':
-        return <Info size={20} color={color} strokeWidth={2} />;
-      case 'warning':
-        return <AlertCircle size={20} color={color} strokeWidth={2} />;
-      case 'success':
-        return <Check size={20} color={color} strokeWidth={2} />;
-      case 'error':
-        return <AlertTriangle size={20} color={color} strokeWidth={2} />;
-    }
-  };
-
-  const color = getTypeColor(announcement.type);
-
-  return (
-    <View style={[styles.announcementCard, { borderLeftColor: color, borderLeftWidth: 4 }]}>
-      <View style={styles.announcementHeader}>
-        <View style={[styles.announcementIconContainer, { backgroundColor: `${color}20` }]}>
-          {getTypeIcon(announcement.type)}
-        </View>
-
-        {announcement.display.dismissable && (
-          <TouchableOpacity
-            onPress={onDismiss}
-            style={styles.dismissButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <X size={20} color="#9CA3AF" strokeWidth={2} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <Text style={styles.announcementTitle}>{announcement.title}</Text>
-      <Text style={styles.announcementMessage}>{announcement.message}</Text>
-
-      {announcement.action && (
-        <TouchableOpacity
-          style={[styles.announcementAction, { backgroundColor: color }]}
-          onPress={onAction}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.announcementActionText}>{announcement.action.label}</Text>
-          <ChevronRight size={16} color="white" strokeWidth={2.5} />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-};
-
-// ============================================
-// ANNOUNCEMENT POPUP MODAL
-// ============================================
-
-interface AnnouncementPopupProps {
-  announcement: IAnnouncement;
-  onDismiss: () => void;
-  onAction?: () => void;
-}
-
-const AnnouncementPopup: React.FC<AnnouncementPopupProps> = ({
-  announcement,
-  onDismiss,
-  onAction,
-}) => {
-  return (
-    <Modal
-      visible={true}
-      transparent
-      animationType="fade"
-      onRequestClose={onDismiss}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <AnnouncementCard
-            announcement={announcement}
-            onDismiss={onDismiss}
-            onAction={onAction}
-          />
-        </View>
-      </View>
-    </Modal>
-  );
 };
 
 // ============================================
@@ -743,10 +634,6 @@ export const HomeScreen: React.FC = () => {
     }
   }, []);
 
-  const handleLeaguePress = useCallback((leagueId: string) => {
-    LeagueNavigationService.navigateToLeagueDetail(leagueId);
-  }, []);
-
   const handlePendingAction = useCallback((action: PendingAction) => {
     switch (action.type) {
       case 'payment':
@@ -908,23 +795,26 @@ export const HomeScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <ScrollView style={styles.container}>
+      <>
         {renderHeader()}
-        <View style={styles.header}>
-          <Text style={styles.greeting}>Yükleniyor...</Text>
-        </View>
-        <View style={styles.statsContainer}>
-          {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
-        </View>
-        <View style={styles.section}>
-          {[1, 2, 3].map(i => <MatchCardSkeleton key={i} />)}
-        </View>
-      </ScrollView>
+        <ScrollView style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.greeting}>Yükleniyor...</Text>
+          </View>
+          <View style={styles.statsContainer}>
+            {[1, 2, 3, 4].map(i => <StatCardSkeleton key={i} />)}
+          </View>
+          <View style={styles.section}>
+            {[1, 2, 3].map(i => <MatchCardSkeleton key={i} />)}
+          </View>
+        </ScrollView>
+      </>
     );
   }
 
   return (
     <>
+      {renderHeader()}
       <ScrollView
         style={styles.container}
         refreshControl={
@@ -932,10 +822,9 @@ export const HomeScreen: React.FC = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-       {renderHeader()}
 
         {/* Header */}
-        <View style={styles.header}>
+        {/* <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Merhaba 👋</Text>
             <Text style={styles.userName}>{user?.displayName || user?.name}</Text>
@@ -950,7 +839,7 @@ export const HomeScreen: React.FC = () => {
               </View>
             )}
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         {/* Stats Grid */}
         <View style={styles.statsContainer}>
@@ -1148,28 +1037,14 @@ export const HomeScreen: React.FC = () => {
             </View>
 
             {myLeagues.map(league => (
-              <TouchableOpacity
+              <LeagueCard
                 key={league.id}
-                style={styles.leagueCard}
-                onPress={() => handleLeaguePress(league.id!)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.leagueCardLeft}>
-                  <Text style={styles.leagueEmoji}>
-                    {getSportEmoji(league.sportType as SportType)}
-                  </Text>
-                  <View style={styles.leagueCardInfo}>
-                    <Text style={styles.leagueCardTitle}>{league.title}</Text>
-                    <View style={styles.leagueCardMeta}>
-                      <Users size={12} color="#6B7280" strokeWidth={2} />
-                      <Text style={styles.leagueCardMetaText}>
-                        {league.totalMembers} Üye
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-                <ChevronRight size={20} color="#9CA3AF" strokeWidth={2} />
-              </TouchableOpacity>
+                league={league}
+                isMember={true}
+                isAdmin={false}
+                onPress={() => LeagueNavigationService.navigateToLeagueDetail(league.id!)}
+                viewMode='compact'
+              />
             ))}
           </View>
         )}
@@ -1426,75 +1301,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
 
-  // Announcement Card
-  announcementCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  announcementHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  announcementIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dismissButton: {
-    padding: 4,
-  },
-  announcementTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 6,
-  },
-  announcementMessage: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  announcementAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginTop: 4,
-  },
-  announcementActionText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: 'white',
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 400,
-  },
+ 
 
   // Section
   section: {
@@ -1626,51 +1433,6 @@ const styles = StyleSheet.create({
   matchStatusText: {
     fontSize: 11,
     fontWeight: '700',
-  },
-
-  // League Card
-  leagueCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  leagueCardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: 12,
-  },
-  leagueEmoji: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  leagueCardInfo: {
-    flex: 1,
-  },
-  leagueCardTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  leagueCardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  leagueCardMetaText: {
-    fontSize: 12,
-    color: '#6B7280',
   },
 
   // News Card

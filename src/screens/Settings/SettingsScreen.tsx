@@ -46,6 +46,7 @@ import { CustomHeader } from '../../components/CustomHeader';
 import UserSettingsService from '../../services/serviceLayer/userSettingsService';
 import { IUserSettings } from '../../types/entity/types';
 import { AuthNavigationService, goBack, SettingsNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 interface SettingItem {
   id: string;
@@ -109,27 +110,27 @@ export const SettingsScreen: React.FC = () => {
   }, []);
 
   const handlePrivacy = useCallback(() => {
-     SettingsNavigationService.navigateToPrivacySettings();
+    SettingsNavigationService.navigateToPrivacySettings();
   }, []);
 
   const handleSecurity = useCallback(() => {
-     SettingsNavigationService.navigateToSecuritySettings();
+    SettingsNavigationService.navigateToSecuritySettings();
   }, []);
 
   const handleBlockedUsers = useCallback(() => {
-     SettingsNavigationService.navigateToBlockedUsers();
+    SettingsNavigationService.navigateToBlockedUsers();
   }, []);
 
   const handleGamePreferences = useCallback(() => {
-     SettingsNavigationService.navigateToGamePreferences();
+    SettingsNavigationService.navigateToGamePreferences();
   }, []);
 
   const handleSportsPositions = useCallback(() => {
-     SettingsNavigationService.navigateToSportsPositions();
+    SettingsNavigationService.navigateToSportsPositions();
   }, []);
 
   const handleAvailability = useCallback(() => {
-     SettingsNavigationService.navigateToAvailability();
+    SettingsNavigationService.navigateToAvailability();
   }, []);
 
   const handleLocationPreferences = useCallback(() => {
@@ -141,11 +142,11 @@ export const SettingsScreen: React.FC = () => {
   }, []);
 
   const handleAppearance = useCallback(() => {
-     SettingsNavigationService.navigateToAppearance();
+    SettingsNavigationService.navigateToAppearance();
   }, []);
 
   const handleAccessibility = useCallback(() => {
-     SettingsNavigationService.navigateToAccessibility();
+    SettingsNavigationService.navigateToAccessibility();
   }, []);
 
   const handleCalendarSync = useCallback(() => {
@@ -193,7 +194,7 @@ export const SettingsScreen: React.FC = () => {
   }, []);
 
   const handleTerms = useCallback(() => {
-     SettingsNavigationService.navigateToTerms();
+    SettingsNavigationService.navigateToTerms();
   }, []);
 
   const handleDataExport = useCallback(() => {
@@ -407,10 +408,10 @@ export const SettingsScreen: React.FC = () => {
       icon: <Palette size={22} color="#F59E0B" strokeWidth={2} />,
       title: 'Görünüm',
       subtitle: `${settings?.appearance?.theme === 'light'
-          ? 'Açık'
-          : settings?.appearance?.theme === 'dark'
-            ? 'Koyu'
-            : 'Otomatik'
+        ? 'Açık'
+        : settings?.appearance?.theme === 'dark'
+          ? 'Koyu'
+          : 'Otomatik'
         } tema`,
       value: settings?.appearance?.language === 'tr' ? 'Türkçe' : 'English',
       onPress: handleAppearance,
@@ -604,20 +605,16 @@ export const SettingsScreen: React.FC = () => {
   // LOADING STATE
   // ============================================
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="Ayarlar"
+      showBack={true}
+      onLeftPress={() => goBack()}
+    />
+  );
+
   if (loading) {
-    return (
-      <View style={styles.container}>
-        <CustomHeader
-          title="Ayarlar"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>Ayarlar yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} loadingText="Ayarlar yükleniyor..." />;
   }
 
   // ============================================
@@ -626,11 +623,7 @@ export const SettingsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="Ayarlar"
-        showBack={true}
-        onLeftPress={() => goBack()}
-      />
+      {renderHeader()}
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -721,16 +714,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
   },
   userCard: {
     flexDirection: 'row',

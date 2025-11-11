@@ -1,11 +1,11 @@
 // ============================================
 // api/deviceApi.ts
 // ============================================
-import { BaseAPI, ApiResponse } from '../api/base/BaseAPI';
-import { IDevice } from '../types/entity/types';
-import { ApiLogger } from '../api/base/ApiLogger';
+import { BaseAPI, ApiResponse } from '../../api/base/BaseAPI';
+import { IDevice } from '../../types/entity/types';
+import { ApiLogger } from '../../api/base/ApiLogger';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase.config';
+import { db } from '../../config/firebase.config';
 
 export class DeviceAPI extends BaseAPI<IDevice> {
   constructor() {

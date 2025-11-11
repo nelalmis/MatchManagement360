@@ -36,6 +36,7 @@ import { LeagueSettingsService } from '../../services/serviceLayer/leagueSetting
 import { ILeagueSettings } from '../../types/entity/types';
 import { CustomHeader } from '../../components/CustomHeader';
 import { goBack, LeagueNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 // ============================================
 // TYPES
@@ -76,7 +77,7 @@ export const LeagueSettingsScreen: React.FC = () => {
 
         try {
             setLoading(true);
-            
+
             const result = await LeagueSettingsService.getOrCreateSettings(leagueId, user.id);
 
             if (result.success && result.data) {
@@ -309,12 +310,7 @@ export const LeagueSettingsScreen: React.FC = () => {
     // ============================================
 
     if (loading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#16a34a" />
-                <Text style={styles.loadingText}>Ayarlar yükleniyor...</Text>
-            </View>
-        );
+        return <LoadingScreen loadingText="Ayarlar yükleniyor..." />;
     }
 
     if (!settings) {
@@ -335,7 +331,7 @@ export const LeagueSettingsScreen: React.FC = () => {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
             {/* HEADER */}
-            <CustomHeader 
+            <CustomHeader
                 title="Lig Ayarları"
                 showBack={true}
                 onLeftPress={() => {
@@ -896,19 +892,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#6B7280',
     },
-
-    // Loading & Error
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F9FAFB',
-    },
-    loadingText: {
-        marginTop: 12,
-        fontSize: 15,
-        color: '#6B7280',
-    },
+    // Error State
     errorContainer: {
         flex: 1,
         justifyContent: 'center',

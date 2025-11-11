@@ -628,46 +628,6 @@
 //     flex: 1,
 //     backgroundColor: '#F9FAFB',
 //   },
-//   loadingContainer: {
-//     flex: 1,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     backgroundColor: '#F9FAFB',
-//   },
-//   loadingText: {
-//     marginTop: 12,
-//     fontSize: 14,
-//     color: '#6B7280',
-//     fontWeight: '500',
-//   },
-//   header: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     justifyContent: 'space-between',
-//     paddingHorizontal: 16,
-//     paddingTop: 50,
-//     paddingBottom: 16,
-//   },
-//   headerButton: {
-//     width: 40,
-//     height: 40,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//   },
-//   headerCenter: {
-//     flex: 1,
-//     alignItems: 'center',
-//   },
-//   headerTitle: {
-//     fontSize: 18,
-//     fontWeight: '700',
-//     color: 'white',
-//   },
-//   headerSubtitle: {
-//     fontSize: 12,
-//     color: 'rgba(255,255,255,0.9)',
-//     marginTop: 2,
-//   },
 //   addInvitationPanel: {
 //     flex: 1,
 //     backgroundColor: 'white',

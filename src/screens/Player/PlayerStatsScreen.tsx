@@ -36,6 +36,7 @@ import { PlayerStatsService } from '../../services/serviceLayer/playerStatsServi
 import { useAuth } from '../../hooks';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { goBack, StandingsNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 interface LeagueStatsDetail {
   leagueId: string;
@@ -208,18 +209,14 @@ export const PlayerStatsScreen: React.FC = () => {
       showMenu
       sportType='none'
     />
-  ); 
+  );
 
   if (loading || !player) {
-    return (
-      <View style={styles.container}>
-        {renderHeader()}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>İstatistikler yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen
+      loadingText="İstatistikler yükleniyor..."
+      header={renderHeader()}
+      visibleHeader={true}
+    />;
   }
 
   return (
@@ -778,18 +775,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
   },
   content: {
     flex: 1,

@@ -5,25 +5,25 @@ import { PlayerService } from '../../services/serviceLayer/playerService';
 interface PlayerState {
   // Current player (authenticated user's profile)
   currentPlayer: IPlayer | null;
-  
+
   // Lists
   searchResults: IPlayer[];
   recentPlayers: IPlayer[];
   playersBySport: IPlayer[];
-  
+
   // Loading states
   loading: {
     profile: boolean;
     search: boolean;
     action: boolean;
   };
-  
+
   // Error
   error: string | null;
-  
+
   // Search query
   searchQuery: string;
-  
+
   // Player summary
   summary: {
     totalSports: number;
@@ -63,11 +63,11 @@ export const fetchPlayerProfile = createAsyncThunk<
   async (playerId, { rejectWithValue }) => {
     try {
       const result = await PlayerService.getPlayer(playerId);
-      
+
       if (!result.success || !result.data) {
         return rejectWithValue(result.error?.message || 'Failed to fetch player');
       }
-      
+
       return result.data;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch player');
@@ -87,11 +87,11 @@ export const fetchPlayerByEmail = createAsyncThunk<
   async (email, { rejectWithValue }) => {
     try {
       const result = await PlayerService.getPlayerByEmail(email);
-      
+
       if (!result.success || !result.data) {
         return rejectWithValue(result.error?.message || 'Failed to fetch player');
       }
-      
+
       return result.data;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch player');
@@ -120,11 +120,11 @@ export const updatePlayerProfile = createAsyncThunk<
   async ({ playerId, profileData }, { rejectWithValue }) => {
     try {
       const result = await PlayerService.updateProfile(playerId, profileData);
-      
+
       if (!result.success || !result.data) {
         return rejectWithValue(result.error?.message || 'Failed to update profile');
       }
-      
+
       return result.data;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to update profile');
@@ -144,11 +144,11 @@ export const addFavoriteSport = createAsyncThunk<
   async ({ playerId, sport }, { rejectWithValue }) => {
     try {
       const result = await PlayerService.addFavoriteSport(playerId, sport);
-      
+
       if (!result.success || !result.data) {
         return rejectWithValue(result.error?.message || 'Failed to add favorite sport');
       }
-      
+
       return result.data;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to add favorite sport');
@@ -168,11 +168,11 @@ export const removeFavoriteSport = createAsyncThunk<
   async ({ playerId, sport }, { rejectWithValue }) => {
     try {
       const result = await PlayerService.removeFavoriteSport(playerId, sport);
-      
+
       if (!result.success || !result.data) {
         return rejectWithValue(result.error?.message || 'Failed to remove favorite sport');
       }
-      
+
       return result.data;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to remove favorite sport');
@@ -192,11 +192,11 @@ export const updateSportPositions = createAsyncThunk<
   async ({ playerId, sport, positions }, { rejectWithValue }) => {
     try {
       const result = await PlayerService.updateSportPositions(playerId, sport, positions);
-      
+
       if (!result.success || !result.data) {
         return rejectWithValue(result.error?.message || 'Failed to update positions');
       }
-      
+
       return result.data;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to update positions');
@@ -222,11 +222,11 @@ export const updateSportPreferences = createAsyncThunk<
   async ({ playerId, preferences }, { rejectWithValue }) => {
     try {
       const result = await PlayerService.updateSportPreferences(playerId, preferences);
-      
+
       if (!result.success || !result.data) {
         return rejectWithValue(result.error?.message || 'Failed to update preferences');
       }
-      
+
       return result.data;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to update preferences');
@@ -250,11 +250,11 @@ export const searchPlayers = createAsyncThunk<
       }
 
       const result = await PlayerService.searchPlayers(searchTerm);
-      
+
       if (!result.success) {
         return rejectWithValue(result.error?.message || 'Failed to search players');
       }
-      
+
       return result.data || [];
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to search players');
@@ -274,11 +274,11 @@ export const fetchPlayersBySport = createAsyncThunk<
   async (sport, { rejectWithValue }) => {
     try {
       const result = await PlayerService.getPlayersBySport(sport);
-      
+
       if (!result.success) {
         return rejectWithValue(result.error?.message || 'Failed to fetch players by sport');
       }
-      
+
       return result.data || [];
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch players by sport');
@@ -298,11 +298,11 @@ export const fetchRecentPlayers = createAsyncThunk<
   async (limit = 10, { rejectWithValue }) => {
     try {
       const result = await PlayerService.getRecentPlayers(limit);
-      
+
       if (!result.success) {
         return rejectWithValue(result.error?.message || 'Failed to fetch recent players');
       }
-      
+
       return result.data || [];
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch recent players');
@@ -322,11 +322,11 @@ export const fetchPlayersByIds = createAsyncThunk<
   async (playerIds, { rejectWithValue }) => {
     try {
       const result = await PlayerService.getPlayersByIds(playerIds);
-      
+
       if (!result.success) {
         return rejectWithValue(result.error?.message || 'Failed to fetch players');
       }
-      
+
       return result.data || [];
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch players');
@@ -351,11 +351,11 @@ export const fetchPlayerSummary = createAsyncThunk<
   async (playerId, { rejectWithValue }) => {
     try {
       const result = await PlayerService.getPlayerSummary(playerId);
-      
+
       if (!result.success || !result.data) {
         return rejectWithValue(result.error?.message || 'Failed to fetch player summary');
       }
-      
+
       return result.data;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch player summary');
@@ -375,11 +375,11 @@ export const recordLogin = createAsyncThunk<
   async (playerId, { rejectWithValue }) => {
     try {
       const result = await PlayerService.recordLogin(playerId);
-      
+
       if (!result.success || !result.data) {
         return rejectWithValue(result.error?.message || 'Failed to record login');
       }
-      
+
       return result.data;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to record login');
@@ -399,11 +399,11 @@ export const checkEmailAvailability = createAsyncThunk<
   async (email, { rejectWithValue }) => {
     try {
       const result = await PlayerService.isEmailAvailable(email);
-      
+
       if (!result.success) {
         return rejectWithValue(result.error?.message || 'Failed to check email');
       }
-      
+
       return result.data || false;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to check email');
@@ -423,11 +423,11 @@ export const checkPhoneAvailability = createAsyncThunk<
   async (phone, { rejectWithValue }) => {
     try {
       const result = await PlayerService.isPhoneAvailable(phone);
-      
+
       if (!result.success) {
         return rejectWithValue(result.error?.message || 'Failed to check phone');
       }
-      
+
       return result.data || false;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to check phone');

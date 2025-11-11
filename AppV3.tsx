@@ -4,9 +4,6 @@ import {
   StatusBar, 
   Platform, 
   LogBox, 
-  View, 
-  Text, 
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -21,6 +18,7 @@ import { RootNavigator } from './src/navigation';
 import { appConfig } from './src/config/app.config';
 import AppConfigService from './src/services/serviceLayer/appConfigService';
 import { useAppStateListener } from './src/hooks/useAppStateListener'; // ✅ Import
+import { LoadingScreen } from './src/screens';
 
 function AppContent() {
   const [isConfigLoaded, setIsConfigLoaded] = useState(false);
@@ -185,12 +183,7 @@ function AppContent() {
 
   // ✅ Loading screen
   if (!isConfigLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
+     return <LoadingScreen />
   }
 
   return <RootNavigator />;
@@ -218,18 +211,3 @@ export default function App() {
     </Provider>
   );
 }
-
-const styles = {
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-    backgroundColor: '#F0FDF4',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#16a34a',
-    fontWeight: '600' as const,
-  },
-};

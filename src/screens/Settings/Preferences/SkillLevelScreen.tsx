@@ -27,6 +27,7 @@ import UserSettingsService from '../../../services/serviceLayer/userSettingsServ
 import { IUserSettings } from '../../../types/entity/types';
 import { SportType } from '../../../types/entity/types';
 import { goBack } from '../../../navigation';
+import { LoadingScreen } from '../..';
 
 type SkillLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
 
@@ -165,7 +166,7 @@ export const SkillLevelScreen: React.FC = () => {
 
       if (result.success && result.data) {
         setSettings(result.data);
-        
+
         // Set initial selected sport (first favorite sport with no skill level)
         const favoriteSports = result.data.preferences.favoriteSports || [];
         const sportWithoutLevel = favoriteSports.find(
@@ -203,7 +204,7 @@ export const SkillLevelScreen: React.FC = () => {
 
       if (result.success && result.data) {
         setSettings(result.data);
-        
+
         const levelOption = SKILL_LEVELS.find((l) => l.value === level);
         Alert.alert(
           'Başarılı',
@@ -235,31 +236,21 @@ export const SkillLevelScreen: React.FC = () => {
       (sport) => settings.preferences.skillLevel?.[sport]
     ).length;
   };
+  const renderHeader = () => (
+    <CustomHeader
+      title="Yetenek Seviyesi"
+      showBack={true}
+      onLeftPress={() => goBack()}
+    />
+  );
 
   if (loading) {
-    return (
-      <View style={styles.container}>
-        <CustomHeader
-          title="Yetenek Seviyesi"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>Yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} />;
   }
-
   if (!settings) {
     return (
       <View style={styles.container}>
-        <CustomHeader
-          title="Yetenek Seviyesi"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
+        {renderHeader()}
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Ayarlar yüklenemedi</Text>
         </View>
@@ -273,11 +264,7 @@ export const SkillLevelScreen: React.FC = () => {
   if (userSports.length === 0) {
     return (
       <View style={styles.container}>
-        <CustomHeader
-          title="Yetenek Seviyesi"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
+        {renderHeader()}
         <View style={styles.emptyContainer}>
           <Star size={64} color="#9CA3AF" strokeWidth={1.5} />
           <Text style={styles.emptyTitle}>Henüz Spor Seçmediniz</Text>
@@ -286,9 +273,9 @@ export const SkillLevelScreen: React.FC = () => {
           </Text>
           <TouchableOpacity
             style={styles.emptyButton}
-            onPress={() => 
-                //NavigationService.navigate('SportsPositions' as never); //TOD
-                console.log('Navigate to Sports Positions Screen')
+            onPress={() =>
+              //NavigationService.navigate('SportsPositions' as never); //TOD
+              console.log('Navigate to Sports Positions Screen')
             }
           >
             <Text style={styles.emptyButtonText}>Spor Seç</Text>
@@ -335,11 +322,10 @@ export const SkillLevelScreen: React.FC = () => {
               style={[
                 styles.progressBar,
                 {
-                  width: `${
-                    userSports.length > 0
+                  width: `${userSports.length > 0
                       ? (completedCount / userSports.length) * 100
                       : 0
-                  }%`,
+                    }%`,
                 },
               ]}
             />
@@ -413,9 +399,8 @@ export const SkillLevelScreen: React.FC = () => {
         {/* Skill Level Selection */}
         {selectedSport && (
           <SettingsSection
-            title={`${
-              SPORTS_CONFIG.find((s) => s.id === selectedSport)?.name
-            } - Seviye Seçin`}
+            title={`${SPORTS_CONFIG.find((s) => s.id === selectedSport)?.name
+              } - Seviye Seçin`}
           >
             <View style={styles.skillLevelsList}>
               {SKILL_LEVELS.map((level) => {
@@ -553,16 +538,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
   },
   errorContainer: {
     flex: 1,

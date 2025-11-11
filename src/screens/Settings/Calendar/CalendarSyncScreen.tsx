@@ -34,6 +34,7 @@ import UserSettingsService from '../../../services/serviceLayer/userSettingsServ
 import { IUserSettings } from '../../../types/entity/types';
 import * as RNCalendar from 'expo-calendar';
 import { goBack } from '../../../navigation';
+import { LoadingScreen } from '../..';
 
 type SyncFrequency = 'realtime' | 'hourly' | 'daily' | 'manual';
 type ConflictResolution = 'app' | 'calendar' | 'ask';
@@ -48,49 +49,49 @@ const SYNC_FREQUENCY_OPTIONS: {
   label: string;
   description: string;
 }[] = [
-  {
-    value: 'realtime',
-    label: 'Gerçek Zamanlı',
-    description: 'Hemen senkronize et',
-  },
-  {
-    value: 'hourly',
-    label: 'Saatlik',
-    description: 'Her saat başı',
-  },
-  {
-    value: 'daily',
-    label: 'Günlük',
-    description: 'Günde bir kez',
-  },
-  {
-    value: 'manual',
-    label: 'Manuel',
-    description: 'Sadece elle senkronize et',
-  },
-];
+    {
+      value: 'realtime',
+      label: 'Gerçek Zamanlı',
+      description: 'Hemen senkronize et',
+    },
+    {
+      value: 'hourly',
+      label: 'Saatlik',
+      description: 'Her saat başı',
+    },
+    {
+      value: 'daily',
+      label: 'Günlük',
+      description: 'Günde bir kez',
+    },
+    {
+      value: 'manual',
+      label: 'Manuel',
+      description: 'Sadece elle senkronize et',
+    },
+  ];
 
 const CONFLICT_RESOLUTION_OPTIONS: {
   value: ConflictResolution;
   label: string;
   description: string;
 }[] = [
-  {
-    value: 'app',
-    label: 'Uygulama Öncelikli',
-    description: 'Uygulama değişiklikleri öncelikli',
-  },
-  {
-    value: 'calendar',
-    label: 'Takvim Öncelikli',
-    description: 'Cihaz takvimi öncelikli',
-  },
-  {
-    value: 'ask',
-    label: 'Her Seferinde Sor',
-    description: 'Çakışmalarda kullanıcıya sor',
-  },
-];
+    {
+      value: 'app',
+      label: 'Uygulama Öncelikli',
+      description: 'Uygulama değişiklikleri öncelikli',
+    },
+    {
+      value: 'calendar',
+      label: 'Takvim Öncelikli',
+      description: 'Cihaz takvimi öncelikli',
+    },
+    {
+      value: 'ask',
+      label: 'Her Seferinde Sor',
+      description: 'Çakışmalarda kullanıcıya sor',
+    },
+  ];
 
 export const CalendarSyncScreen: React.FC = () => {
   const { user } = useAuth();
@@ -118,7 +119,7 @@ export const CalendarSyncScreen: React.FC = () => {
 
       if (result.success && result.data) {
         setSettings(result.data);
-        
+
         if (result.data.calendar.lastSyncedAt) {
           setLastSyncTime(new Date(result.data.calendar.lastSyncedAt));
         }
@@ -148,7 +149,7 @@ export const CalendarSyncScreen: React.FC = () => {
   const handleRequestPermission = async () => {
     try {
       const { status, canAskAgain } = await RNCalendar.requestCalendarPermissionsAsync();
-      
+
       setPermissionStatus({
         granted: status === 'granted',
         canAskAgain,
@@ -208,7 +209,7 @@ export const CalendarSyncScreen: React.FC = () => {
 
       if (result.success && result.data) {
         setSettings(result.data);
-        
+
         if (value) {
           Alert.alert(
             'Takvim Senkronizasyonu Açıldı',
@@ -276,11 +277,11 @@ export const CalendarSyncScreen: React.FC = () => {
 
     const options: Array<{
       text: string;
-        onPress?: () => void;
-        style?: 'default' | 'cancel' | 'destructive';
+      onPress?: () => void;
+      style?: 'default' | 'cancel' | 'destructive';
     }> = SYNC_FREQUENCY_OPTIONS.map((freq) => ({
-        text: `${freq.label} - ${freq.description}`,
-        onPress: () => updateSyncFrequency(freq.value),
+      text: `${freq.label} - ${freq.description}`,
+      onPress: () => updateSyncFrequency(freq.value),
     }));
     options.push({ text: 'İptal', style: 'cancel' as const });
 
@@ -320,12 +321,12 @@ export const CalendarSyncScreen: React.FC = () => {
     }
 
     const options: Array<{
-        text: string;
-        onPress?: () => void;
-        style?: 'default' | 'cancel' | 'destructive';
+      text: string;
+      onPress?: () => void;
+      style?: 'default' | 'cancel' | 'destructive';
     }> = CONFLICT_RESOLUTION_OPTIONS.map((resolution) => ({
-        text: `${resolution.label} - ${resolution.description}`,
-        onPress: () => updateConflictResolution(resolution.value),
+      text: `${resolution.label} - ${resolution.description}`,
+      onPress: () => updateConflictResolution(resolution.value),
     }));
     options.push({ text: 'İptal', style: 'cancel' as const });
 
@@ -373,7 +374,7 @@ export const CalendarSyncScreen: React.FC = () => {
     try {
       // TODO: Implement actual calendar sync
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      
+
       setLastSyncTime(new Date());
       Alert.alert('Başarılı', 'Takvim senkronize edildi');
     } catch (error) {
@@ -402,7 +403,7 @@ export const CalendarSyncScreen: React.FC = () => {
 
   const getLastSyncText = (): string => {
     if (!lastSyncTime) return 'Henüz senkronize edilmedi';
-    
+
     const now = new Date();
     const diff = now.getTime() - lastSyncTime.getTime();
     const minutes = Math.floor(diff / 60000);
@@ -415,30 +416,22 @@ export const CalendarSyncScreen: React.FC = () => {
     return `${days} gün önce`;
   };
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="Takvim Senkronizasyonu"
+      showBack={true}
+      onLeftPress={() => goBack()}
+    />
+  );
+
   if (loading) {
-    return (
-      <View style={styles.container}>
-        <CustomHeader
-          title="Takvim Senkronizasyonu"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>Yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} />;
   }
 
   if (!settings) {
     return (
       <View style={styles.container}>
-        <CustomHeader
-          title="Takvim Senkronizasyonu"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
+        {renderHeader()}
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Ayarlar yüklenemedi</Text>
         </View>
@@ -450,11 +443,7 @@ export const CalendarSyncScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <CustomHeader
-        title="Takvim Senkronizasyonu"
-        showBack={true}
-        onLeftPress={() => goBack()}
-      />
+      {renderHeader()}
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
@@ -701,16 +690,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
   },
   errorContainer: {
     flex: 1,

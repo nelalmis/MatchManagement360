@@ -40,18 +40,18 @@ export const linking: LinkingOptions<RootStackParamList> = {
           // ============================================
           // 2. LEAGUES TAB
           // ============================================
-          leaguesTab: {
-            screens: {
-              leagueList: 'leagues',
-              leagueDetail: 'league/:leagueId',
-              createLeague: 'league/create',
-              editLeague: 'league/:leagueId/edit',
-              fixtureList: 'league/:leagueId/fixtures',
-              fixtureDetail: 'fixture/:fixtureId',
-              createFixture: 'fixture/create',
-              editFixture: 'fixture/:fixtureId/edit',
-            },
-          },
+          // leaguesTab: {
+          //   screens: {
+          //     leagueList: 'leagues',
+          //     leagueDetail: 'league/:leagueId',
+          //     createLeague: 'league/create',
+          //     editLeague: 'league/:leagueId/edit',
+          //     fixtureList: 'league/:leagueId/fixtures',
+          //     fixtureDetail: 'fixture/:fixtureId',
+          //     createFixture: 'fixture/create',
+          //     editFixture: 'fixture/:fixtureId/edit',
+          //   },
+          // },
 
           // ============================================
           // 3. MATCHES TAB

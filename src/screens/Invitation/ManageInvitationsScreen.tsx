@@ -44,6 +44,7 @@ import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { CustomHeader } from '../../components/CustomHeader';
 import { SportType } from '../../types/entity/types';
 import { goBack, LeagueNavigationService, MatchNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 type ManageInvitationsParams = {
     type: InvitationType;
@@ -421,12 +422,7 @@ export const ManageInvitationsScreen: React.FC = () => {
     // ============================================
 
     if (loading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={sportColor} />
-                <Text style={styles.loadingText}>Yükleniyor...</Text>
-            </View>
-        );
+        return <LoadingScreen/>;
     }
 
     return (
@@ -470,46 +466,6 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F9FAFB',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#F9FAFB',
-    },
-    loadingText: {
-        marginTop: 12,
-        fontSize: 15,
-        color: '#6B7280',
-        fontWeight: '600',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: 50,
-        paddingBottom: 16,
-    },
-    headerButton: {
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerCenter: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: 'white',
-    },
-    headerSubtitle: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.9)',
-        marginTop: 2,
     },
     listContent: {
         padding: 16,

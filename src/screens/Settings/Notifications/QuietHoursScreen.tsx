@@ -29,6 +29,7 @@ import { useAuth } from '../../../hooks';
 import UserSettingsService from '../../../services/serviceLayer/userSettingsService';
 import { IUserSettings } from '../../../types/entity/types';
 import { goBack, SettingsNavigationService } from '../../../navigation';
+import { LoadingScreen } from '../..';
 
 type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -73,7 +74,7 @@ export const QuietHoursScreen: React.FC = () => {
 
       if (result.success && result.data) {
         setSettings(result.data);
-        
+
         // Initialize time pickers
         if (result.data.notifications.quietHours.start) {
           const [hours, minutes] = result.data.notifications.quietHours.start
@@ -130,7 +131,7 @@ export const QuietHoursScreen: React.FC = () => {
 
       if (result.success && result.data) {
         setSettings(result.data);
-        
+
         if (value) {
           Alert.alert(
             'Sessiz Saatler Aktif',
@@ -189,10 +190,10 @@ export const QuietHoursScreen: React.FC = () => {
 
   const handleStartTimeChange = (event: any, selectedDate?: Date) => {
     setShowStartPicker(Platform.OS === 'ios');
-    
+
     if (selectedDate) {
       setTempStartTime(selectedDate);
-      
+
       if (Platform.OS === 'android') {
         updateStartTime(selectedDate);
       }
@@ -201,10 +202,10 @@ export const QuietHoursScreen: React.FC = () => {
 
   const handleEndTimeChange = (event: any, selectedDate?: Date) => {
     setShowEndPicker(Platform.OS === 'ios');
-    
+
     if (selectedDate) {
       setTempEndTime(selectedDate);
-      
+
       if (Platform.OS === 'android') {
         updateEndTime(selectedDate);
       }
@@ -367,17 +368,17 @@ export const QuietHoursScreen: React.FC = () => {
 
   const calculateDuration = (): string => {
     if (!settings) return '';
-    
+
     const start = settings.notifications.quietHours.start;
     const end = settings.notifications.quietHours.end;
-    
+
     if (!start || !end) return '';
 
     const [startHours, startMinutes] = start.split(':').map(Number);
     const [endHours, endMinutes] = end.split(':').map(Number);
 
     let durationMinutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
-    
+
     // Handle overnight duration
     if (durationMinutes < 0) {
       durationMinutes += 24 * 60;
@@ -392,30 +393,22 @@ export const QuietHoursScreen: React.FC = () => {
     return `${hours} saat ${minutes} dakika`;
   };
 
+  const renderHeader = () => (
+    <CustomHeader
+      title="Sessiz Saatler"
+      showBack={true}
+      onLeftPress={() => goBack()}
+    />
+  );
+
   if (loading) {
-    return (
-      <View style={styles.container}>
-        <CustomHeader
-          title="Sessiz Saatler"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>Yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} />;
   }
 
   if (!settings) {
     return (
       <View style={styles.container}>
-        <CustomHeader
-          title="Sessiz Saatler"
-          showBack={true}
-          onLeftPress={() => goBack()}
-        />
+        {renderHeader()}
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Ayarlar yüklenemedi</Text>
         </View>
@@ -679,16 +672,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
   },
   errorContainer: {
     flex: 1,

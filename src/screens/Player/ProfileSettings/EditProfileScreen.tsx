@@ -36,6 +36,7 @@ import { CustomHeader } from '../../../components/CustomHeader';
 import { IPlayer, SportType } from '../../../types/entity/types';
 import { sportThemes } from '../../../utils/theme';
 import { goBack } from '../../../navigation';
+import { LoadingScreen } from '../../Common';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -388,12 +389,7 @@ export const EditProfileScreen: React.FC = () => {
   });
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -727,43 +723,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  header: {
-    paddingTop: Platform.OS === 'ios' ? 50 : 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerButtonDisabled: {
-    opacity: 0.5,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
   },
   content: {
     flex: 1,

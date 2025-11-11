@@ -31,6 +31,7 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { goBack } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 type EditMatchRouteProp = {
   matchId: string;
@@ -49,20 +50,20 @@ export const EditMatchScreen: React.FC = () => {
   const [match, setMatch] = useState<IMatch | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  
+
   // Schedule
   const [registrationStartDate, setRegistrationStartDate] = useState(new Date());
   const [registrationEndDate, setRegistrationEndDate] = useState(new Date());
   const [matchStartDate, setMatchStartDate] = useState(new Date());
   const [matchEndDate, setMatchEndDate] = useState(new Date());
-  
+
   // Venue
   const [location, setLocation] = useState('');
   const [googleMapsUrl, setGoogleMapsUrl] = useState('');
   const [pricePerPlayer, setPricePerPlayer] = useState('');
   const [bankAccountIBAN, setBankAccountIBAN] = useState('');
   const [bankAccountName, setBankAccountName] = useState('');
-  
+
   // Squad
   const [totalPlayers, setTotalPlayers] = useState('');
   const [reservePlayers, setReservePlayers] = useState('');
@@ -104,7 +105,7 @@ export const EditMatchScreen: React.FC = () => {
 
       // Check permissions - only organizers can edit
       const isOrganizer = matchData.permissions.organizers.includes(user?.id || '');
-      
+
       if (!isOrganizer) {
         Alert.alert('Hata', 'Bu maçı düzenleme yetkiniz yok');
         goBack();
@@ -137,7 +138,7 @@ export const EditMatchScreen: React.FC = () => {
       setLocation(matchData.venue.location || '');
       setGoogleMapsUrl(matchData.venue.googleMapsUrl || '');
       setPricePerPlayer(matchData.venue.pricePerPlayer?.toString() || '0');
-      
+
       // Parse payment info
       if (matchData.venue.payment) {
         setBankAccountIBAN(matchData.venue.payment.iban || '');
@@ -229,7 +230,7 @@ export const EditMatchScreen: React.FC = () => {
       const updatedMatch: Partial<IMatch> = {
         title: title.trim(),
         description: description.trim() || undefined,
-        
+
         schedule: {
           registrationStart: registrationStartDate,
           registrationEnd: registrationEndDate,
@@ -364,12 +365,7 @@ export const EditMatchScreen: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Maç bilgileri yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen loadingText="Maç bilgileri yükleniyor..." color="#16a34a" />;
   }
 
   if (!match) {
@@ -783,10 +779,10 @@ export const EditMatchScreen: React.FC = () => {
           showDatePicker === 'regStart'
             ? registrationStartDate
             : showDatePicker === 'regEnd'
-            ? registrationEndDate
-            : showDatePicker === 'matchStart'
-            ? matchStartDate
-            : matchEndDate
+              ? registrationEndDate
+              : showDatePicker === 'matchStart'
+                ? matchStartDate
+                : matchEndDate
         }
         minimumDate={new Date()}
         locale="tr_TR"
@@ -801,18 +797,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '600',
   },
   errorContainer: {
     flex: 1,

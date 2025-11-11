@@ -32,6 +32,7 @@ import { PlayerService } from '../../services/serviceLayer/playerService';
 import { useAuth } from '../../hooks';
 import { getSportEmoji, getSportPrimaryColor } from '../../utils/theme';
 import { goBack, ProfileNavigationService } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 interface StandingPlayer {
   playerId: string;
@@ -111,12 +112,12 @@ export const StandingsScreen: React.FC = () => {
   const [selectedTab, setSelectedTab] = useState<TabType>('standings');
 
   // Sport-specific config
-  const sportConfig = useMemo(() => 
+  const sportConfig = useMemo(() =>
     league ? getSportStatsConfig(league.sportType) : getSportStatsConfig('Futbol'),
     [league]
   );
 
-  const sportColor = useMemo(() => 
+  const sportColor = useMemo(() =>
     league ? getSportPrimaryColor(league.sportType) : '#16a34a',
     [league]
   );
@@ -155,13 +156,13 @@ export const StandingsScreen: React.FC = () => {
       let allPlayerStats;
       if (seasonId) {
         const seasonStatsResult = await PlayerStatsService.getSeasonStats(seasonId);
-        allPlayerStats = seasonStatsResult.success && seasonStatsResult.data 
-          ? seasonStatsResult.data 
+        allPlayerStats = seasonStatsResult.success && seasonStatsResult.data
+          ? seasonStatsResult.data
           : [];
       } else {
         const leagueStatsResult = await PlayerStatsService.getLeagueStats(leagueId);
-        allPlayerStats = leagueStatsResult.success && leagueStatsResult.data 
-          ? leagueStatsResult.data 
+        allPlayerStats = leagueStatsResult.success && leagueStatsResult.data
+          ? leagueStatsResult.data
           : [];
       }
 
@@ -197,7 +198,7 @@ export const StandingsScreen: React.FC = () => {
         for (const player of match.players.teams.team1) {
           const playerId = player.playerId;
           if (!playerStandings[playerId]) continue;
-          
+
           playerStandings[playerId].played++;
           playerStandings[playerId].pointsFor += team1Score;
           playerStandings[playerId].pointsAgainst += team2Score;
@@ -220,7 +221,7 @@ export const StandingsScreen: React.FC = () => {
         for (const player of match.players.teams.team1) {
           const playerId = player.playerId;
           if (!playerStandings[playerId]) continue;
-          
+
           playerStandings[playerId].played++;
           playerStandings[playerId].pointsFor += team2Score;
           playerStandings[playerId].pointsAgainst += team1Score;
@@ -340,15 +341,7 @@ export const StandingsScreen: React.FC = () => {
     />
   );
   if (loading || !league) {
-    return (
-      <View style={styles.container}>
-        {renderHeader()}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.loadingText}>Puan durumu yükleniyor...</Text>
-        </View>
-      </View>
-    );
+    return <LoadingScreen header={renderHeader()} loadingText='Puan durumu yükleniyor...' />;
   }
 
   return (
@@ -365,10 +358,10 @@ export const StandingsScreen: React.FC = () => {
             onPress={() => setSelectedTab('standings')}
             activeOpacity={0.7}
           >
-            <Trophy 
-              size={18} 
-              color={selectedTab === 'standings' ? sportColor : '#6B7280'} 
-              strokeWidth={2} 
+            <Trophy
+              size={18}
+              color={selectedTab === 'standings' ? sportColor : '#6B7280'}
+              strokeWidth={2}
             />
             <Text style={[
               styles.tabText,
@@ -388,10 +381,10 @@ export const StandingsScreen: React.FC = () => {
             onPress={() => setSelectedTab('topScorers')}
             activeOpacity={0.7}
           >
-            <Target 
-              size={18} 
-              color={selectedTab === 'topScorers' ? sportColor : '#6B7280'} 
-              strokeWidth={2} 
+            <Target
+              size={18}
+              color={selectedTab === 'topScorers' ? sportColor : '#6B7280'}
+              strokeWidth={2}
             />
             <Text style={[
               styles.tabText,
@@ -411,10 +404,10 @@ export const StandingsScreen: React.FC = () => {
             onPress={() => setSelectedTab('topAssists')}
             activeOpacity={0.7}
           >
-            <Users 
-              size={18} 
-              color={selectedTab === 'topAssists' ? sportColor : '#6B7280'} 
-              strokeWidth={2} 
+            <Users
+              size={18}
+              color={selectedTab === 'topAssists' ? sportColor : '#6B7280'}
+              strokeWidth={2}
             />
             <Text style={[
               styles.tabText,
@@ -430,8 +423,8 @@ export const StandingsScreen: React.FC = () => {
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
+          <RefreshControl
+            refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={sportColor}
             colors={[sportColor]}
@@ -460,7 +453,7 @@ export const StandingsScreen: React.FC = () => {
 
                   return (
                     <TouchableOpacity
-                      key={player.playerId} 
+                      key={player.playerId}
                       style={[
                         styles.tableRow,
                         isCurrentUser && styles.currentUserRow,
@@ -492,7 +485,7 @@ export const StandingsScreen: React.FC = () => {
                         {/* Form */}
                         <View style={styles.formContainer}>
                           {player.form.map((result, idx) => (
-                            <View 
+                            <View
                               key={idx}
                               style={[
                                 styles.formBadge,
@@ -651,18 +644,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
   },
   tabsContainer: {
     flexDirection: 'row',

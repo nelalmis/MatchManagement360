@@ -1,6 +1,6 @@
 // src/navigation/MainNavigator.tsx
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Home, CalendarDays, User } from 'lucide-react-native';
@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTabBar } from '../context/TabBarContext';
 import { SideMenu } from '../components/SideMenu';
+import { AppState } from 'react-native';
 
 // ============================================
 // SCREENS IMPORTS
@@ -115,19 +116,19 @@ const LeagueStack = () => (
         <Stack.Screen name="editLeague" component={EditLeagueScreen} />
         <Stack.Screen name="leagueSettings" component={LeagueSettingsScreen} />
         <Stack.Screen name="manageLeagueMembers" component={ManageLeagueMembersScreen} />
-        
+
         {/* Fixture */}
         <Stack.Screen name="fixtureList" component={FixtureListScreen} />
         <Stack.Screen name="fixtureDetail" component={FixtureDetailScreen} />
         <Stack.Screen name="createFixture" component={CreateFixtureScreen} />
         <Stack.Screen name="editFixture" component={EditFixtureScreen} />
-        
+
         {/* Stats */}
         <Stack.Screen name="standings" component={StandingsScreen} />
         <Stack.Screen name="topScorers" component={TopScorersScreen} />
         <Stack.Screen name="topAssists" component={TopAssistsScreen} />
         <Stack.Screen name="mvp" component={MVPScreen} />
-        
+
         {/* Modals */}
         <Stack.Group screenOptions={{ presentation: 'modal' }}>
             <Stack.Screen name="manageInvitations" component={ManageInvitationsScreen} />
@@ -148,7 +149,8 @@ const MatchStack = () => (
         <Stack.Screen name="createFriendlyMatch" component={CreateFriendlyMatchScreen} />
         <Stack.Screen name="editMatch" component={EditMatchScreen} />
         <Stack.Screen name="editFriendlyMatchTemplate" component={EditFriendlyMatchTemplateScreen} />
-        
+        <Stack.Screen name="matchRegistration" component={MatchRegistrationScreen} />
+
         <Stack.Group screenOptions={{ presentation: 'modal' }}>
             <Stack.Screen name="manageInvitations" component={ManageInvitationsScreen} />
             <Stack.Screen name="createInvitation" component={CreateInvitationScreen} />
@@ -164,7 +166,21 @@ const MatchStack = () => (
 export const MainNavigatorV2: React.FC = () => {
     const { isTabBarVisible } = useTabBar();
     const insets = useSafeAreaInsets();
-    
+    const [bottomInset, setBottomInset] = useState(insets.bottom);
+
+
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (state) => {
+            if (state === 'active') {
+                // Uygulama aktif olduğunda safe area’yı yeniden al
+                requestAnimationFrame(() => {
+                    setBottomInset(insets.bottom);
+                });
+            }
+        });
+        return () => subscription.remove();
+    }, [insets.bottom]);
+
     return (
         <>
             <Tab.Navigator
@@ -173,13 +189,14 @@ export const MainNavigatorV2: React.FC = () => {
                     tabBarActiveTintColor: '#16a34a',
                     tabBarInactiveTintColor: '#9CA3AF',
                     tabBarStyle: {
+                        minHeight: 75,
                         display: isTabBarVisible ? 'flex' : 'none',
                         backgroundColor: 'white',
                         borderTopWidth: 1,
                         borderTopColor: '#E5E7EB',
-                        paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+                        paddingBottom: bottomInset > 0 ? bottomInset : 8,
                         paddingTop: 8,
-                        height: insets.bottom > 0 ? 55 + insets.bottom : 55,
+                        height: bottomInset > 0 ? 55 + bottomInset : 55,
                         elevation: 8,
                         shadowColor: '#000',
                         shadowOffset: { width: 0, height: -2 },
@@ -252,7 +269,7 @@ export const MainNavigatorV2: React.FC = () => {
                         tabBarStyle: { display: 'none' },
                     }}
                 />
-                 <Tab.Screen
+                <Tab.Screen
                     name="settingsFlow"
                     component={SettingsStack}
                     options={{

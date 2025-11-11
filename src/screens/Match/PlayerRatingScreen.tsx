@@ -33,6 +33,7 @@ import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { getSportBackgroundColor, getSportEmoji } from '../../utils/theme';
 import { goBack } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 // Rating interface
 interface PlayerRating {
@@ -288,12 +289,7 @@ export const PlayerRatingScreen: React.FC = () => {
   };
 
   if (loading || !match) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   const sportColor = getSportBackgroundColor(match.sportType);
@@ -514,8 +510,6 @@ export const PlayerRatingScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
-  loadingText: { marginTop: 12, fontSize: 14, color: '#6B7280', fontWeight: '600' },
   content: { flex: 1 },
   progressCard: { marginHorizontal: 16, marginTop: 16, backgroundColor: 'white', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },

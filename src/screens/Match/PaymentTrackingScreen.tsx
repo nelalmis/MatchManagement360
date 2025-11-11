@@ -35,6 +35,7 @@ import { useAuth } from '../../hooks';
 import { CustomHeader } from '../../components/CustomHeader';
 import { getSportBackgroundColor, getSportEmoji } from '../../utils/theme';
 import { goBack } from '../../navigation';
+import { LoadingScreen } from '../Common';
 
 // Sport helpers
 
@@ -312,12 +313,7 @@ Tutar: ${amount} ₺
   };
 
   if (loading || !match) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#16a34a" />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
-      </View>
-    );
+    return <LoadingScreen loadingText="Yükleniyor..." color="#16a34a" />;
   }
 
   const sportColor = getSportBackgroundColor(match.sportType);
@@ -571,8 +567,6 @@ Tutar: ${amount} ₺
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
-  loadingText: { marginTop: 12, fontSize: 14, color: '#6B7280', fontWeight: '600' },
   content: { flex: 1 },
   summaryCard: { marginHorizontal: 16, marginTop: 16, backgroundColor: 'white', borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   summaryHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },

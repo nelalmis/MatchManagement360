@@ -21,6 +21,7 @@ import { AuthButton } from '../components/AuthButton';
 import { commonColors, typography, spacing } from '../../../utils/theme';
 import { useAuth } from '../../../hooks';
 import { AuthStackParamList } from '../../../navigation/types';
+import { AuthNavigationService } from '../../../navigation';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'emailVerification'>;
 
@@ -255,7 +256,7 @@ export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) 
         { text: 'Hayır', style: 'cancel' },
         {
           text: 'Evet',
-          onPress: () => navigation.navigate('login'),
+          onPress: () => AuthNavigationService.navigateToLogin(),
         },
       ]
     );
@@ -407,7 +408,7 @@ export const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) 
                   {/* Back to Login */}
                   <AuthButton
                     title="Giriş Ekranına Dön"
-                    onPress={() => navigation.navigate('login')}
+                    onPress={() => AuthNavigationService.navigateToLogin()}
                     variant="outline"
                     icon="arrow-back"
                     style={styles.backToLoginButton}

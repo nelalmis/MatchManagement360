@@ -23,6 +23,7 @@ import { commonColors, typography, spacing } from '../../../utils/theme';
 import { validateEmail, getEmailError } from '../../../utils/validation';
 import { useAuth } from '../../../hooks';
 import { AuthStackParamList } from '../../../navigation/types';
+import { AuthNavigationService } from '../../../navigation';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'register'>;
 
@@ -412,7 +413,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation, route }) => {
                     <Animated.View style={[styles.loginContainer, { opacity: fadeAnim }]}>
                         <Text style={styles.loginText}>Zaten hesabın var mı? </Text>
                         <TouchableOpacity
-                            onPress={() => navigation.navigate('login')}
+                            onPress={() => AuthNavigationService.navigateToLogin()}
                             activeOpacity={0.7}
                             disabled={loading}
                         >

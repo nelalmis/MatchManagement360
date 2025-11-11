@@ -115,6 +115,11 @@ export const sportThemes: Record<SportType, SportConfig> = {
 // ============================================
 
 export const commonColors = {
+  // Primary colors
+  primary: '#16a34a',
+  primaryDark: '#15803d',
+  primaryLight: '#22c55e',
+
   // Semantic colors
   success: '#10b981',
   successDark: '#059669',
@@ -454,7 +459,7 @@ export const getSportEmoji = (sport: SportType): string => {
  * Spor ana rengini getirir
  */
 export const getSportPrimaryColor = (sport: SportType): string => {
-  return sportThemes[sport]?.primary;
+  return sportThemes[sport]?.primary || commonColors.primary;
 };
 
 /**

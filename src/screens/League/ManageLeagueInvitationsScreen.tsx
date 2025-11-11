@@ -372,47 +372,6 @@
 //         flex: 1,
 //         backgroundColor: '#F9FAFB',
 //     },
-//     loadingContainer: {
-//         flex: 1,
-//         justifyContent: 'center',
-//         alignItems: 'center',
-//         backgroundColor: '#F9FAFB',
-//     },
-//     loadingText: {
-//         marginTop: 12,
-//         fontSize: 15,
-//         color: '#6B7280',
-//         fontWeight: '600',
-//     },
-//     header: {
-//         flexDirection: 'row',
-//         alignItems: 'center',
-//         justifyContent: 'space-between',
-//         paddingHorizontal: 16,
-//         paddingVertical: 12,
-//         backgroundColor: 'white',
-//         borderBottomWidth: 1,
-//         borderBottomColor: '#E5E7EB',
-//     },
-//     headerButton: {
-//         width: 40,
-//         height: 40,
-//         justifyContent: 'center',
-//         alignItems: 'center',
-//     },
-//     headerCenter: {
-//         alignItems: 'center',
-//     },
-//     headerTitle: {
-//         fontSize: 17,
-//         fontWeight: '700',
-//         color: '#1F2937',
-//     },
-//     headerSubtitle: {
-//         fontSize: 13,
-//         color: '#6B7280',
-//         marginTop: 2,
-//     },
 //     listContent: {
 //         padding: 16,
 //     },
