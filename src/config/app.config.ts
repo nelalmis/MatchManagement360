@@ -77,9 +77,9 @@ export const appConfig = {
   // APP INFO
   // ============================================
   app: {
-    name: extra.appName || 'Maç Zamanı',
+    name: extra.appName || 'Macever',
     version: extra.appVersion || '1.0.0',
-    bundleId: extra.bundleId || 'com.mac.zamani',
+    bundleId: extra.bundleId || 'com.macever',
   },
 
   // ============================================

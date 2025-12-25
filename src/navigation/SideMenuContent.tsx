@@ -49,19 +49,19 @@ export const SideMenuContent: React.FC<{ onClose: () => void }> = ({ onClose }) 
     };
 
     const menuItems = [
-        {
-            section: 'Ana Menü',
-            items: [
-                {
-                    icon: Home,
-                    label: 'Ana Sayfa',
-                    action: () => {
-                        onClose();
-                        setTimeout(() => {
-                            TabNavigationService.navigateToHomeTab();
-                        }, 300);
-                    }
-                },
+        // {
+            // section: 'Ana Menü',
+            // items: [
+            //     {
+            //         icon: Home,
+            //         label: 'Ana Sayfa',
+            //         action: () => {
+            //             onClose();
+            //             setTimeout(() => {
+            //                 TabNavigationService.navigateToHomeTab();
+            //             }, 300);
+            //         }
+            //     },
                 // {
                 //     icon: Trophy,
                 //     label: 'Liglerim',
@@ -92,21 +92,21 @@ export const SideMenuContent: React.FC<{ onClose: () => void }> = ({ onClose }) 
                 //         }, 300);
                 //     }
                 // },
-            ],
-        },
+            // ],
+        // },
         {
             section: 'Maçlar',
             items: [
-                {
-                    icon: Calendar,
-                    label: 'Maçlarım',
-                    action: () => {
-                        onClose();
-                        setTimeout(() => {
-                            TabNavigationService.navigateToMatchesTab();
-                        }, 300);
-                    }
-                },
+                // {
+                //     icon: Calendar,
+                //     label: 'Maçlarım',
+                //     action: () => {
+                //         onClose();
+                //         setTimeout(() => {
+                //             TabNavigationService.navigateToMatchesTab();
+                //         }, 300);
+                //     }
+                // },
                 {
                     icon: CalendarDays,
                     label: 'Tüm Maçlar',

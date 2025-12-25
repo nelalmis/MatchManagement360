@@ -129,8 +129,8 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
   // Final background color'u useMemo ile hesapla
   const finalBackgroundColor = useMemo(() => {
     if (sportType && sportType !== 'none' && backgroundColor === '#16a34a') {
-      const sportColor = getSportPrimaryColor(sportType);
-      return sportColor || backgroundColor;
+      //const sportColor = getSportPrimaryColor(sportType);
+      return backgroundColor; //sportColor || backgroundColor;
     }
     return backgroundColor;
   }, [sportType, backgroundColor]);

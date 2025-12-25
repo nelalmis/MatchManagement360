@@ -14,6 +14,7 @@ import {
   Animated,
   Keyboard,
   AppState,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -29,12 +30,16 @@ import { AuthStackParamList } from '../../../navigation/types';
 import { IPlayer } from '../../../types/entity/types';
 import { AuthNavigationService } from '../../../navigation';
 import { useAppConfig } from '../../../hooks/useAppConfig';
+import { ErrorBoundary } from '../../../components/ErrorBoundary';
+import { GoogleSignInButton } from '../components/GoogleSignIn';
+import { User as GoogleUser } from '@react-native-google-signin/google-signin';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'login'>;
 
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { loading, error: authError, clearError, signIn, signOut } = useAuth();
   const { config } = useAppConfig();
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // Refs
   const scrollViewRef = useRef<ScrollView>(null);
@@ -259,13 +264,36 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
+
   // ============================================
   // SOCIAL LOGIN (PLACEHOLDER)
   // ============================================
 
-  const handleGoogleLogin = async () => {
-    Alert.alert('Bilgi', 'Google ile giriş yakında eklenecek');
+
+  // 3. handleGoogleLogin fonksiyonunu değiştirin
+  const handleGoogleLogin = async (googleUser: GoogleUser) => {
+    try {
+      setGoogleLoading(true);
+
+      // Backend'inize göre düzenleyin
+      console.log('Google user:', googleUser.user);
+      console.log('ID Token:', googleUser.idToken);
+
+      // Örnek: Firebase ile kullanım
+      // const result = await signIn(googleUser.user.email, googleUser.idToken, false);
+
+      // Veya doğrudan backend'e POST
+      // await fetch('https://your-api.com/auth/google', {...});
+
+      Alert.alert('Başarılı! 🎉', `Hoş geldin ${googleUser.user.name}`);
+
+    } catch (error: any) {
+      Alert.alert('Hata', error.message);
+    } finally {
+      setGoogleLoading(false);
+    }
   };
+
 
   const handleAppleLogin = async () => {
     Alert.alert('Bilgi', 'Apple ile giriş yakında eklenecek');
@@ -300,184 +328,189 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   // ============================================
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F0FDF4" />
+    <ErrorBoundary>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F0FDF4" />
 
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          bounces={false}
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          {/* Animated Header */}
-          <Animated.View
-            style={[
-              styles.header,
-              {
-                opacity: fadeAnim,
-                transform: [{ scale: logoScale }]
-              }
-            ]}
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
           >
-            <View style={styles.logoContainer}>
-              <LinearGradient
-                colors={['#16a34a', '#15803d']}
-                style={styles.logoGradient}
-              >
-                <Text style={styles.logo}>⚽</Text>
-              </LinearGradient>
-            </View>
-            {!isKeyboardVisible && (
-              <>
-                <Text style={styles.appName}>{config?.app.name || 'Match Management 360'}</Text>
-                <Text style={styles.title}>Hoş Geldin!</Text>
-                <Text style={styles.subtitle}>
-                  {config?.app.welcomeMessage || 'Hesabına giriş yaparak maçlarını yönetmeye başla.'}
-                </Text>
-              </>
-            )}
-          </Animated.View>
-
-          {/* Form Card */}
-          <Animated.View style={[styles.formCard, { opacity: fadeAnim }]}>
-            {/* Email Input */}
-            <View style={styles.inputWrapper}>
-              <AuthInput
-                label="E-posta"
-                icon="mail-outline"
-                value={formData.email}
-                onChangeText={(value) => handleChange('email', value)}
-                error={errors.email}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                textContentType="emailAddress"
-                editable={!loading}
-              // placeholder="ornek@email.com"
-              />
-            </View>
-
-            {/* Password Input */}
-            <View style={styles.inputWrapper}>
-              <AuthInput
-                label="Şifre"
-                icon="lock-closed-outline"
-                value={formData.password}
-                onChangeText={(value) => handleChange('password', value)}
-                error={errors.password}
-                secureTextEntry={!showPassword}
-                rightIcon={showPassword ? 'eye-outline' : 'eye-off-outline'}
-                onRightIconPress={() => setShowPassword(!showPassword)}
-                autoCapitalize="none"
-                autoComplete="password"
-                textContentType="password"
-                editable={!loading}
-                placeholder="••••••••"
-              />
-            </View>
-
-            {/* Remember Me & Forgot Password */}
-            <View style={styles.optionsRow}>
-              <TouchableOpacity
-                style={styles.rememberMeContainer}
-                onPress={() => setRememberMe(!rememberMe)}
-                activeOpacity={0.7}
-                disabled={loading}
-              >
-                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                  {rememberMe && (
-                    <Ionicons name="checkmark" size={14} color="white" />
-                  )}
-                </View>
-                <Text style={styles.rememberMeText}>Beni Hatırla</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => AuthNavigationService.navigateToForgotPassword(formData.email)}
-                activeOpacity={0.7}
-                disabled={loading}
-              >
-                <Text style={styles.forgotPassword}>Şifremi Unuttum</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Login Button */}
-            <AuthButton
-              title="Giriş Yap"
-              onPress={handleLogin}
-              loading={loading}
-              disabled={loading}
-              variant="gradient"
-              gradientColors={['#16a34a', '#15803d']}
-              icon="arrow-forward"
-            />
-
-            {/* Biometric Login */}
-            {Platform.OS === 'ios' && !isKeyboardVisible && (
-              <TouchableOpacity
-                style={styles.biometricButton}
-                onPress={handleBiometricLogin}
-                activeOpacity={0.7}
-                disabled={loading}
-              >
-                <Ionicons name="finger-print" size={20} color="#16a34a" />
-                <Text style={styles.biometricText}>Face ID ile Giriş Yap</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Divider */}
-            {/* {!isKeyboardVisible && (
-              <View style={styles.dividerContainer}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>veya</Text>
-                <View style={styles.dividerLine} />
+            {/* Animated Header */}
+            <Animated.View
+              style={[
+                styles.header,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ scale: logoScale }]
+                }
+              ]}
+            >
+              <View style={styles.logoContainer}>
+                <LinearGradient
+                  colors={['#16a34a', '#15803d']}
+                  style={styles.logoGradient}
+                >
+                  <Text style={styles.logo}>⚽</Text>
+                </LinearGradient>
               </View>
-            )} */}
-
-            {/* Social Login */}
-            {/* {!isKeyboardVisible && (
-              <SocialLoginButtons
-                onGooglePress={handleGoogleLogin}
-                onApplePress={handleAppleLogin}
-                loading={loading}
-              />
-            )} */}
-          </Animated.View>
-
-          {/* Register Link */}
-          {!isKeyboardVisible && (
-            <Animated.View style={[styles.registerContainer, { opacity: fadeAnim }]}>
-              <Text style={styles.registerText}>Hesabın yok mu? </Text>
-              <TouchableOpacity
-                onPress={() => AuthNavigationService.navigateToRegister()}
-                activeOpacity={0.7}
-                disabled={loading}
-              >
-                <Text style={styles.registerLink}>Kayıt Ol</Text>
-              </TouchableOpacity>
+              {!isKeyboardVisible && (
+                <>
+                  <Text style={styles.appName}>{config?.app.name || 'Match Management 360'}</Text>
+                  <Text style={styles.title}>Hoş Geldin!</Text>
+                  <Text style={styles.subtitle}>
+                    {config?.app.welcomeMessage || 'Hesabına giriş yaparak maçlarını yönetmeye başla.'}
+                  </Text>
+                </>
+              )}
             </Animated.View>
-          )}
 
-          {/* Terms - Compact when keyboard visible */}
-          {!isKeyboardVisible && (
-            <Text style={styles.termsText}>
-              Devam ederek{' '}
-              <Text style={styles.termsLink}>Kullanım Koşulları</Text>
-              {' '}ve{' '}
-              <Text style={styles.termsLink}>Gizlilik Politikası</Text>
-              'nı kabul ediyorsunuz
-            </Text>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            {/* Form Card */}
+            <Animated.View style={[styles.formCard, { opacity: fadeAnim }]}>
+              {/* Email Input */}
+              <View style={styles.inputWrapper}>
+                <AuthInput
+                  label="E-posta"
+                  icon="mail-outline"
+                  value={formData.email}
+                  onChangeText={(value) => handleChange('email', value)}
+                  error={errors.email}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  editable={!loading}
+                // placeholder="ornek@email.com"
+                />
+              </View>
+
+              {/* Password Input */}
+              <View style={styles.inputWrapper}>
+                <AuthInput
+                  label="Şifre"
+                  icon="lock-closed-outline"
+                  value={formData.password}
+                  onChangeText={(value) => handleChange('password', value)}
+                  error={errors.password}
+                  secureTextEntry={!showPassword}
+                  rightIcon={showPassword ? 'eye-outline' : 'eye-off-outline'}
+                  onRightIconPress={() => setShowPassword(!showPassword)}
+                  autoCapitalize="none"
+                  autoComplete="password"
+                  textContentType="password"
+                  editable={!loading}
+                  placeholder="••••••••"
+                />
+              </View>
+
+              {/* Remember Me & Forgot Password */}
+              <View style={styles.optionsRow}>
+                <TouchableOpacity
+                  style={styles.rememberMeContainer}
+                  onPress={() => setRememberMe(!rememberMe)}
+                  activeOpacity={0.7}
+                  disabled={loading}
+                >
+                  <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                    {rememberMe && (
+                      <Ionicons name="checkmark" size={14} color="white" />
+                    )}
+                  </View>
+                  <Text style={styles.rememberMeText}>Beni Hatırla</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => AuthNavigationService.navigateToForgotPassword(formData.email)}
+                  activeOpacity={0.7}
+                  disabled={loading}
+                >
+                  <Text style={styles.forgotPassword}>Şifremi Unuttum</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Login Button */}
+              <AuthButton
+                title="Giriş Yap"
+                onPress={handleLogin}
+                loading={loading}
+                disabled={loading}
+                variant="gradient"
+                gradientColors={['#16a34a', '#15803d']}
+                icon="arrow-forward"
+              />
+
+              {/* Biometric Login */}
+              {Platform.OS === 'ios' && !isKeyboardVisible && (
+                <TouchableOpacity
+                  style={styles.biometricButton}
+                  onPress={handleBiometricLogin}
+                  activeOpacity={0.7}
+                  disabled={loading}
+                >
+                  <Ionicons name="finger-print" size={20} color="#16a34a" />
+                  <Text style={styles.biometricText}>Face ID ile Giriş Yap</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Divider */}
+              {!isKeyboardVisible && (
+                <View style={styles.dividerContainer}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>veya</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+              )}
+
+              {/* Google Sign-In Button */}
+              {!isKeyboardVisible && (
+                <GoogleSignInButton
+                  onSignInSuccess={handleGoogleLogin}
+                  onSignInError={(error) => console.error(error)}
+                  loading={googleLoading}
+                  disabled={loading || googleLoading}
+                  style={{ marginBottom: spacing.sm }}
+                />                
+              )}
+
+            </Animated.View>
+
+            {/* Register Link */}
+            {!isKeyboardVisible && (
+              <Animated.View style={[styles.registerContainer, { opacity: fadeAnim }]}>
+                <Text style={styles.registerText}>Hesabın yok mu? </Text>
+                <TouchableOpacity
+                  onPress={() => AuthNavigationService.navigateToRegister()}
+                  activeOpacity={0.7}
+                  disabled={loading}
+                >
+                  <Text style={styles.registerLink}>Kayıt Ol</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+
+            {/* Terms - Compact when keyboard visible */}
+            {!isKeyboardVisible && (
+              <Text style={styles.termsText}>
+                Devam ederek{' '}
+                <Text style={styles.termsLink}>Kullanım Koşulları</Text>
+                {' '}ve{' '}
+                <Text style={styles.termsLink}>Gizlilik Politikası</Text>
+                'nı kabul ediyorsunuz
+              </Text>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </ErrorBoundary>
   );
 };
 
@@ -709,5 +742,30 @@ const styles = StyleSheet.create({
   termsLink: {
     color: '#16a34a',
     fontWeight: '600',
+  },
+  customButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 12,
+  },
+  customButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#555',
   },
 });

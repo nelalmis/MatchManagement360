@@ -19,11 +19,11 @@ const getApiBaseUrl = () => {
 
 export default {
   expo: {
-    name: "Maç Zamanı",
-    slug: "mac-zamani",
+    name: "Macever",
+    slug: "macever",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/icons/logo-4.png",
+    icon: "./assets/icons/icon.png",
     userInterfaceStyle: "light",
     newArchEnabled: false,
     splash: {
@@ -40,15 +40,15 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/icons/logo-4.png",
+        foregroundImage: "./assets/icons/icon.png",
         backgroundColor: "#ffffff"
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
-      package: "com.mac.zamani"
+      package: "com.macever"
     },
     web: {
-      favicon: "./assets/icons/logo-4.png"
+      favicon: "./assets/icons/icon.png"
     },
     
     // ============================================
@@ -59,9 +59,9 @@ export default {
       env: process.env.ENV || 'development',
       
       // App Info
-      appName: process.env.APP_NAME || 'Maç Zamanı',
+      appName: process.env.APP_NAME || 'Macever',
       appVersion: process.env.APP_VERSION || '1.0.0',
-      bundleId: process.env.BUNDLE_ID || 'com.mac.zamani',
+      bundleId: process.env.BUNDLE_ID || 'com.macever',
       
       // API
       apiBaseUrl: getApiBaseUrl(),
